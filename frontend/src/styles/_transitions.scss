@@ -1,0 +1,23 @@
+// Transitions - Standalone implementation
+// Decoupled from Bootstrap 5
+
+// Variables
+$enable-transitions: true !default;
+$enable-reduced-motion: true !default;
+
+$transition-fade: opacity 0.15s linear !default;
+
+// Fade transition
+.fade {
+    transition: $transition-fade;
+
+    @if $enable-reduced-motion {
+        @media (prefers-reduced-motion: reduce) {
+            transition: none;
+        }
+    }
+
+    &:not(.show) {
+        opacity: 0;
+    }
+}

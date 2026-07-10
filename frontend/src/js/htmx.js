@@ -1,0 +1,35 @@
+import 'hyperscript.org';
+import './_htmx.js';
+import Alpine from "alpinejs";
+import mask from '@alpinejs/mask';
+import collapse from '@alpinejs/collapse'
+import { create, all } from 'mathjs';
+
+window.Alpine = Alpine;
+window.math = create(all, {
+    number: 'BigNumber',
+});
+
+Alpine.plugin(mask);
+Alpine.plugin(collapse);
+Alpine.start();
+
+const successAudio = new Audio("/static/sounds/success.mp3");
+const popAudio = new Audio("/static/sounds/pop.mp3");
+window.paidSound = successAudio;
+window.unpaidSound = popAudio;
+
+/**
+ * Parse a localized number to a float.
+ * @param {string} stringNumber - the localized number
+ * @param {string} locale - [optional] the locale that the number is represented in. Omit this parameter to use the current locale.
+ */
+window.parseLocaleNumber = function parseLocaleNumber(stringNumber, locale) {
+    let thousandSeparator = Intl.NumberFormat(locale).format(11111).replace(/\d/g, '');
+    let decimalSeparator = Intl.NumberFormat(locale).format(1.1).replace(/\d/g, '');
+
+    return parseFloat(stringNumber
+        .replace(new RegExp('\\' + thousandSeparator, 'g'), '')
+        .replace(new RegExp('\\' + decimalSeparator), '.')
+    );
+};
