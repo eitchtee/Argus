@@ -1,0 +1,84 @@
+@use "variables";
+@use "font-awesome";
+@use "bootstrap";
+@use "animations";
+
+
+.sticky-sidebar {
+  position: sticky;
+  top: 10px;
+}
+
+// Somewhat prevents flickering when replacing with Tom-select
+select[multiple],
+select {
+  visibility: hidden;
+  display: none;
+}
+
+::selection {
+  color: var(--color-primary-content);
+  background-color: var(--color-primary);
+}
+
+.offline {
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #222;
+  color: #fbb700;
+  font-family: Arial, sans-serif;
+}
+
+.wifi-icon {
+  width: 100px;
+  height: 100px;
+}
+
+#offline-countdown {
+  margin-top: 20px;
+  font-size: 14px;
+}
+
+div:where(.swal2-container) {
+  z-index: 1101 !important;
+}
+
+#toasts .toast-container {
+  z-index: 1100;
+}
+
+.logo {
+  /* Set the background-color to DaisyUI CSS variable */
+  background-color: var(--color-primary);
+
+  /* Use SVG file as the mask */
+  mask-image: url('/static/img/logo-icon.svg');
+  -webkit-mask-image: url('/static/img/logo-icon.svg');
+
+  /* Set mask properties to size it correctly */
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-position: center;
+
+  /* Give the element a size */
+  width: 30px;
+  height: 30px;
+
+  &.mobile {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+[x-cloak] {
+  display: none !important;
+}
