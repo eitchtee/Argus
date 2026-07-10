@@ -1,0 +1,54 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ episode.name }}{% endblock %}
+
+{% block content %}
+<div class="container px-md-3 py-3">
+  <div class="flex items-center justify-between mb-4">
+    {% if previous_episode %}
+    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=previous_episode.id %}" class="btn btn-outline btn-sm">
+      <i class="fa-solid fa-chevron-left"></i> {% trans "Previous" %}
+    </a>
+    {% else %}
+    <span></span>
+    {% endif %}
+    <a href="{% url 'tv-detail' external_id=show.external_id %}" class="link link-hover text-sm">{{ show.name }}</a>
+    {% if next_episode %}
+    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=next_episode.id %}" class="btn btn-outline btn-sm">
+      {% trans "Next" %} <i class="fa-solid fa-chevron-right"></i>
+    </a>
+    {% else %}
+    <span></span>
+    {% endif %}
+  </div>
+
+  <div class="flex flex-col md:flex-row gap-4">
+    <figure class="w-full md:w-80 shrink-0">
+      {% if episode.still_path %}
+      <img src="{{ episode.still_path }}" alt="{{ episode.name }}" class="w-full rounded-box object-cover">
+      {% else %}
+      <div class="w-full aspect-video flex items-center justify-center bg-base-200 text-base-content/30 rounded-box">
+        <i class="fa-solid fa-image text-4xl"></i>
+      </div>
+      {% endif %}
+    </figure>
+    <div class="flex-1">
+      <h1 class="text-2xl font-bold">
+        S{{ episode.season_number|stringformat:"02d" }}E{{ episode.episode_number|stringformat:"02d" }} — {{ episode.name }}
+      </h1>
+      {% if episode.finale_type %}
+      <span class="badge badge-warning mt-1">{{ episode.get_finale_type_display }} {% trans "Finale" %}</span>
+      {% endif %}
+      <div class="text-sm text-subtle mt-2 flex flex-wrap gap-x-2">
+        {% if episode.air_date %}<span>{{ episode.air_date|date:"F j, Y" }}</span>{% endif %}
+        {% if episode.runtime %}<span>· {{ episode.runtime }} {% trans "min" %}</span>{% endif %}
+      </div>
+      <p class="mt-2">{{ episode.overview }}</p>
+      <div class="mt-4">
+        {% include "tv/fragments/episode_detail_watched_button.html" with tracked=tracked watched=watched show_external_id=show.external_id episode_id=episode.id %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

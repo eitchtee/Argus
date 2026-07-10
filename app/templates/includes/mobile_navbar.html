@@ -1,0 +1,14 @@
+{% load settings %}
+{% load i18n %}
+<nav class="navbar border-b border-base-300 bg-base-200/80 backdrop-blur flex lg:hidden sticky top-0 z-1010">
+  <div class="flex justify-between items-center w-full px-2">
+    <a href="{% url 'index' %}" class="flex items-center gap-2 px-2 py-1">
+      <span class="logo mobile"></span>
+      <span class="text-xl font-bold">{% settings "SITE_TITLE" %}</span>
+    </a>
+    <button type="button" class="btn btn-ghost btn-sm btn-circle" data-bs-toggle="offcanvas" data-bs-target="#sidebar"
+            aria-controls="sidebar" aria-label="{% trans 'Toggle navigation' %}">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+  </div>
+</nav>

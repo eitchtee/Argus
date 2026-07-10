@@ -1,0 +1,33 @@
+{% load i18n %}
+
+{% if error %}
+<div class="alert alert-error mb-3" role="alert">{{ error }}</div>
+{% endif %}
+
+{% if results is None and not query %}
+<div class="text-subtle py-12 text-center">
+  {% trans "Search for movies or TV shows to start tracking." %}
+</div>
+{% elif results is not None and results|length == 0 %}
+{% if page == 1 %}
+<div class="text-subtle py-12 text-center">
+  {% trans "No results found." %}
+</div>
+{% endif %}
+{% elif results is not None %}
+{% if page == 1 %}<div class="flex flex-col gap-3" id="search-results-list">{% endif %}
+  {% for item in results %}
+  {% include "catalog/fragments/result_card.html" %}
+  {% endfor %}
+
+  {% if results|length >= 20 %}
+  <div class="flex justify-center py-4"
+       hx-get="{% url 'catalog-search-results' %}?q={{ query|urlencode }}&type={{ media_type }}&page={{ page|add:'1' }}"
+       hx-trigger="revealed"
+       hx-target="this"
+       hx-swap="outerHTML">
+    <span class="loading loading-spinner loading-md"></span>
+  </div>
+  {% endif %}
+{% if page == 1 %}</div>{% endif %}
+{% endif %}

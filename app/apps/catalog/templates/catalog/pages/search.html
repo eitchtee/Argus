@@ -1,0 +1,38 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Search" %}{% endblock %}
+
+{% block content %}
+<div class="container px-md-3 py-3">
+  <div class="text-3xl font-bold w-full mb-3">{% trans "Search" %}</div>
+
+  <div class="card card-border bg-base-100 shadow w-full mb-4">
+    <div class="card-body">
+      <form id="search-form"
+            class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center"
+            hx-get="{% url 'catalog-search-results' %}"
+            hx-target="#search-results"
+            hx-swap="innerHTML"
+            hx-trigger="search, change from:[role='tab'], submit"
+            hx-replace-url="false"
+            novalidate>
+        <div role="tablist" class="tabs tabs-boxed w-fit">
+          <input type="radio" name="type" role="tab" class="tab" value="movie"
+                 aria-label="{% trans 'Movies' %}" {% if media_type == "movie" %}checked{% endif %}>
+          <input type="radio" name="type" role="tab" class="tab" value="tv"
+                 aria-label="{% trans 'TV Shows' %}" {% if media_type == "tv" %}checked{% endif %}>
+        </div>
+        <div class="flex-1">
+          {% comment %} debounced 'search' event sent on keyup, caught by hx-trigger above {% endcomment %}
+          <div _="on keyup debounced at 400ms send search to #search-form">{{ form.q }}</div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="search-results">
+    {% include "catalog/fragments/results.html" %}
+  </div>
+</div>
+{% endblock %}

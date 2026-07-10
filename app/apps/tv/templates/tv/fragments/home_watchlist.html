@@ -1,0 +1,10 @@
+{% load i18n %}
+{% if entries %}
+<div class="flex flex-col gap-2" id="watchlist-list">
+  {% for entry in entries %}
+  {% include "tv/fragments/home_watchlist_row.html" %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-subtle py-12 text-center">{% trans "You're all caught up!" %}</div>
+{% endif %}

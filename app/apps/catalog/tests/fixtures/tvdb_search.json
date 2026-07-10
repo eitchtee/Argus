@@ -1,0 +1,12 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "tvdb_id": "121361",
+      "name": "Game of Thrones",
+      "year": "2011",
+      "image_url": "https://artworks.thetvdb.com/poster.jpg",
+      "overview": "Nine noble families fight for control."
+    }
+  ]
+}

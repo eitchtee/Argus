@@ -1,0 +1,76 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ movie.title }}{% endblock %}
+
+{% block content %}
+<div class="container px-md-3 py-3">
+  <div class="relative -mx-3 md:mx-0 mb-4 rounded-box overflow-hidden">
+    {% if movie.backdrop_url %}
+    <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('{{ movie.backdrop_url }}');"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-base-100 via-base-100/70 to-base-100/10"></div>
+    {% endif %}
+    <div class="relative flex flex-col md:flex-row gap-4 p-4">
+      <figure class="w-full md:w-56 shrink-0">
+        {% if movie.poster_url %}
+        <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="w-full rounded-box object-cover">
+        {% endif %}
+      </figure>
+      <div class="flex-1">
+        <h1 class="text-3xl font-bold">
+          {{ movie.title }}
+          {% if movie.year %}<span class="text-subtle text-lg font-normal">({{ movie.year }})</span>{% endif %}
+        </h1>
+        {% if movie.tagline %}<p class="italic text-subtle">{{ movie.tagline }}</p>{% endif %}
+        <p class="mt-2">{{ movie.overview }}</p>
+        <div class="text-sm text-subtle mt-2 flex flex-wrap gap-x-2">
+          {% if movie.runtime %}<span>{{ movie.runtime }} {% trans "min" %}</span>{% endif %}
+          {% if movie.status %}<span>· {{ movie.status }}</span>{% endif %}
+          {% if movie.release_date %}<span>· {{ movie.release_date|date:"F j, Y" }}</span>{% endif %}
+          {% if movie.vote_average %}<span>· {% trans "Rating" %} {{ movie.vote_average }}/10</span>{% endif %}
+        </div>
+        {% if movie.director %}<p class="text-sm text-subtle mt-1">{% trans "Directed by" %} {{ movie.director }}</p>{% endif %}
+        {% if movie.genres %}
+        <div class="flex flex-wrap gap-1 mt-2">
+          {% for genre in movie.genres %}
+          <span class="badge badge-outline">{{ genre }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="mt-4 flex flex-wrap gap-2 items-center">
+          {% include "movies/fragments/actions.html" %}
+          {% if movie.imdb_id %}
+          <a href="https://www.imdb.com/title/{{ movie.imdb_id }}/" target="_blank" rel="noopener" class="btn btn-outline btn-sm">IMDb</a>
+          {% endif %}
+          {% if movie.trailer_url %}
+          <a href="{{ movie.trailer_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
+            <i class="fa-solid fa-film"></i> {% trans "Trailer" %}
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if movie.cast %}
+  <div class="mt-2">
+    <h2 class="text-lg font-semibold mb-2">{% trans "Cast" %}</h2>
+    <div class="flex gap-4 overflow-x-auto pb-2">
+      {% for member in movie.cast %}
+      <div class="flex flex-col items-center w-20 shrink-0 text-center">
+        {% if member.photo_url %}
+        <img src="{{ member.photo_url }}" alt="{{ member.name }}" class="w-16 h-16 rounded-full object-cover">
+        {% else %}
+        <div class="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center text-base-content/30">
+          <i class="fa-solid fa-user"></i>
+        </div>
+        {% endif %}
+        <span class="text-xs mt-1 font-medium">{{ member.name }}</span>
+        <span class="text-xs text-subtle">{{ member.character }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

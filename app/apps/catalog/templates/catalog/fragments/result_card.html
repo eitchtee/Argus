@@ -1,0 +1,43 @@
+{% load i18n %}
+{% if item %}
+<div class="card card-side bg-base-100 shadow overflow-hidden min-h-32">
+  <figure class="w-24 shrink-0">
+    {% if item.poster_url %}
+    <img src="{{ item.poster_url }}" alt="{{ item.title }}" class="h-full w-full object-cover">
+    {% else %}
+    <div class="flex items-center justify-center h-full text-base-content/30">
+      <i class="fa-solid fa-image text-4xl"></i>
+    </div>
+    {% endif %}
+  </figure>
+  <div class="card-body gap-1 py-3">
+    <h3 class="card-title text-sm leading-tight">
+      <a href="{% if media_type == 'movie' %}{% url 'movie-detail' external_id=item.external_id %}{% else %}{% url 'tv-detail' external_id=item.external_id %}{% endif %}"
+         class="link link-hover">{{ item.title }}</a>
+      {% if item.year %}<span class="text-subtle text-xs font-normal">({{ item.year }})</span>{% endif %}
+    </h3>
+    <p class="text-xs text-subtle line-clamp-3">{{ item.overview }}</p>
+    <div class="card-actions mt-2 flex-col items-start gap-1">
+      <form hx-post="{% url 'catalog-track' %}"
+            hx-target="closest .card"
+            hx-swap="outerHTML"
+            hx-disabled-elt="this">
+        <input type="hidden" name="external_id" value="{{ item.external_id }}">
+        <input type="hidden" name="type" value="{{ media_type }}">
+        <input type="hidden" name="q" value="{{ query }}">
+        <input type="hidden" name="page" value="{{ page }}">
+        {% if item.already_tracked %}
+        <span class="btn btn-success btn-sm" disabled>{% trans "Tracking" %}</span>
+        {% else %}
+        <button type="submit" class="btn btn-primary btn-sm">{% trans "Track" %}</button>
+        {% endif %}
+      </form>
+      {% if error %}
+      <span class="text-error text-xs">{{ error }}</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% elif error %}
+<div class="alert alert-error mb-3" role="alert">{{ error }}</div>
+{% endif %}

@@ -1,0 +1,16 @@
+{% load i18n %}
+{% load crispy_forms_tags %}
+<dialog class="modal modal-open" id="settings-modal">
+  <div class="modal-box">
+    <h3 class="text-lg font-bold mb-4">{% trans "User Settings" %}</h3>
+    <form hx-post="{% url 'user_settings' %}" hx-target="#generic-offcanvas" novalidate>
+      {% crispy form %}
+    </form>
+    <div class="modal-action">
+      <form method="dialog">
+        <button class="btn">{% trans "Close" %}</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>

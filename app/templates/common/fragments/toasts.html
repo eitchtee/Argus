@@ -1,0 +1,13 @@
+{% load i18n %}
+<div id="toasts" class="toast toast-end toast-top z-[1100]">
+  {% if messages %}
+    <div class="toast-container flex flex-col gap-2">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} shadow-lg">
+          <span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  <div hx-get="{% url 'toasts' %}" hx-trigger="htmx:afterRequest from:body" hx-target="this" hx-swap="innerHTML" hx-disabled-elt="this"></div>
+</div>

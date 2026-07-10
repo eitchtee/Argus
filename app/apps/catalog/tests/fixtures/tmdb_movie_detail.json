@@ -1,0 +1,34 @@
+{
+  "id": 550,
+  "imdb_id": "tt0137523",
+  "title": "Fight Club",
+  "original_title": "Fight Club",
+  "overview": "A ticking-time-bomb insomniac and a soap salesman channel primal male aggression.",
+  "tagline": "Mischief. Mayhem. Soap.",
+  "poster_path": "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
+  "backdrop_path": "/hZkgoQYus5vegHoetLkCJzb17zJ.jpg",
+  "release_date": "1999-10-15",
+  "runtime": 139,
+  "status": "Released",
+  "vote_average": 8.4,
+  "vote_count": 29400,
+  "genres": [
+    {"id": 18, "name": "Drama"},
+    {"id": 53, "name": "Thriller"}
+  ],
+  "credits": {
+    "cast": [
+      {"name": "Edward Norton", "character": "The Narrator", "profile_path": "/norton.jpg", "order": 0},
+      {"name": "Brad Pitt", "character": "Tyler Durden", "profile_path": "/pitt.jpg", "order": 1}
+    ],
+    "crew": [
+      {"name": "David Fincher", "job": "Director"},
+      {"name": "Jim Uhls", "job": "Screenplay"}
+    ]
+  },
+  "videos": {
+    "results": [
+      {"key": "SUXWAEX2jlg", "site": "YouTube", "type": "Trailer"}
+    ]
+  }
+}

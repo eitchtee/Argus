@@ -1,0 +1,25 @@
+{% load i18n %}
+<div id="show-actions" class="flex flex-wrap gap-2">
+  {% if show.tracked %}
+  <button type="button" class="btn btn-outline btn-sm"
+          hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}"
+          hx-disabled-elt="this">{% trans "Drop show" %}</button>
+  {% else %}
+  <button type="button" class="btn btn-primary btn-sm"
+          hx-post="{% url 'tv-detail-track' external_id=show.external_id %}"
+          hx-disabled-elt="this">{% trans "Track" %}</button>
+  {% endif %}
+
+  {% if show.can_delete %}
+  <button type="button" class="btn btn-error btn-sm"
+          hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
+          hx-confirm="{% trans 'This permanently deletes your watch history for this show. Continue?' %}"
+          hx-disabled-elt="this">{% trans "Delete show" %}</button>
+  {% endif %}
+
+  {% if show.tracked and show.seasons %}
+  <button type="button" class="btn btn-sm {% if show.show_fully_watched %}btn-outline{% else %}btn-success{% endif %}"
+          hx-{% if show.show_fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-watched' external_id=show.external_id %}"
+          hx-disabled-elt="this">{% if show.show_fully_watched %}{% trans "Unmark show watched" %}{% else %}{% trans "Mark show watched" %}{% endif %}</button>
+  {% endif %}
+</div>

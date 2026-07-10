@@ -1,0 +1,53 @@
+{% load settings %}
+{% load i18n %}
+{% load active_link %}
+<div class="sidebar offcanvas-lg offcanvas-start flex flex-col bg-base-200/80! backdrop-blur border-r border-base-300"
+     id="sidebar" tabindex="-1" data-bs-scroll="true">
+  <div class="flex items-center justify-between p-3 pb-2 border-b border-base-300 lg:border-none">
+    <a href="{% url 'index' %}" class="flex items-center gap-2 px-2 py-1">
+      <span class="logo"></span>
+      <span class="text-xl font-bold">{% settings "SITE_TITLE" %}</span>
+    </a>
+    <button type="button" class="btn btn-ghost btn-sm btn-circle lg:hidden" data-bs-target="#sidebar"
+            data-bs-dismiss="offcanvas" aria-label="{% trans 'Close' %}">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+
+  <ul class="menu menu-sm w-full gap-1 list-unstyled p-3 pt-2 flex-1 overflow-y-auto">
+    <li>
+      <a href="{% url 'index' %}" class="sidebar-item {% active_link 'index' css_class='sidebar-active' %}">
+        <i class="fa-solid fa-house fa-fw"></i>
+        <span>{% trans "Home" %}</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'catalog-search-page' %}"
+         class="sidebar-item {% active_link 'catalog-search-page' css_class='sidebar-active' %}">
+        <i class="fa-solid fa-magnifying-glass fa-fw"></i>
+        <span>{% trans "Search" %}</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'user_settings' %}" hx-get="{% url 'user_settings' %}" hx-target="#generic-offcanvas"
+         class="sidebar-item" role="button">
+        <i class="fa-solid fa-gear fa-fw"></i>
+        <span>{% trans "Settings" %}</span>
+      </a>
+    </li>
+    {% if request.user.is_staff %}
+    <li>
+      <a href="{% url 'admin:index' %}" class="sidebar-item">
+        <i class="fa-solid fa-screwdriver-wrench fa-fw"></i>
+        <span>{% trans "Admin" %}</span>
+      </a>
+    </li>
+    {% endif %}
+    <li>
+      <a href="{% url 'swagger-ui' %}" class="sidebar-item">
+        <i class="fa-solid fa-book fa-fw"></i>
+        <span>{% trans "API Docs" %}</span>
+      </a>
+    </li>
+  </ul>
+</div>
