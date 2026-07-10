@@ -1,0 +1,45 @@
+volumes:
+  argus_data:
+  argus_temp:
+
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: ./docker/dev/django/Dockerfile
+    image: argus_dev_server
+    container_name: argus_dev_server
+    volumes:
+      - ./app/:/usr/src/app/:z
+      - ./frontend/:/usr/src/frontend:z
+      - ./data:/usr/src/data/
+      - argus_temp:/usr/src/app/temp/
+    ports:
+      - "${OUTBOUND_PORT:-8000}:${INTERNAL_PORT:-8000}"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - DJANGO_VITE_DEV_MODE=true
+      - DJANGO_VITE_DEV_SERVER_HOST=localhost
+    depends_on:
+      - vite
+    restart: unless-stopped
+
+  vite:
+    build:
+      context: .
+      dockerfile: ./docker/dev/vite/Dockerfile
+    image: argus_dev_node
+    container_name: argus_dev_node
+    volumes:
+      - ./frontend/:/usr/src/frontend
+      - ./app/:/usr/src/app/
+      # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
+      - /usr/src/frontend/node_modules
+    ports:
+      - '${VITE_OUTBOUND_PORT:-5173}:5173'
+    environment:
+      - WATCHPACK_POLLING=true
+    restart: unless-stopped
