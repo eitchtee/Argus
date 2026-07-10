@@ -1,0 +1,63 @@
+{% load crispy_forms_field %}
+{% load crispy_extra %}
+
+{% if field.is_hidden %}
+    {{ field }}
+{% else %}
+    <div id="div_{{ field.auto_id }}" class="{% if wrapper_class %} {{ wrapper_class }}{% endif %}{% if form_group_wrapper_class %} {{ form_group_wrapper_class }}{% endif %}{% if form_show_errors and field.errors %} has-error{% endif %}{% if field.css_classes %} {{ field.css_classes }}{% endif %}">
+
+        <fieldset class="fieldset{% if field_class %} {{ field_class }}{% endif %}">
+            {% if field.label and form_show_labels %}
+                <label for="{{ field.id_for_label }}" class="fieldset-legend{% if label_class %} {{ label_class }}{% endif %}{% if field.field.required %} requiredField{% endif %}">
+                    {{ field.label }}{% if field.field.required %}<span class="asteriskField">*</span>{% endif %}
+                </label>
+            {% endif %}
+
+            <div class="join w-full{% if input_size %} {{ input_size }}{% endif %}">
+                {# prepend #}
+                {% if crispy_prepended_text %}
+                    <span class="join-item flex items-center px-3 bg-base-200 border border-base-300">{{ crispy_prepended_text }}</span>
+                {% endif %}
+
+                {# input #}
+                {% if field|is_select %}
+                    {% if field.errors %}
+                        {% crispy_field field 'class' 'select select-error join-item grow' %}
+                    {% else %}
+                        {% crispy_field field 'class' 'select join-item grow' %}
+                    {% endif %}
+                {% elif field|is_input %}
+                    {% if field.errors %}
+                        {% crispy_field field 'class' 'input input-error join-item grow' %}
+                    {% else %}
+                        {% crispy_field field 'class' 'input join-item grow' %}
+                    {% endif %}
+                {% else %}
+                    {% if field.errors %}
+                        {% crispy_field field 'class' 'input input-error join-item grow' %}
+                    {% else %}
+                        {% crispy_field field 'class' 'input join-item grow' %}
+                    {% endif %}
+                {% endif %}
+
+                {# append #}
+                {% if crispy_appended_text %}
+                    <span class="join-item flex items-center px-3 bg-base-200 border border-base-300">{{ crispy_appended_text }}</span>
+                {% endif %}
+            </div>
+
+            {# help text as label paragraph #}
+            {% if not help_text_inline %}
+                {% include 'crispy-daisyui/layout/help_text.html' %}
+            {% endif %}
+
+            {# errors #}
+            {% if error_text_inline %}
+                {% include 'crispy-daisyui/layout/field_errors.html' %}
+            {% else %}
+                {% include 'crispy-daisyui/layout/field_errors_block.html' %}
+            {% endif %}
+        </fieldset>
+
+    </div>
+{% endif %}

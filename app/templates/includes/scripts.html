@@ -1,0 +1,10 @@
+{% load django_vite %}
+{% load settings %}
+
+{% settings "DJANGO_VITE_DEV_MODE" as vite_dev_mode %}
+{% if vite_dev_mode %}
+<link rel="stylesheet" href="{% vite_asset_url 'styles/tailwind.css' %}">
+<link rel="stylesheet" href="{% vite_asset_url 'styles/style.scss' %}">
+{% endif %}
+{% vite_hmr_client %}
+{% vite_asset 'main.js' defer="defer" %}

@@ -1,0 +1,43 @@
+{% load i18n %}
+<div id="{{ id }}" class="card card-side bg-base-100 shadow overflow-hidden min-h-24">
+  {% if checkbox_position == "left" and toggle_url %}
+  <input type="checkbox" class="checkbox checkbox-lg shrink-0 self-center ms-3"
+         {% if checked %}checked{% endif %}
+         hx-{% if checked %}delete{% else %}post{% endif %}="{{ toggle_url }}"
+         hx-trigger="change" hx-target="#{{ id }}" hx-swap="outerHTML" hx-disabled-elt="this">
+  {% endif %}
+  <figure class="w-20 shrink-0">
+    {% if image_url %}
+    <img src="{{ image_url }}" alt="{{ episode_title }}" class="h-full w-full object-cover">
+    {% elif fallback_image_url %}
+    <img src="{{ fallback_image_url }}" alt="{{ episode_title }}" class="h-full w-full object-cover">
+    {% else %}
+    <div class="flex items-center justify-center h-full text-base-content/30">
+      <i class="fa-solid fa-image text-2xl"></i>
+    </div>
+    {% endif %}
+  </figure>
+  <div class="card-body flex-row items-center gap-2 py-4 min-w-0">
+    <div class="min-w-0 flex-1">
+      <a href="{{ show_url }}" class="inline-block min-w-0 truncate mb-2">
+        <span class="badge badge-outline badge-xs py-2">{{ show_name }}</span>
+      </a>
+      {% if title_url %}<a href="{{ title_url }}" class="block min-w-0">{% endif %}
+        <div class="font-bold text-lg truncate">
+          {{ season_episode_label }}
+          {% if pending_text %}<span class="text-subtle text-xs font-normal ms-2">{{ pending_text }}</span>{% endif %}
+        </div>
+        <div class="text-sm text-subtle truncate">{{ episode_title }}</div>
+      {% if title_url %}</a>{% endif %}
+    </div>
+    {% if checkbox_position == "right" and toggle_url %}
+    <input type="checkbox" class="checkbox checkbox-lg shrink-0"
+           {% if checked %}checked{% endif %}
+           hx-{% if checked %}delete{% else %}post{% endif %}="{{ toggle_url }}"
+           hx-trigger="change" hx-target="#{{ id }}" hx-swap="outerHTML" hx-disabled-elt="this">
+    {% endif %}
+    {% if side %}
+    <div class="text-right shrink-0">{{ side }}</div>
+    {% endif %}
+  </div>
+</div>

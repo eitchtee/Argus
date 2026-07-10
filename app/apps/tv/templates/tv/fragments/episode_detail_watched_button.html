@@ -1,0 +1,10 @@
+{% load i18n %}
+<div id="episode-watched-button">
+  {% if tracked %}
+  <button type="button" class="btn btn-sm {% if watched %}btn-outline{% else %}btn-success{% endif %}"
+          hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'tv-episode-detail-watched' external_id=show_external_id episode_id=episode_id %}"
+          hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this">
+    {% if watched %}{% trans "Unmark watched" %}{% else %}{% trans "Mark watched" %}{% endif %}
+  </button>
+  {% endif %}
+</div>

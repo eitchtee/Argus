@@ -1,0 +1,61 @@
+{
+  "status": "success",
+  "data": {
+    "id": 121361,
+    "name": "Game of Thrones",
+    "overview": "Nine noble families fight for control.",
+    "image": "https://artworks.thetvdb.com/poster.jpg",
+    "firstAired": "2011-04-17",
+    "status": {
+      "name": "Ended"
+    },
+    "originalNetwork": {
+      "name": "HBO"
+    },
+    "genres": [
+      {"id": 1, "name": "Drama"},
+      {"id": 2, "name": "Fantasy"}
+    ],
+    "artworks": [
+      {"type": 2, "image": "https://artworks.thetvdb.com/poster-alt.jpg", "score": 100},
+      {"type": 3, "image": "https://artworks.thetvdb.com/fanart-low.jpg", "score": 50},
+      {"type": 3, "image": "https://artworks.thetvdb.com/fanart-high.jpg", "score": 200}
+    ],
+    "characters": [
+      {
+        "personName": "Emilia Clarke",
+        "name": "Daenerys Targaryen",
+        "personImgURL": "https://artworks.thetvdb.com/clarke.jpg",
+        "peopleType": "Actor",
+        "sort": 1
+      },
+      {
+        "personName": "David Benioff",
+        "name": "",
+        "personImgURL": null,
+        "peopleType": "Writer",
+        "sort": 0
+      }
+    ],
+    "remoteIds": [
+      {"id": "tt0944947", "type": 2, "sourceName": "IMDB"},
+      {"id": "1399", "type": 12, "sourceName": "TheMovieDB.com"}
+    ],
+    "trailers": [
+      {"id": 1, "url": "https://www.youtube.com/watch?v=abc123", "name": "Trailer"}
+    ],
+    "averageRuntime": 57,
+    "nextAired": "",
+    "lastAired": "2019-05-19",
+    "airsDays": {
+      "sunday": true,
+      "monday": false,
+      "tuesday": false,
+      "wednesday": false,
+      "thursday": false,
+      "friday": false,
+      "saturday": false
+    },
+    "airsTime": "21:00"
+  }
+}

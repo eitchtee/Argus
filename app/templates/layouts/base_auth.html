@@ -1,0 +1,29 @@
+{% load pwa %}
+{% load i18n %}
+{% load title %}
+{% load django_vite %}
+<!doctype html>
+<html lang="en" data-theme="argus_dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>
+      {% filter site_title %}
+        {% block title %}
+        {% endblock title %}
+      {% endfilter %}
+    </title>
+
+    {% include 'includes/head/favicons.html' %}
+    {% progressive_web_app_meta %}
+    {% block extra_styles %}{% endblock %}
+    {% include 'includes/scripts.html' %}
+  </head>
+  <body class="font-mono bg-root">
+    <div id="content">
+      {% block content %}{% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>
