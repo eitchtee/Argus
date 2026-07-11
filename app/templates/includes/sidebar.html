@@ -4,7 +4,8 @@
 <div class="sidebar offcanvas-lg offcanvas-start flex flex-col bg-base-200/85! backdrop-blur-xl border-r border-base-300 shadow-xl"
      id="sidebar" tabindex="-1" data-bs-scroll="true">
   <div class="flex items-center justify-between px-4 py-4 border-b border-base-300 lg:border-none">
-    <a href="{% url 'index' %}" class="flex items-center gap-3 rounded-box px-2 py-1 transition hover:bg-base-100">
+    <a href="{% url 'index' %}" hx-boost="true"
+       class="flex items-center gap-3 rounded-box px-2 py-1 transition hover:bg-base-100">
       <span class="logo"></span>
       <span class="text-xl font-bold">{% settings "SITE_TITLE" %}</span>
     </a>
@@ -14,46 +15,84 @@
     </button>
   </div>
 
-  <ul class="menu menu-sm w-full gap-1 list-unstyled p-3 flex-1 overflow-y-auto">
-    <li>
-      <a href="{% url 'index' %}" class="sidebar-item {% active_link 'index' css_class='menu-active' %}">
-        <i class="fa-solid fa-house fa-fw"></i>
-        <span>{% trans "Home" %}</span>
-      </a>
-    </li>
-    <li>
-      <a href="{% url 'catalog-search-page' %}"
-         class="sidebar-item {% active_link 'catalog-search-page' css_class='menu-active' %}">
-        <i class="fa-solid fa-magnifying-glass fa-fw"></i>
-        <span>{% trans "Search" %}</span>
-      </a>
-    </li>
-    <li>
-      <a href="{% url 'calendar' %}" class="sidebar-item {% active_link 'calendar' css_class='menu-active' %}">
-        <i class="fa-solid fa-calendar-days fa-fw"></i>
-        <span>{% trans "Calendar" %}</span>
-      </a>
-    </li>
-    <li>
-      <a href="{% url 'user_settings' %}" hx-get="{% url 'user_settings' %}" hx-target="#generic-offcanvas"
-         class="sidebar-item" role="button">
-        <i class="fa-solid fa-gear fa-fw"></i>
-        <span>{% trans "Settings" %}</span>
-      </a>
-    </li>
-    {% if request.user.is_staff %}
-    <li>
-      <a href="{% url 'admin:index' %}" class="sidebar-item">
-        <i class="fa-solid fa-screwdriver-wrench fa-fw"></i>
-        <span>{% trans "Admin" %}</span>
-      </a>
-    </li>
-    {% endif %}
-    <li>
-      <a href="{% url 'swagger-ui' %}" class="sidebar-item">
-        <i class="fa-solid fa-book fa-fw"></i>
-        <span>{% trans "API Docs" %}</span>
-      </a>
-    </li>
-  </ul>
+  {% url 'index' as home_url %}
+  <nav class="flex-1 overflow-y-auto p-3" aria-label="{% trans 'Primary navigation' %}" hx-boost="true">
+    <ul class="menu menu-sm w-full gap-1 p-0">
+      <li>
+        <a href="{{ home_url }}" hx-boost="true"
+           class="sidebar-item {% active_link 'index' css_class='menu-active' %}">
+          <i class="fa-solid fa-house fa-fw"></i>
+          <span>{% trans "Home" %}</span>
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'catalog-search-page' %}" hx-boost="true"
+           class="sidebar-item {% active_link 'catalog-search-page' css_class='menu-active' %}">
+          <i class="fa-solid fa-magnifying-glass fa-fw"></i>
+          <span>{% trans "Search" %}</span>
+        </a>
+      </li>
+      <li>
+        <h2 class="menu-title px-3 pt-4 text-xs uppercase tracking-[0.18em] text-base-content/50">
+          <i class="fa-solid fa-tv fa-fw"></i>
+          <span>{% trans "TV" %}</span>
+        </h2>
+        <ul>
+          <li>
+            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+              <i class="fa-solid fa-forward-step fa-fw"></i>
+              <span>{% trans "Up next" %}</span>
+            </a>
+          </li>
+          <li>
+            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+              <i class="fa-solid fa-calendar-days fa-fw"></i>
+              <span>{% trans "Upcoming" %}</span>
+            </a>
+          </li>
+          <li>
+            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+              <i class="fa-solid fa-bookmark fa-fw"></i>
+              <span>{% trans "Watchlist" %}</span>
+            </a>
+          </li>
+        </ul>
+      </li>
+      <li>
+        <h2 class="menu-title px-3 pt-4 text-xs uppercase tracking-[0.18em] text-base-content/50">
+          <i class="fa-solid fa-film fa-fw"></i>
+          <span>{% trans "Movies" %}</span>
+        </h2>
+        <ul>
+          <li>
+            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+              <i class="fa-solid fa-bookmark fa-fw"></i>
+              <span>{% trans "Watchlist" %}</span>
+            </a>
+          </li>
+          <li>
+            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+              <i class="fa-solid fa-eye fa-fw"></i>
+              <span>{% trans "Watched" %}</span>
+            </a>
+          </li>
+        </ul>
+      </li>
+      <li>
+        <a href="{% url 'calendar' %}" hx-boost="true"
+           class="sidebar-item {% active_link 'calendar' css_class='menu-active' %}">
+          <i class="fa-solid fa-calendar-days fa-fw"></i>
+          <span>{% trans "Calendar" %}</span>
+        </a>
+      </li>
+      {% if request.user.is_staff %}
+      <li>
+        <a href="{% url 'admin:index' %}" hx-boost="true" class="sidebar-item">
+          <i class="fa-solid fa-screwdriver-wrench fa-fw"></i>
+          <span>{% trans "Admin" %}</span>
+        </a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
 </div>
