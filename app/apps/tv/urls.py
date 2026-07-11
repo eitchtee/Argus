@@ -6,6 +6,7 @@ urlpatterns = [
     path("tv/<str:external_id>/", views.show_detail, name="tv-detail"),
     path("tv/<str:external_id>/track/", views.show_track, name="tv-detail-track"),
     path("tv/<str:external_id>/drop/", views.show_drop, name="tv-detail-drop"),
+    path("tv/<str:external_id>/pause/", views.show_pause, name="tv-detail-pause"),
     path("tv/<str:external_id>/delete/", views.show_delete, name="tv-detail-delete"),
     path("tv/<str:external_id>/watched/", views.show_watched, name="tv-detail-watched"),
     path(

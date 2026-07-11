@@ -67,7 +67,7 @@ class EpisodeDetailViewTests(TestCase):
         self.assertNotContains(response, "Mark watched")
 
     def test_renders_watched_indicator_when_tracking(self):
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
         response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
 

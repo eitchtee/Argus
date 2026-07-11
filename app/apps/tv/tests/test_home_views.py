@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
@@ -10,7 +11,7 @@ class HomeWatchlistViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
         self.client.login(username="user@example.com", password="password")
-        self.today = date.today()
+        self.today = timezone.localdate()
 
     def test_requires_htmx_header(self):
         response = self.client.get("/tv/home/watchlist/")
@@ -33,7 +34,7 @@ class HomeWatchlistViewTests(TestCase):
             name="Pilot",
             air_date=self.today - timedelta(days=1),
         )
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
 
         response = self.client.get("/tv/home/watchlist/", HTTP_HX_REQUEST="true")
 
@@ -44,8 +45,12 @@ class HomeWatchlistViewTests(TestCase):
         self.assertContains(response, "checkbox-lg")
         self.assertNotContains(response, "Mark watched")
 
-    def test_uses_episode_still_image(self):
-        show = Show.objects.create(external_id="1", name="My Show")
+    def test_uses_show_poster_image(self):
+        show = Show.objects.create(
+            external_id="1",
+            name="My Show",
+            poster_path="https://example.com/poster.jpg",
+        )
         season = Season.objects.create(show=show, season_number=1, name="Season 1")
         Episode.objects.create(
             show=show,
@@ -56,11 +61,11 @@ class HomeWatchlistViewTests(TestCase):
             air_date=self.today - timedelta(days=1),
             still_path="https://example.com/still.jpg",
         )
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
 
         response = self.client.get("/tv/home/watchlist/", HTTP_HX_REQUEST="true")
 
-        self.assertContains(response, "https://example.com/still.jpg")
+        self.assertContains(response, "https://example.com/poster.jpg")
 
     def test_falls_back_to_show_poster_when_no_still_image(self):
         show = Show.objects.create(
@@ -76,7 +81,7 @@ class HomeWatchlistViewTests(TestCase):
             air_date=self.today - timedelta(days=1),
             still_path=None,
         )
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
 
         response = self.client.get("/tv/home/watchlist/", HTTP_HX_REQUEST="true")
 
@@ -87,10 +92,10 @@ class HomeWatchlistEpisodeWatchedViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
         self.client.login(username="user@example.com", password="password")
-        self.today = date.today()
+        self.today = timezone.localdate()
         self.show = Show.objects.create(external_id="1", name="My Show")
         self.season = Season.objects.create(show=self.show, season_number=1, name="Season 1")
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
     def test_requires_htmx_header(self):
         episode = Episode.objects.create(
@@ -149,10 +154,10 @@ class HomeUpcomingViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
         self.client.login(username="user@example.com", password="password")
-        self.today = date.today()
+        self.today = timezone.localdate()
         self.show = Show.objects.create(external_id="1", name="My Show")
         self.season = Season.objects.create(show=self.show, season_number=1, name="Season 1")
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
     def test_requires_htmx_header(self):
         response = self.client.get("/tv/home/upcoming/")

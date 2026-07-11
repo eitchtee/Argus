@@ -13,7 +13,7 @@ class EpisodeDetailWatchedViewTests(TestCase):
         self.episode = Episode.objects.create(
             show=self.show, season=self.season, season_number=1, episode_number=1, name="Pilot"
         )
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
     def test_requires_htmx_header(self):
         response = self.client.post(f"/tv/123/episodes/{self.episode.id}/detail-watched/")
@@ -33,7 +33,7 @@ class EpisodeDetailWatchedViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Unmark watched")
+        self.assertContains(response, "Mark unwatched")
         self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=self.episode).exists())
 
     def test_unmarking_watched_swaps_button_to_mark(self):
@@ -48,7 +48,7 @@ class EpisodeDetailWatchedViewTests(TestCase):
         self.assertFalse(UserEpisode.objects.filter(user=self.user, episode=self.episode).exists())
 
     def test_requires_tracking(self):
-        UserShow.objects.filter(user=self.user, show=self.show).update(is_tracking=False)
+        UserShow.objects.filter(user=self.user, show=self.show).update(status=UserShow.Status.PAUSED)
 
         response = self.client.post(
             f"/tv/123/episodes/{self.episode.id}/detail-watched/", HTTP_HX_REQUEST="true"

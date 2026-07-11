@@ -4,22 +4,22 @@
 {% block title %}{{ show.title }}{% endblock %}
 
 {% block content %}
-<div class="container px-md-3 py-3">
-  <div class="relative -mx-3 md:mx-0 mb-4 rounded-box overflow-hidden">
+<div>
+  <div class="media-hero mb-8">
     {% if show.backdrop_url %}
     <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('{{ show.backdrop_url }}');"></div>
     <div class="absolute inset-0 bg-linear-to-b from-base-100 via-base-100/70 to-base-100/10"></div>
     {% endif %}
-    <div class="relative flex flex-col md:flex-row gap-4 p-4">
-      <figure class="w-full md:w-56 shrink-0">
+    <div class="relative flex flex-col md:flex-row gap-6 p-4 sm:p-6 md:p-8">
+      <figure class="media-poster w-full md:w-56 shrink-0">
         {% if show.poster_url %}
         <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="w-full rounded-box object-cover">
         {% endif %}
       </figure>
-      <div class="flex-1">
-        <h1 class="text-3xl font-bold">{{ show.title }}</h1>
-        <p class="mt-2">{{ show.overview }}</p>
-        <div class="text-sm text-subtle mt-2 flex flex-wrap gap-x-2">
+      <div class="min-w-0 flex-1 space-y-4">
+        <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">{{ show.title }}</h1>
+        <p>{{ show.overview }}</p>
+        <div class="text-sm text-base-content/70 flex flex-wrap gap-x-2">
           {% if show.network %}<span>{{ show.network }}</span>{% endif %}
           {% if show.status %}<span>· {{ show.status }}</span>{% endif %}
           {% if show.release_date %}<span>· {% trans "First aired" %} {{ show.release_date|date:"F j, Y" }}</span>{% endif %}
@@ -34,13 +34,13 @@
         <p class="text-sm text-subtle mt-1">{% trans "Airs" %} {{ show.airs_schedule }}</p>
         {% endif %}
         {% if show.genres %}
-        <div class="flex flex-wrap gap-1 mt-2">
+        <div class="flex flex-wrap gap-2">
           {% for genre in show.genres %}
           <span class="badge badge-outline">{{ genre }}</span>
           {% endfor %}
         </div>
         {% endif %}
-        <div class="mt-4 flex flex-wrap gap-2 items-center">
+        <div class="flex flex-wrap gap-2 items-center pt-1">
           {% include "tv/fragments/actions.html" %}
           {% if show.imdb_id %}
           <a href="https://www.imdb.com/title/{{ show.imdb_id }}/" target="_blank" rel="noopener" class="btn btn-outline btn-sm">IMDb</a>
@@ -56,15 +56,15 @@
   </div>
 
   {% if show.cast %}
-  <div class="mt-2">
-    <h2 class="text-lg font-semibold mb-2">{% trans "Cast" %}</h2>
-    <div class="flex gap-4 overflow-x-auto pb-2">
+  <div class="surface-card rounded-box p-4 sm:p-6">
+    <h2 class="text-lg font-semibold mb-4">{% trans "Cast" %}</h2>
+    <div class="flex gap-4 overflow-x-auto pb-3">
       {% for member in show.cast %}
       <div class="flex flex-col items-center w-20 shrink-0 text-center">
         {% if member.photo_url %}
-        <img src="{{ member.photo_url }}" alt="{{ member.name }}" class="w-16 h-16 rounded-full object-cover">
+        <img src="{{ member.photo_url }}" alt="{{ member.name }}" class="w-16 h-16 rounded-full border border-base-300 object-cover">
         {% else %}
-        <div class="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center text-base-content/30">
+        <div class="w-16 h-16 rounded-full bg-base-200 border border-base-300 flex items-center justify-center text-base-content/30">
           <i class="fa-solid fa-user"></i>
         </div>
         {% endif %}

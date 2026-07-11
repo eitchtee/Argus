@@ -2,6 +2,8 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
+from cachalot.api import cachalot_disabled
 
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 from apps.tv.services import countdown_label, get_upcoming_episodes, get_watchlist, get_watchlist_entry
@@ -10,17 +12,18 @@ from apps.tv.services import countdown_label, get_upcoming_episodes, get_watchli
 class GetWatchlistServiceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")
-        self.today = date.today()
+        self.today = timezone.localdate()
 
     def _make_show(self, name, external_id):
         show = Show.objects.create(external_id=external_id, name=name)
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
         return show
 
     def _make_episode(self, show, season_number, episode_number, air_date, name="Ep"):
-        season, _ = Season.objects.get_or_create(
-            show=show, season_number=season_number, defaults={"name": f"Season {season_number}"}
-        )
+        with cachalot_disabled():
+            season, _ = Season.objects.get_or_create(
+                show=show, season_number=season_number, defaults={"name": f"Season {season_number}"}
+            )
         return Episode.objects.create(
             show=show,
             season=season,
@@ -77,7 +80,7 @@ class GetWatchlistServiceTests(TestCase):
     def test_does_not_leak_other_users_watched_state(self):
         other_user = get_user_model().objects.create_user("other@example.com")
         show = self._make_show("Shared Show", "1")
-        UserShow.objects.create(user=other_user, show=show, is_tracking=True)
+        UserShow.objects.create(user=other_user, show=show, status=UserShow.Status.TRACKED)
         episode = self._make_episode(show, 1, 1, self.today - timedelta(days=1))
         UserEpisode.objects.create(user=other_user, episode=episode)
 
@@ -90,10 +93,10 @@ class GetWatchlistServiceTests(TestCase):
 class GetWatchlistEntryServiceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")
-        self.today = date.today()
+        self.today = timezone.localdate()
         self.show = Show.objects.create(external_id="1", name="My Show")
         self.season = Season.objects.create(show=self.show, season_number=1, name="Season 1")
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
     def test_returns_none_when_no_pending_episodes(self):
         self.assertIsNone(get_watchlist_entry(self.user, self.show))
@@ -134,10 +137,10 @@ class CountdownLabelServiceTests(TestCase):
 class GetUpcomingEpisodesServiceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")
-        self.today = date.today()
+        self.today = timezone.localdate()
         self.show = Show.objects.create(external_id="1", name="My Show")
         self.season = Season.objects.create(show=self.show, season_number=1, name="Season 1")
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
     def _make_episode(self, episode_number, air_date, name="Ep"):
         return Episode.objects.create(

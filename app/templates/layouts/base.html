@@ -24,15 +24,16 @@
   {% block extra_js_head %}{% endblock %}
 </head>
 
-<body class="font-mono bg-root">
-  <div _="install htmx_error_handler
+<body class="font-mono">
+  <div class="app-shell" _="install htmx_error_handler
             {% block body_hyperscript %}{% endblock %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     {% include 'includes/mobile_navbar.html' %}
     {% include 'includes/sidebar.html' %}
-    <main class="my-8 px-3 lg:ml-64">
+    <main class="lg:ml-64">
+      <div class="page-shell">
       {% settings "DEMO" as demo_mode %}
       {% if demo_mode %}
-      <div class="px-3 m-0" id="demo-mode-alert" hx-preserve>
+      <div class="mb-6" id="demo-mode-alert" hx-preserve>
         <div class="alert alert-warning my-3 relative" role="alert">
           <strong>{% trans "This is a demo!" %}</strong> {% trans "Any data you add here will be wiped periodically" %}
           <button type="button" class="btn btn-sm btn-ghost absolute right-2 top-1/2 -translate-y-1/2"
@@ -45,6 +46,7 @@
         {% endblock content %}
       </div>
       {% include "includes/toasts.html" %}
+      </div>
     </main>
   </div>
   {% block extra_js_body %}

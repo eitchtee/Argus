@@ -7,22 +7,21 @@
 {% block title %}{% trans "Login" %}{% endblock %}
 
 {% block content %}
-  <div class="min-h-screen flex items-center justify-center p-4">
-    <div class="w-full max-w-md">
+    <div class="w-full max-w-md space-y-4">
       {% settings "DEMO" as demo_mode %}
       {% if demo_mode %}
-        <div class="card bg-base-100 shadow-xl mb-3">
-          <div class="card-body">
-            <h1 class="text-lg card-title text-center mb-4">{% trans "Welcome to the demo!" %}</h1>
-            <p>{% trans 'Use the credentials below to login' %}:</p>
-            <p>{% trans 'E-mail' %}: <span class="badge badge-secondary select-all">demo@demo.com</span></p>
-            <p>{% trans 'Password' %}: <span class="badge badge-secondary select-all">argusdemo</span></p>
+        <div class="surface-card card rounded-box">
+          <div class="card-body gap-3 p-6">
+            <h1 class="text-lg card-title">{% trans "Welcome to the demo!" %}</h1>
+            <p class="text-sm text-base-content/70">{% trans 'Use the credentials below to login' %}:</p>
+            <p class="flex items-center justify-between gap-3 text-sm">{% trans 'E-mail' %}<span class="badge badge-secondary select-all">demo@demo.com</span></p>
+            <p class="flex items-center justify-between gap-3 text-sm">{% trans 'Password' %}<span class="badge badge-secondary select-all">argusdemo</span></p>
           </div>
         </div>
       {% endif %}
-      <div class="card bg-base-100 shadow-2xl">
-        <div class="card-body">
-          <h1 class="text-2xl card-title text-center mb-4">{% trans "Login" %}</h1>
+      <div class="surface-card card rounded-box shadow-xl">
+        <div class="card-body gap-5 p-6 sm:p-8">
+          <h1 class="text-2xl card-title justify-center">{% trans "Login" %}</h1>
           {% crispy form %}
 
           {% get_providers as socialaccount_providers %}

@@ -1,8 +1,8 @@
 {% load settings %}
 {% load i18n %}
-<nav class="navbar border-b border-base-300 bg-base-200/80 backdrop-blur flex lg:hidden sticky top-0 z-1010">
-  <div class="flex justify-between items-center w-full px-2">
-    <a href="{% url 'index' %}" class="flex items-center gap-2 px-2 py-1">
+<nav class="navbar border-b border-base-300 bg-base-200/85 backdrop-blur-xl flex lg:hidden sticky top-0 z-1010 shadow-sm">
+  <div class="flex justify-between items-center w-full px-4 py-1">
+    <a href="{% url 'index' %}" class="flex items-center gap-3 rounded-box px-2 py-1 transition hover:bg-base-100">
       <span class="logo mobile"></span>
       <span class="text-xl font-bold">{% settings "SITE_TITLE" %}</span>
     </a>

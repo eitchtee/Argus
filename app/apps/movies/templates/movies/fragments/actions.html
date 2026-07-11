@@ -1,11 +1,16 @@
 {% load i18n %}
 <div id="movie-actions" class="flex flex-wrap gap-2">
-  <button type="button"
-          class="btn btn-sm {% if movie.on_watchlist %}btn-outline{% else %}btn-primary{% endif %}"
+  <div class="tooltip tooltip-bottom" data-tip="{% if movie.on_watchlist %}{% trans 'Untrack' %}{% else %}{% trans 'Track' %}{% endif %}">
+  <button type="button" aria-label="{% if movie.on_watchlist %}{% trans 'Untrack' %}{% else %}{% trans 'Track' %}{% endif %}"
+          class="btn btn-square btn-sm {% if movie.on_watchlist %}btn-outline{% else %}btn-primary{% endif %}"
           hx-{% if movie.on_watchlist %}delete{% else %}post{% endif %}="{% url 'movie-detail-track' external_id=movie.external_id %}"
-          hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">{% if movie.on_watchlist %}{% trans "Untrack" %}{% else %}{% trans "Track" %}{% endif %}</button>
-  <button type="button"
-          class="btn btn-sm {% if movie.is_seen %}btn-outline{% else %}btn-success{% endif %}"
+          hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this"><i class="fa-solid fa-bookmark"></i></button>
+  </div>
+  <div class="tooltip tooltip-bottom" data-tip="{% if movie.is_seen %}{% trans 'Mark unwatched' %}{% else %}{% trans 'Mark watched' %}{% endif %}">
+  <input type="checkbox" aria-label="{% if movie.is_seen %}{% trans 'Mark unwatched' %}{% else %}{% trans 'Mark watched' %}{% endif %}"
+          class="checkbox checkbox-success checkbox-lg"
+          {% if movie.is_seen %}checked{% endif %}
           hx-{% if movie.is_seen %}delete{% else %}post{% endif %}="{% url 'movie-detail-watched' external_id=movie.external_id %}"
-          hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">{% if movie.is_seen %}{% trans "Mark Unwatched" %}{% else %}{% trans "Mark Watched" %}{% endif %}</button>
+          hx-trigger="change" hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
+  </div>
 </div>

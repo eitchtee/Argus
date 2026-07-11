@@ -1,12 +1,12 @@
 {% load i18n %}
-<div id="{{ id }}" class="card card-side bg-base-100 shadow overflow-hidden min-h-24">
+<div id="{{ id }}" class="media-card card card-side overflow-hidden min-h-28 rounded-box">
   {% if checkbox_position == "left" and toggle_url %}
   <input type="checkbox" class="checkbox checkbox-lg shrink-0 self-center ms-3"
          {% if checked %}checked{% endif %}
          hx-{% if checked %}delete{% else %}post{% endif %}="{{ toggle_url }}"
          hx-trigger="change" hx-target="#{{ id }}" hx-swap="outerHTML" hx-disabled-elt="this">
   {% endif %}
-  <figure class="w-20 shrink-0">
+  <figure class="w-20 shrink-0 bg-base-200">
     {% if image_url %}
     <img src="{{ image_url }}" alt="{{ episode_title }}" class="h-full w-full object-cover">
     {% elif fallback_image_url %}
