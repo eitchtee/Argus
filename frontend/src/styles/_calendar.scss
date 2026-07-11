@@ -1,0 +1,236 @@
+.calendar-month-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.65rem;
+}
+
+.calendar-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.calendar-month-name {
+  min-width: 8.5rem;
+  margin: 0 0.3rem;
+  color: var(--color-base-content);
+  font-size: 1.15rem;
+  font-weight: 750;
+  line-height: 1;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.calendar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.calendar-filters-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.calendar-timezone-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: color-mix(in oklab, var(--color-base-content) 58%, transparent);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.calendar-timezone-note i {
+  color: var(--color-primary);
+}
+
+.calendar-scroll {
+  overflow-x: auto;
+  padding: 0.125rem 0.125rem 0.75rem;
+  scrollbar-color: var(--color-base-content) var(--color-base-300);
+  scrollbar-width: thin;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(10rem, 1fr));
+  min-width: 70rem;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--color-base-300);
+  border-radius: var(--radius-box);
+  background: var(--color-base-300);
+  box-shadow: 0 0.75rem 2rem color-mix(in oklab, var(--color-base-content) 7%, transparent);
+}
+
+.calendar-weekday {
+  padding: 0.7rem 0.85rem;
+  background: var(--color-base-200);
+  color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.calendar-day {
+  position: relative;
+  min-height: 10.5rem;
+  padding: 0.75rem;
+  background: var(--color-base-100);
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.calendar-day:hover {
+  background: color-mix(in oklab, var(--color-base-100) 88%, var(--color-primary));
+}
+
+.calendar-day.is-adjacent {
+  background: color-mix(in oklab, var(--color-base-100) 78%, var(--color-base-300));
+}
+
+.calendar-day.is-adjacent .calendar-day-number {
+  color: color-mix(in oklab, var(--color-base-content) 45%, transparent);
+}
+
+.calendar-day.is-today {
+  box-shadow: inset 0 3px 0 var(--color-primary);
+}
+
+.calendar-day-number {
+  display: inline-grid;
+  min-width: 1.8rem;
+  min-height: 1.8rem;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-base-content);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.calendar-day-number.is-today {
+  background: var(--color-primary);
+  color: var(--color-primary-content);
+}
+
+.calendar-events {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.calendar-event {
+  --calendar-event-accent: var(--color-primary);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 2.75rem;
+  gap: 0.2rem 0.45rem;
+  align-content: center;
+  border: 1px solid color-mix(in oklab, var(--calendar-event-accent) 35%, var(--color-base-300));
+  border-inline-start: 3px solid var(--calendar-event-accent);
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.55rem;
+  background: color-mix(in oklab, var(--calendar-event-accent) 10%, var(--color-base-100));
+  color: var(--color-base-content);
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.calendar-event--paused {
+  --calendar-event-accent: var(--color-warning);
+}
+
+.calendar-event--dropped {
+  --calendar-event-accent: var(--color-error);
+}
+
+.calendar-event--movie {
+  --calendar-event-accent: var(--color-info);
+}
+
+.calendar-event:hover,
+.calendar-event:focus-visible {
+  border-color: var(--calendar-event-accent);
+  background: color-mix(in oklab, var(--calendar-event-accent) 17%, var(--color-base-100));
+  box-shadow: 0 0.35rem 0.8rem color-mix(in oklab, var(--calendar-event-accent) 18%, transparent);
+  color: var(--color-base-content);
+  transform: translateY(-1px);
+}
+
+.calendar-event:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.calendar-event-time {
+  grid-column: 1 / -1;
+  color: color-mix(in oklab, var(--color-base-content) 62%, transparent);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.calendar-event-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-event-code {
+  align-self: center;
+  color: color-mix(in oklab, var(--color-base-content) 56%, transparent);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .calendar-month-bar {
+    justify-content: flex-start;
+  }
+
+  .calendar-filters-form {
+    width: 100%;
+  }
+
+  .calendar-timezone-note {
+    width: 100%;
+  }
+
+  .calendar-grid {
+    min-width: 63rem;
+  }
+
+  .calendar-day {
+    min-height: 9.5rem;
+    padding: 0.65rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-day,
+  .calendar-event,
+  .calendar-month-bar .btn {
+    transition: none;
+  }
+}

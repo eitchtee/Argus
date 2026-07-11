@@ -30,8 +30,8 @@
         {% elif show.last_air_date %}
         <p class="text-sm text-subtle mt-1">{% trans "Last aired" %}: {{ show.last_air_date|date:"F j, Y" }}</p>
         {% endif %}
-        {% if show.airs_schedule %}
-        <p class="text-sm text-subtle mt-1">{% trans "Airs" %} {{ show.airs_schedule }}</p>
+        {% if show.airs_time %}
+        <p class="text-sm text-subtle mt-1">{% trans "Airs at" %} {{ show.airs_time|time:"g:i A" }} UTC</p>
         {% endif %}
         {% if show.genres %}
         <div class="flex flex-wrap gap-2">

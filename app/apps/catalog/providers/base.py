@@ -51,7 +51,7 @@ class DetailDTO:
     average_runtime: int | None = None
     next_air_date: str | None = None
     last_air_date: str | None = None
-    airs_schedule: str | None = None
+    airs_time: str | None = None
 
 
 @dataclass(frozen=True)

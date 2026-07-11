@@ -18,7 +18,7 @@ class Show(ProviderBackedModel):
     average_runtime = models.PositiveIntegerField(null=True, blank=True)
     next_air_date = models.DateField(null=True, blank=True)
     last_air_date = models.DateField(null=True, blank=True)
-    airs_schedule = models.CharField(max_length=255, blank=True)
+    airs_time = models.TimeField(null=True, blank=True)
     first_aired = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=64, blank=True)
     network = models.CharField(max_length=255, null=True, blank=True)

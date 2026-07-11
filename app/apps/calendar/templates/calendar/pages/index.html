@@ -1,0 +1,158 @@
+{% extends "layouts/base.html" %}
+{% load i18n tz %}
+
+{% block title %}{% trans "Calendar" %}{% endblock %}
+
+{% block content %}
+<div id="calendar-page" class="space-y-6">
+  <section class="section-heading items-start">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Release schedule" %}</p>
+      <h1 class="text-3xl font-bold tracking-tight text-balance">{% trans "Calendar" %}</h1>
+    </div>
+  </section>
+
+  <section class="calendar-month-bar">
+    <nav class="calendar-month-nav" aria-label="{% trans 'Change month' %}">
+      <a class="btn btn-ghost btn-sm btn-square" href="?{{ previous_query }}" aria-label="{% trans 'Previous month' %}">
+        <i class="fa-solid fa-chevron-left"></i>
+      </a>
+      <h2 class="calendar-month-name">{{ month|date:"F Y" }}</h2>
+      <a class="btn btn-ghost btn-sm btn-square" href="?{{ next_query }}" aria-label="{% trans 'Next month' %}">
+        <i class="fa-solid fa-chevron-right"></i>
+      </a>
+    </nav>
+    <a class="btn btn-outline btn-sm" href="?{{ current_query }}">{% trans "Today" %}</a>
+  </section>
+
+  <section class="calendar-filters" aria-label="{% trans 'Calendar filters' %}">
+    <form method="get" action="{% url 'calendar' %}"
+          hx-get="{% url 'calendar' %}" hx-trigger="change from:input"
+          hx-target="#calendar-page" hx-select="#calendar-page" hx-swap="outerHTML"
+          hx-push-url="true" class="calendar-filters-form">
+      <input type="hidden" name="month" value="{{ month|date:'Y-m' }}">
+      <input type="hidden" name="tracked" value="0">
+
+      <fieldset class="fieldset flex w-full flex-row flex-wrap items-center gap-3 rounded-box border border-base-300 bg-base-200 p-4 sm:w-xs">
+        <legend class="fieldset-legend w-full">{% trans "TV Shows" %}</legend>
+        <label class="fieldset-label cursor-pointer gap-2">
+          <input class="checkbox checkbox-primary" type="checkbox" name="tracked" value="1"{% if filters.include_tracked %} checked{% endif %}>
+          <span class="label-text">{% trans "Tracked" %}</span>
+        </label>
+        <label class="fieldset-label cursor-pointer gap-2">
+          <input class="checkbox checkbox-primary" type="checkbox" name="paused" value="1"{% if filters.include_paused %} checked{% endif %}>
+          <span class="label-text">{% trans "Paused" %}</span>
+        </label>
+        <label class="fieldset-label cursor-pointer gap-2">
+          <input class="checkbox checkbox-primary" type="checkbox" name="dropped" value="1"{% if filters.include_dropped %} checked{% endif %}>
+          <span class="label-text">{% trans "Dropped" %}</span>
+        </label>
+      </fieldset>
+
+      <fieldset class="fieldset flex w-full flex-row flex-wrap items-center gap-3 rounded-box border border-base-300 bg-base-200 p-4 sm:w-xs">
+        <legend class="fieldset-legend w-full">{% trans "Movies" %}</legend>
+        <label class="fieldset-label cursor-pointer gap-2">
+          <input class="checkbox checkbox-primary" type="checkbox" name="movies" value="1"{% if filters.include_movies %} checked{% endif %}>
+          <span class="label-text">{% trans "Tracked" %}</span>
+        </label>
+      </fieldset>
+
+      <button class="sr-only" type="submit">{% trans "Apply filters" %}</button>
+    </form>
+  </section>
+
+  {% if not has_events %}
+  <section class="calendar-empty-state surface-card rounded-box p-8 text-center" aria-live="polite">
+    <i class="fa-regular fa-calendar-xmark text-3xl text-primary/70"></i>
+    <p class="mt-3 font-semibold">{% trans "No releases in this month" %}</p>
+    <p class="mt-1 text-sm text-base-content/60">{% trans "Try another month or enable more release types." %}</p>
+  </section>
+  {% endif %}
+
+  <section class="calendar-scroll" aria-label="{% trans 'Monthly calendar' %}">
+    <div class="calendar-grid" role="grid" aria-label="{{ month|date:'F Y' }}">
+      <div class="calendar-weekday" role="columnheader">{% trans "Mon" %}</div>
+      <div class="calendar-weekday" role="columnheader">{% trans "Tue" %}</div>
+      <div class="calendar-weekday" role="columnheader">{% trans "Wed" %}</div>
+      <div class="calendar-weekday" role="columnheader">{% trans "Thu" %}</div>
+      <div class="calendar-weekday" role="columnheader">{% trans "Fri" %}</div>
+      <div class="calendar-weekday" role="columnheader">{% trans "Sat" %}</div>
+      <div class="calendar-weekday" role="columnheader">{% trans "Sun" %}</div>
+
+      {% for week in weeks %}
+        {% for cell in week %}
+        <div class="calendar-day{% if not cell.is_current_month %} is-adjacent{% endif %}{% if cell.is_today %} is-today{% endif %}"
+             role="gridcell" data-date="{{ cell.date|date:'Y-m-d' }}">
+          <time class="calendar-day-number{% if cell.is_today %} is-today{% endif %}" datetime="{{ cell.date|date:'Y-m-d' }}">
+            {{ cell.date|date:"j" }}
+          </time>
+          <div class="calendar-events">
+            {% for event in cell.events %}
+            {% if event.kind == "movie" %}
+            <a class="calendar-event calendar-event--movie"
+               href="{% url 'movie-detail' external_id=event.external_id %}"
+               hx-get="{% url 'calendar-movie-detail' movie_id=event.movie_id %}"
+               hx-target="#calendar-event-details-body" hx-swap="innerHTML"
+               data-calendar-event
+               aria-controls="calendar-event-details" aria-haspopup="dialog"
+               aria-label="{{ event.title }} {% trans 'movie release' %}">
+              <span class="calendar-event-time">{% trans "All day" %}</span>
+              <span class="calendar-event-title">{{ event.title }}</span>
+              <span class="calendar-event-code">{{ event.subtitle }}</span>
+            </a>
+            {% else %}
+            <a class="calendar-event calendar-event--{{ event.status }}"
+               href="{% url 'tv-episode-detail' external_id=event.external_id episode_id=event.episode_id %}"
+               hx-get="{% url 'calendar-episode-detail' episode_id=event.episode_id %}"
+               hx-target="#calendar-event-details-body" hx-swap="innerHTML"
+               data-calendar-event
+               aria-controls="calendar-event-details" aria-haspopup="dialog"
+               aria-label="{{ event.show_name }} {{ event.subtitle }} {{ event.title }}">
+              {% if event.starts_at %}<span class="calendar-event-time">{{ event.starts_at|localtime|date:"H:i" }}</span>{% else %}<span class="calendar-event-time">{% trans "All day" %}</span>{% endif %}
+              <span class="calendar-event-title">{{ event.show_name }}</span>
+              <span class="calendar-event-code">{{ event.subtitle }}</span>
+            </a>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="surface-card rounded-box p-4 sm:p-5">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <p class="text-sm font-semibold">{% trans "Subscribe to this calendar" %}</p>
+        <p class="text-xs text-base-content/60">{% trans "Updates include the last 30 days and next 90 days." %}</p>
+      </div>
+      <div class="flex w-full gap-2 lg:max-w-2xl">
+        <input id="calendar-feed-url" class="input input-bordered h-10 min-h-10 min-w-0 flex-1 text-xs" type="text"
+               value="{{ feed_url }}" readonly aria-label="{% trans 'Calendar feed URL' %}">
+        <button type="button" class="btn btn-outline h-10 min-h-10 shrink-0 text-xs" data-copy-target="#calendar-feed-url"
+                data-copied-label="{% trans 'Copied' %}">
+          <i class="fa-regular fa-copy"></i>
+          <span>{% trans "Copy" %}</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <dialog id="calendar-event-details" class="modal" aria-label="{% trans 'Calendar event details' %}">
+    <div class="modal-box max-w-lg p-0">
+      <div id="calendar-event-details-body" class="p-6">
+        <p class="text-sm text-base-content/60">{% trans "Select a release to see its details." %}</p>
+      </div>
+      <div class="flex justify-end border-t border-base-300 p-4">
+        <form method="dialog">
+          <button class="btn btn-ghost btn-sm">{% trans "Close" %}</button>
+        </form>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button aria-label="{% trans 'Close details' %}">{% trans "Close" %}</button>
+    </form>
+  </dialog>
+</div>
+{% endblock %}

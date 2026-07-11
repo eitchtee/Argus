@@ -116,7 +116,7 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.average_runtime, 57)
         self.assertIsNone(detail.next_air_date)
         self.assertEqual(detail.last_air_date, "2019-05-19")
-        self.assertEqual(detail.airs_schedule, "Sundays at 9:00 PM")
+        self.assertEqual(detail.airs_time, "21:00")
         self.assertEqual(len(detail.cast), 1)
         self.assertEqual(detail.cast[0].name, "Emilia Clarke")
         self.assertEqual(detail.cast[0].character, "Daenerys Targaryen")
@@ -185,7 +185,7 @@ class TVDBProviderTests(SimpleTestCase):
             provider.search("game of thrones")
 
 
-class TVDBAirsScheduleTests(SimpleTestCase):
+class TVDBAirsTimeTests(SimpleTestCase):
     def setUp(self):
         cache.clear()
         cache.set("catalog:tvdb:token", "existing-token")
@@ -200,38 +200,25 @@ class TVDBAirsScheduleTests(SimpleTestCase):
         provider = TVDBProvider(opener=opener)
         return provider.fetch_detail("121361")
 
-    def test_multiple_airing_days_are_comma_joined(self):
-        detail = self._fetch_with_data_overrides(
-            airsDays={
-                "sunday": True,
-                "monday": True,
-                "tuesday": False,
-                "wednesday": False,
-                "thursday": False,
-                "friday": False,
-                "saturday": False,
-            },
-            airsTime="21:00",
-        )
+    def test_preserves_raw_airing_time(self):
+        detail = self._fetch_with_data_overrides(airsTime="21:00")
 
-        self.assertEqual(detail.airs_schedule, "Sundays, Mondays at 9:00 PM")
+        self.assertEqual(detail.airs_time, "21:00")
 
-    def test_no_airing_days_returns_none(self):
+    def test_missing_airing_time_returns_none(self):
+        detail = self._fetch_with_data_overrides(airsTime=None)
+
+        self.assertIsNone(detail.airs_time)
+
+    def test_airing_days_do_not_change_the_raw_time(self):
         detail = self._fetch_with_data_overrides(
             airsDays={day: False for day in [
                 "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
             ]},
-            airsTime="21:00",
+            airsTime="00:00",
         )
 
-        self.assertIsNone(detail.airs_schedule)
-
-    def test_midnight_and_noon_format_correctly(self):
-        midnight = self._fetch_with_data_overrides(airsTime="00:00")
-        noon = self._fetch_with_data_overrides(airsTime="12:00")
-
-        self.assertIn("12:00 AM", midnight.airs_schedule)
-        self.assertIn("12:00 PM", noon.airs_schedule)
+        self.assertEqual(detail.airs_time, "00:00")
 
     def test_no_trailers_returns_none(self):
         detail = self._fetch_with_data_overrides(trailers=[])
