@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, time
 
 from django.conf import settings
 from django.db.models import Q
@@ -293,7 +293,7 @@ def _build_show_context(user, external_id):
         "average_runtime": show.average_runtime,
         "next_air_date": show.next_air_date,
         "last_air_date": show.last_air_date,
-        "airs_schedule": show.airs_schedule,
+        "airs_time": show.airs_time,
         "cast": show.cast,
         "tracked": tracked,
         "tracking_status": user_show.status if user_show else None,
@@ -415,7 +415,7 @@ def _preview_show_context(external_id):
         "average_runtime": detail.average_runtime,
         "next_air_date": _parse_iso_date(detail.next_air_date),
         "last_air_date": _parse_iso_date(detail.last_air_date),
-        "airs_schedule": detail.airs_schedule,
+        "airs_time": _parse_iso_time(detail.airs_time),
         "cast": [
             {"name": member.name, "character": member.character, "photo_url": member.photo_url}
             for member in detail.cast
@@ -433,3 +433,13 @@ def _parse_iso_date(value):
         return None
 
     return date.fromisoformat(value)
+
+
+def _parse_iso_time(value):
+    if not value:
+        return None
+
+    try:
+        return time.fromisoformat(value)
+    except ValueError:
+        return None

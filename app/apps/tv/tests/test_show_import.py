@@ -1,3 +1,5 @@
+from datetime import time
+
 from django.test import TestCase
 from django.utils import timezone
 
@@ -55,7 +57,7 @@ def show_detail(**overrides):
         "average_runtime": 57,
         "next_air_date": None,
         "last_air_date": "2019-05-19",
-        "airs_schedule": "Sundays at 9:00 PM",
+        "airs_time": "21:00",
         "genres": [
             GenreDTO(provider="tvdb", external_id="1", name="Drama"),
             GenreDTO(provider="tvdb", external_id="2", name="Fantasy"),
@@ -81,6 +83,20 @@ def episode(**overrides):
 
 
 class ShowImportTests(TestCase):
+    def test_import_show_persists_airing_time_as_a_time(self):
+        provider = FakeProvider(detail=show_detail(airs_time="21:00"), episodes=[])
+
+        show = import_show("121361", provider_getter=lambda _: provider)
+
+        self.assertEqual(show.airs_time, time(21, 0))
+
+    def test_import_show_discards_invalid_airing_time(self):
+        provider = FakeProvider(detail=show_detail(airs_time="not-a-time"), episodes=[])
+
+        show = import_show("121361", provider_getter=lambda _: provider)
+
+        self.assertIsNone(show.airs_time)
+
     def test_import_show_creates_show_genres_seasons_and_episodes(self):
         provider = FakeProvider(
             detail=show_detail(),
@@ -112,7 +128,7 @@ class ShowImportTests(TestCase):
         self.assertEqual(show.average_runtime, 57)
         self.assertIsNone(show.next_air_date)
         self.assertEqual(show.last_air_date.isoformat(), "2019-05-19")
-        self.assertEqual(show.airs_schedule, "Sundays at 9:00 PM")
+        self.assertEqual(show.airs_time, time(21, 0))
         self.assertEqual(
             show.cast,
             [{

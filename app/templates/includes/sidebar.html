@@ -29,6 +29,12 @@
       </a>
     </li>
     <li>
+      <a href="{% url 'calendar' %}" class="sidebar-item {% active_link 'calendar' css_class='menu-active' %}">
+        <i class="fa-solid fa-calendar-days fa-fw"></i>
+        <span>{% trans "Calendar" %}</span>
+      </a>
+    </li>
+    <li>
       <a href="{% url 'user_settings' %}" hx-get="{% url 'user_settings' %}" hx-target="#generic-offcanvas"
          class="sidebar-item" role="button">
         <i class="fa-solid fa-gear fa-fw"></i>

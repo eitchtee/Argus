@@ -30,4 +30,5 @@ urlpatterns = [
     path("", include("apps.catalog.urls")),
     path("", include("apps.movies.urls")),
     path("", include("apps.tv.urls")),
+    path("", include("apps.calendar.urls")),
 ]

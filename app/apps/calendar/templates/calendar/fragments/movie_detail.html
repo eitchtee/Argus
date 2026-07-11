@@ -1,0 +1,30 @@
+{% load i18n %}
+<div class="space-y-5">
+  <div>
+    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{% trans "Movie" %}</p>
+    <h2 class="mt-2 text-2xl font-bold text-balance">{{ event.title }}</h2>
+  </div>
+
+  <div class="grid gap-3 text-sm sm:grid-cols-2">
+    <div class="rounded-box bg-base-200/60 p-3">
+      <p class="text-xs uppercase tracking-wide text-base-content/50">{% trans "Release" %}</p>
+      <p class="mt-1 font-semibold">{{ event.release_date|date:"F j, Y" }} · {% trans "All day" %}</p>
+    </div>
+    <div class="rounded-box bg-base-200/60 p-3">
+      <p class="text-xs uppercase tracking-wide text-base-content/50">{% trans "Status" %}</p>
+      <p class="mt-1 font-semibold">{{ status_label }}</p>
+    </div>
+  </div>
+
+  {% if event.overview %}<p class="text-sm leading-6 text-pretty">{{ event.overview }}</p>{% endif %}
+
+  <dl class="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
+    {% if event.runtime %}<div><dt class="text-base-content/50">{% trans "Runtime" %}</dt><dd class="font-semibold">{{ event.runtime }} {% trans "min" %}</dd></div>{% endif %}
+    {% if event.director %}<div><dt class="text-base-content/50">{% trans "Director" %}</dt><dd class="font-semibold">{{ event.director }}</dd></div>{% endif %}
+    {% if event.genres %}<div class="sm:col-span-2"><dt class="text-base-content/50">{% trans "Genres" %}</dt><dd class="font-semibold">{{ event.genres|join:", " }}</dd></div>{% endif %}
+  </dl>
+
+  <a class="btn btn-primary w-full" href="{% url 'movie-detail' external_id=event.external_id %}">
+    {% trans "Open movie" %} <i class="fa-solid fa-arrow-up-right-from-square"></i>
+  </a>
+</div>

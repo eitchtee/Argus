@@ -20,6 +20,7 @@ dependencies = [
     "djangorestframework~=3.17.1",
     "drf-spectacular~=0.29.0",
     "gunicorn==26.0.0",
+    "icalendar==7.2.0",
     "huey~=2.5.0",
     "python-dateutil~=2.9.0.post0",
     "pytz>=2025.2",

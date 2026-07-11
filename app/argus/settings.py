@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "apps.catalog.apps.CatalogConfig",
     "apps.movies.apps.MoviesConfig",
     "apps.tv.apps.TvConfig",
+    "apps.calendar.apps.CalendarConfig",
     "cachalot",
     "apps.api.apps.ApiConfig",
     "rest_framework",

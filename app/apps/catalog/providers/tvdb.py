@@ -75,7 +75,7 @@ class TVDBProvider(BaseProvider):
             average_runtime=data.get("averageRuntime"),
             next_air_date=data.get("nextAired") or None,
             last_air_date=data.get("lastAired") or None,
-            airs_schedule=self._airs_schedule(data),
+            airs_time=data.get("airsTime") or None,
             genres=[
                 GenreDTO(
                     provider=self.name,
@@ -122,29 +122,6 @@ class TVDBProvider(BaseProvider):
         if not trailers:
             return None
         return trailers[0].get("url")
-
-    def _airs_schedule(self, data: dict) -> str | None:
-        airs_days = data.get("airsDays") or {}
-        airs_time = data.get("airsTime")
-        active_days = [day for day, is_active in airs_days.items() if is_active]
-        if not active_days:
-            return None
-
-        day_names = ", ".join(day.capitalize() + "s" for day in active_days)
-        if not airs_time:
-            return day_names
-
-        return f"{day_names} at {self._format_airs_time(airs_time)}"
-
-    def _format_airs_time(self, value: str) -> str:
-        try:
-            hour, minute = (int(part) for part in value.split(":"))
-        except ValueError:
-            return value
-
-        period = "AM" if hour < 12 else "PM"
-        display_hour = hour % 12 or 12
-        return f"{display_hour}:{minute:02d} {period}"
 
     def fetch_episodes(self, external_id: str) -> list[EpisodeDTO]:
         payload = self._get_json(f"/series/{external_id}/episodes/default")

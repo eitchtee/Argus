@@ -1,7 +1,7 @@
 import dataclasses
 import itertools
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 from django.db import transaction
 from django.db.models import Count, Q
@@ -47,7 +47,7 @@ def import_show(external_id: str, *, provider_getter=get_provider) -> Show:
                 "average_runtime": detail.average_runtime,
                 "next_air_date": _parse_date(detail.next_air_date),
                 "last_air_date": _parse_date(detail.last_air_date),
-                "airs_schedule": detail.airs_schedule or "",
+                "airs_time": _parse_time(detail.airs_time),
                 "last_synced_at": timezone.now(),
                 "sync_status": SyncStatus.OK,
             },
@@ -124,6 +124,16 @@ def _parse_date(value: str | None) -> date | None:
         return None
 
     return date.fromisoformat(value)
+
+
+def _parse_time(value: str | None) -> time | None:
+    if not value:
+        return None
+
+    try:
+        return time.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def drop_show(user, show: Show) -> UserShow:

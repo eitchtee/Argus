@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from cachalot.api import cachalot_disabled
@@ -52,7 +52,7 @@ class ShowDetailViewTests(TestCase):
             imdb_id="tt0944947",
             trailer_url="https://www.youtube.com/watch?v=abc123",
             average_runtime=57,
-            airs_schedule="Sundays at 9:00 PM",
+            airs_time="21:00",
             cast=[
                 CastMemberDTO(
                     name="Emilia Clarke",
@@ -86,7 +86,7 @@ class ShowDetailViewTests(TestCase):
             trailer_url="https://www.youtube.com/watch?v=abc123",
             average_runtime=57,
             last_air_date=date.today() - timedelta(days=200),
-            airs_schedule="Sundays at 9:00 PM",
+            airs_time=time(21, 0),
             cast=[{
                 "name": "Emilia Clarke",
                 "character": "Daenerys Targaryen",
@@ -108,7 +108,7 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "tt0944947")
         self.assertContains(response, "https://www.youtube.com/watch?v=abc123")
         self.assertContains(response, "57")
-        self.assertContains(response, "Sundays at 9:00 PM")
+        self.assertContains(response, "Airs at 9:00 PM UTC")
         self.assertContains(response, "Emilia Clarke")
         self.assertContains(response, "Daenerys Targaryen")
         # Current user has not tracked it themselves: no checkboxes, no watched state.
