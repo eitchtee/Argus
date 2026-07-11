@@ -53,7 +53,8 @@ class MovieDetailViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fight Club")
         self.assertContains(response, "A movie about a fight club.")
-        self.assertContains(response, ">Track<")
+        self.assertContains(response, 'aria-label="Track"')
+        self.assertContains(response, "fa-bookmark")
         self.assertContains(response, "https://image.tmdb.org/t/p/w1280/backdrop.jpg")
         self.assertContains(response, "David Fincher")
         self.assertContains(response, "https://www.youtube.com/watch?v=SUXWAEX2jlg")
@@ -66,7 +67,7 @@ class MovieDetailViewTests(TestCase):
 
         response = self.client.get("/movies/550/")
 
-        self.assertContains(response, ">Untrack<")
+        self.assertContains(response, 'aria-label="Untrack"')
 
     def test_does_not_leak_another_users_watchlist_state(self):
         other_user = get_user_model().objects.create_user("other@example.com")
@@ -75,7 +76,7 @@ class MovieDetailViewTests(TestCase):
 
         response = self.client.get("/movies/550/")
 
-        self.assertContains(response, ">Track<")
+        self.assertContains(response, 'aria-label="Track"')
 
     @patch("apps.movies.views.get_movie_detail")
     def test_renders_from_provider_cache_when_not_yet_imported(self, get_movie_detail_mock):
@@ -118,7 +119,7 @@ class MovieTrackViewTests(TestCase):
         response = self.client.post("/movies/550/track/", HTTP_HX_REQUEST="true")
 
         track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
-        self.assertContains(response, ">Untrack<")
+        self.assertContains(response, 'aria-label="Untrack"')
 
     def test_delete_untracks_movie(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
@@ -126,7 +127,7 @@ class MovieTrackViewTests(TestCase):
 
         response = self.client.delete("/movies/550/track/", HTTP_HX_REQUEST="true")
 
-        self.assertContains(response, ">Track<")
+        self.assertContains(response, 'aria-label="Track"')
         self.assertFalse(
             UserMovie.objects.filter(user=self.user, movie=movie, on_watchlist=True).exists()
         )
@@ -157,7 +158,8 @@ class MovieWatchedViewTests(TestCase):
         response = self.client.post("/movies/550/watched/", HTTP_HX_REQUEST="true")
 
         import_movie_mock.assert_called_once_with("tmdb", "550")
-        self.assertContains(response, ">Mark Unwatched<")
+        self.assertContains(response, 'aria-label="Mark unwatched"')
+        self.assertContains(response, "checkbox-success")
         self.assertTrue(
             UserMovie.objects.filter(user=self.user, movie=movie, is_seen=True).exists()
         )
@@ -170,7 +172,7 @@ class MovieWatchedViewTests(TestCase):
 
         response = self.client.delete("/movies/550/watched/", HTTP_HX_REQUEST="true")
 
-        self.assertContains(response, ">Mark Watched<")
+        self.assertContains(response, 'aria-label="Mark watched"')
         self.assertFalse(
             UserMovie.objects.filter(user=self.user, movie=movie, is_seen=True).exists()
         )

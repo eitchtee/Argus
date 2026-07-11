@@ -68,13 +68,17 @@ class TvModelTests(TestCase):
         field = UserShow._meta.get_field("tier")
         self.assertEqual([choice[0] for choice in field.choices], Tier.values)
 
-    def test_user_show_defaults_match_tracking_semantics(self):
+    def test_user_show_defaults_to_tracked_status(self):
         user = get_user_model().objects.create_user("user@example.com")
         show = Show.objects.create(external_id="series-1", name="The Expanse")
 
         user_show = UserShow.objects.create(user=user, show=show)
 
-        self.assertTrue(user_show.is_tracking)
+        self.assertEqual(user_show.status, UserShow.Status.TRACKED)
+        self.assertEqual(
+            set(UserShow.Status.values),
+            {"tracked", "paused", "dropped"},
+        )
         self.assertIsNotNone(user_show.tracking_started_at)
         self.assertIsNone(user_show.tier)
 

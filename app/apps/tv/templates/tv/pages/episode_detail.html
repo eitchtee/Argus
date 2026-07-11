@@ -4,8 +4,8 @@
 {% block title %}{{ episode.name }}{% endblock %}
 
 {% block content %}
-<div class="container px-md-3 py-3">
-  <div class="flex items-center justify-between mb-4">
+<div>
+  <div class="surface-card rounded-box flex items-center justify-between mb-6 p-3">
     {% if previous_episode %}
     <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=previous_episode.id %}" class="btn btn-outline btn-sm">
       <i class="fa-solid fa-chevron-left"></i> {% trans "Previous" %}
@@ -23,7 +23,7 @@
     {% endif %}
   </div>
 
-  <div class="flex flex-col md:flex-row gap-4">
+  <div class="surface-card rounded-box flex flex-col md:flex-row gap-6 p-4 sm:p-6">
     <figure class="w-full md:w-80 shrink-0">
       {% if episode.still_path %}
       <img src="{{ episode.still_path }}" alt="{{ episode.name }}" class="w-full rounded-box object-cover">
@@ -34,7 +34,7 @@
       {% endif %}
     </figure>
     <div class="flex-1">
-      <h1 class="text-2xl font-bold">
+      <h1 class="text-2xl font-bold tracking-tight">
         S{{ episode.season_number|stringformat:"02d" }}E{{ episode.episode_number|stringformat:"02d" }} — {{ episode.name }}
       </h1>
       {% if episode.finale_type %}

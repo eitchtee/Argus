@@ -21,6 +21,7 @@ from apps.tv.services import (
     mark_episode_watched,
     mark_season_watched,
     mark_show_watched,
+    pause_show,
     track_show,
     unmark_episode_watched,
     unmark_season_watched,
@@ -56,6 +57,18 @@ def show_drop(request, external_id):
 
     show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
     drop_show(request.user, show)
+    return _redirect_to_show_detail(external_id)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST"])
+def show_pause(request, external_id):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    pause_show(request.user, show)
     return _redirect_to_show_detail(external_id)
 
 
@@ -137,7 +150,11 @@ def episode_watched(request, external_id, episode_id):
 def episode_detail(request, external_id, episode_id):
     show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
     episode = get_object_or_404(Episode, id=episode_id, show=show)
-    tracked = UserShow.objects.filter(user=request.user, show=show, is_tracking=True).exists()
+    tracked = UserShow.objects.filter(
+        user=request.user,
+        show=show,
+        status=UserShow.Status.TRACKED,
+    ).exists()
     watched = tracked and UserEpisode.objects.filter(user=request.user, episode=episode).exists()
 
     context = {
@@ -246,7 +263,7 @@ def _build_show_context(user, external_id):
         return _preview_show_context(external_id)
 
     user_show = UserShow.objects.filter(user=user, show=show).first()
-    tracked = bool(user_show and user_show.is_tracking)
+    tracked = bool(user_show and user_show.status == UserShow.Status.TRACKED)
     watched_ids = set()
     if tracked:
         watched_ids = set(
@@ -279,6 +296,7 @@ def _build_show_context(user, external_id):
         "airs_schedule": show.airs_schedule,
         "cast": show.cast,
         "tracked": tracked,
+        "tracking_status": user_show.status if user_show else None,
         "can_delete": user_show is not None,
         "seasons": seasons,
         "show_fully_watched": (
@@ -288,7 +306,11 @@ def _build_show_context(user, external_id):
 
 
 def _build_season_context(user, season: Season):
-    tracked = UserShow.objects.filter(user=user, show=season.show, is_tracking=True).exists()
+    tracked = UserShow.objects.filter(
+        user=user,
+        show=season.show,
+        status=UserShow.Status.TRACKED,
+    ).exists()
     watched_ids = set(
         UserEpisode.objects.filter(user=user, episode__season=season).values_list(
             "episode_id", flat=True
@@ -399,6 +421,7 @@ def _preview_show_context(external_id):
             for member in detail.cast
         ],
         "tracked": False,
+        "tracking_status": None,
         "can_delete": False,
         "seasons": seasons,
         "show_fully_watched": False,

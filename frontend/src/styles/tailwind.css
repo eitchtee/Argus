@@ -183,6 +183,39 @@
 
 
 @layer components {
+    .app-shell {
+        @apply min-h-screen text-base-content;
+        background-color: var(--root-bg);
+    }
+
+    .page-shell {
+        @apply mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8;
+    }
+
+    .section-heading {
+        @apply mb-4 flex items-end justify-between gap-4 border-b border-base-300 pb-3;
+    }
+
+    .surface-card {
+        @apply border border-base-300 bg-base-100 shadow-sm;
+    }
+
+    .media-card {
+        @apply border border-base-300 bg-base-100 shadow-sm transition duration-200 hover:border-primary/50 hover:shadow-md;
+    }
+
+    .media-hero {
+        @apply relative overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-sm;
+    }
+
+    .media-poster {
+        @apply overflow-hidden rounded-box border border-base-300 bg-base-200 shadow-lg;
+    }
+
+    .empty-state {
+        @apply rounded-box border border-dashed border-base-300 bg-base-100/50 px-6 py-12 text-center text-base-content/70;
+    }
+
     .card {
         @apply bg-base-100;
     }
@@ -207,11 +240,11 @@
 
     /* === Sidebar styles === */
     .sidebar-active {
-        @apply text-primary-content bg-primary rounded-box;
+        @apply rounded-box bg-primary text-primary-content shadow-sm;
     }
 
     .sidebar-item:not(.sidebar-active) {
-        @apply text-base-content/80 hover:text-base-content;
+        @apply text-base-content/75 hover:bg-base-100 hover:text-base-content;
     }
 
     .sidebar {

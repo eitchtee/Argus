@@ -190,7 +190,7 @@ class TrackViewTests(TestCase):
     def test_track_tv_calls_service_and_marks_tracked(self, track_show_mock):
         def fake_track(user, external_id):
             show = Show.objects.create(external_id="123", name="Foo")
-            UserShow.objects.create(user=user, show=show, is_tracking=True)
+            UserShow.objects.create(user=user, show=show, status=UserShow.Status.TRACKED)
 
         track_show_mock.side_effect = fake_track
         with patch("apps.catalog.views.catalog_search", return_value=[_show_dto()]):

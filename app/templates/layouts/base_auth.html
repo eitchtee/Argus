@@ -19,8 +19,8 @@
     {% block extra_styles %}{% endblock %}
     {% include 'includes/scripts.html' %}
   </head>
-  <body class="font-mono bg-root">
-    <div id="content">
+  <body class="font-mono">
+    <div id="content" class="app-shell grid min-h-screen place-items-center p-4 sm:p-6">
       {% block content %}{% endblock %}
     </div>
 

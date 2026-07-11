@@ -4,8 +4,11 @@
 {% block title %}{% trans "Home" %}{% endblock %}
 
 {% block content %}
-<div class="container px-md-3 py-3">
-  <div class="text-3xl font-bold w-full mb-3">{% trans "TV Shows" %}</div>
+<div class="space-y-10">
+  <section>
+  <div class="section-heading">
+    <div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Library" %}</p><h1 class="text-3xl font-bold tracking-tight">{% trans "TV Shows" %}</h1></div>
+  </div>
 
   <div role="tablist" class="tabs tabs-border w-fit mb-3">
     <input type="radio" name="tv-home-tab" role="tab" class="tab" aria-label="{% trans 'Watchlist' %}"
@@ -19,8 +22,11 @@
 
   <div id="tv-home-panel"></div>
 
-  <div class="text-3xl font-bold w-full mb-3 mt-6">{% trans "Movies" %}</div>
-  <div class="text-lg font-semibold mb-2">{% trans "Watch something" %}</div>
+  </section>
+  <section>
+  <div class="section-heading"><div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Tonight" %}</p><h2 class="text-3xl font-bold tracking-tight">{% trans "Movies" %}</h2></div></div>
+  <div class="text-sm font-semibold text-base-content/70 mb-3">{% trans "Watch something" %}</div>
   {% include "movies/fragments/home_watch_something.html" with movies=watch_something_movies %}
+  </section>
 </div>
 {% endblock %}

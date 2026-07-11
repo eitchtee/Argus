@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
-from apps.tv.services import delete_show_data, drop_show, track_show
+from apps.tv.services import delete_show_data, drop_show, pause_show, track_show
 
 
 class TrackShowServiceTests(TestCase):
@@ -24,12 +24,12 @@ class TrackShowServiceTests(TestCase):
         self.assertEqual(import_calls, ["123"])
         self.assertEqual(user_show.user, self.user)
         self.assertEqual(user_show.show, show)
-        self.assertTrue(user_show.is_tracking)
+        self.assertEqual(user_show.status, UserShow.Status.TRACKED)
         self.assertIsNotNone(user_show.tracking_started_at)
 
     def test_track_show_reuses_existing_user_show_row(self):
         show = Show.objects.create(external_id="123", name="Foo")
-        existing = UserShow.objects.create(user=self.user, show=show, is_tracking=False)
+        existing = UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.DROPPED)
 
         user_show = track_show(
             self.user,
@@ -38,7 +38,7 @@ class TrackShowServiceTests(TestCase):
         )
 
         self.assertEqual(user_show.id, existing.id)
-        self.assertTrue(user_show.is_tracking)
+        self.assertEqual(user_show.status, UserShow.Status.TRACKED)
 
 
 class DropShowServiceTests(TestCase):
@@ -51,14 +51,31 @@ class DropShowServiceTests(TestCase):
         episode = Episode.objects.create(
             show=show, season=season, season_number=1, episode_number=1, name="Pilot"
         )
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=episode)
 
         user_show = drop_show(self.user, show)
 
-        self.assertFalse(user_show.is_tracking)
+        self.assertEqual(user_show.status, UserShow.Status.DROPPED)
         self.assertTrue(UserShow.objects.filter(user=self.user, show=show).exists())
         self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=episode).exists())
+
+
+class PauseShowServiceTests(TestCase):
+    def test_pause_show_keeps_history_and_sets_paused_status(self):
+        user = get_user_model().objects.create_user("user@example.com")
+        show = Show.objects.create(external_id="123", name="Foo")
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        episode = Episode.objects.create(
+            show=show, season=season, season_number=1, episode_number=1, name="Pilot"
+        )
+        UserShow.objects.create(user=user, show=show, status=UserShow.Status.TRACKED)
+        UserEpisode.objects.create(user=user, episode=episode)
+
+        user_show = pause_show(user, show)
+
+        self.assertEqual(user_show.status, UserShow.Status.PAUSED)
+        self.assertTrue(UserEpisode.objects.filter(user=user, episode=episode).exists())
 
 
 class DeleteShowDataServiceTests(TestCase):
@@ -72,7 +89,7 @@ class DeleteShowDataServiceTests(TestCase):
         episode = Episode.objects.create(
             show=show, season=season, season_number=1, episode_number=1, name="Pilot"
         )
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=episode)
 
         delete_show_data(self.user, show)
@@ -88,8 +105,8 @@ class DeleteShowDataServiceTests(TestCase):
         episode = Episode.objects.create(
             show=show, season=season, season_number=1, episode_number=1, name="Pilot"
         )
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
-        UserShow.objects.create(user=self.other_user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+        UserShow.objects.create(user=self.other_user, show=show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.other_user, episode=episode)
 
         delete_show_data(self.user, show)
@@ -116,7 +133,7 @@ class MarkEpisodeWatchedServiceTests(TestCase):
     def test_mark_episode_watched_creates_user_episode(self):
         from apps.tv.services import mark_episode_watched
 
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
         mark_episode_watched(self.user, self.episode)
 
@@ -125,7 +142,7 @@ class MarkEpisodeWatchedServiceTests(TestCase):
     def test_unmark_episode_watched_deletes_user_episode(self):
         from apps.tv.services import unmark_episode_watched
 
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=self.episode)
 
         unmark_episode_watched(self.user, self.episode)
@@ -178,7 +195,7 @@ class MarkSeasonWatchedServiceTests(TestCase):
     def test_mark_season_watched_only_marks_aired_episodes(self):
         from apps.tv.services import mark_season_watched
 
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
         mark_season_watched(self.user, self.season)
 
@@ -195,7 +212,7 @@ class MarkSeasonWatchedServiceTests(TestCase):
     def test_unmark_season_watched_clears_all_episodes_regardless_of_air_date(self):
         from apps.tv.services import unmark_season_watched
 
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=self.aired_episode)
         UserEpisode.objects.create(user=self.user, episode=self.unaired_episode)
 
@@ -253,7 +270,7 @@ class MarkShowWatchedServiceTests(TestCase):
     def test_mark_show_watched_only_marks_aired_numbered_season_episodes(self):
         from apps.tv.services import mark_show_watched
 
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
         mark_show_watched(self.user, self.show)
 
@@ -270,7 +287,7 @@ class MarkShowWatchedServiceTests(TestCase):
     def test_unmark_show_watched_excludes_specials(self):
         from apps.tv.services import unmark_show_watched
 
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=self.aired_episode)
         UserEpisode.objects.create(user=self.user, episode=self.special_episode)
 

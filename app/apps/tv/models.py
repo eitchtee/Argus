@@ -113,6 +113,11 @@ class Episode(models.Model):
 
 
 class UserShow(models.Model):
+    class Status(models.TextChoices):
+        TRACKED = "tracked", "Tracked"
+        PAUSED = "paused", "Paused"
+        DROPPED = "dropped", "Dropped"
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -123,7 +128,11 @@ class UserShow(models.Model):
         on_delete=models.CASCADE,
         related_name="user_states",
     )
-    is_tracking = models.BooleanField(default=True)
+    status = models.CharField(
+        max_length=8,
+        choices=Status.choices,
+        default=Status.TRACKED,
+    )
     tracking_started_at = models.DateTimeField(default=timezone.now)
     tier = models.CharField(
         max_length=1,

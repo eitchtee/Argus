@@ -9,10 +9,10 @@
       {% endif %}
     </div>
     {% if season.tracked and season.aired_count > 0 %}
-    <button type="button" class="btn btn-xs {% if season.fully_watched %}btn-outline{% else %}btn-primary{% endif %}"
+    <div class="tooltip tooltip-left" data-tip="{% if season.fully_watched %}{% trans 'Mark season unwatched' %}{% else %}{% trans 'Mark season watched' %}{% endif %}" @click.stop><input type="checkbox" aria-label="{% if season.fully_watched %}{% trans 'Mark season unwatched' %}{% else %}{% trans 'Mark season watched' %}{% endif %}" class="checkbox checkbox-primary checkbox-md" {% if season.fully_watched %}checked{% endif %}
             hx-{% if season.fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-season-watched' external_id=show_external_id season_id=season.id %}"
             hx-target="#season-{{ season.id }}" hx-swap="outerHTML" hx-disabled-elt="this"
-            @click.stop>{% if season.fully_watched %}{% trans "Unmark season watched" %}{% else %}{% trans "Mark season watched" %}{% endif %}</button>
+            hx-trigger="change"></div>
     {% endif %}
   </div>
   <div x-show="expanded" x-collapse class="px-4 pb-4 flex flex-col gap-1">

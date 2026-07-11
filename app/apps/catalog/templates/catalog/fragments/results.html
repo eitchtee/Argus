@@ -5,13 +5,13 @@
 {% endif %}
 
 {% if results is None and not query %}
-<div class="text-subtle py-12 text-center">
-  {% trans "Search for movies or TV shows to start tracking." %}
+<div class="empty-state">
+  <i class="fa-solid fa-film mb-3 text-3xl text-primary/70"></i><p>{% trans "Search for movies or TV shows to start tracking." %}</p>
 </div>
 {% elif results is not None and results|length == 0 %}
 {% if page == 1 %}
-<div class="text-subtle py-12 text-center">
-  {% trans "No results found." %}
+<div class="empty-state">
+  <i class="fa-solid fa-magnifying-glass mb-3 text-3xl text-primary/70"></i><p>{% trans "No results found." %}</p>
 </div>
 {% endif %}
 {% elif results is not None %}

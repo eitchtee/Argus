@@ -97,7 +97,7 @@ class ShowDetailViewTests(TestCase):
         Episode.objects.create(
             show=show, season=season, season_number=1, episode_number=1, name="Pilot"
         )
-        UserShow.objects.create(user=other_user, show=show, is_tracking=True)
+        UserShow.objects.create(user=other_user, show=show, status=UserShow.Status.TRACKED)
 
         response = self.client.get("/tv/123/")
 
@@ -125,34 +125,46 @@ class ShowDetailViewTests(TestCase):
             name="Pilot",
             air_date=date.today() - timedelta(days=1),
         )
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=episode)
 
         response = self.client.get("/tv/123/")
 
         self.assertContains(response, "checkbox-sm")
         self.assertContains(response, "checked")
-        self.assertContains(response, ">Drop show<")
+        self.assertContains(response, 'aria-label="Drop show"')
+        self.assertContains(response, 'aria-label="Pause show"')
+        self.assertContains(response, "fa-bookmark-minus")
         self.assertContains(response, f"/tv/123/episodes/{episode.id}/\"")
 
     def test_shows_track_button_when_show_exists_but_user_not_tracking(self):
         other_user = get_user_model().objects.create_user("other@example.com")
         show = Show.objects.create(external_id="123", name="Foo")
-        UserShow.objects.create(user=other_user, show=show, is_tracking=True)
+        UserShow.objects.create(user=other_user, show=show, status=UserShow.Status.TRACKED)
 
         response = self.client.get("/tv/123/")
 
-        self.assertContains(response, ">Track<")
+        self.assertContains(response, 'aria-label="Track show"')
 
     def test_shows_delete_button_after_drop_but_not_before_any_tracking(self):
         show = Show.objects.create(external_id="123", name="Foo")
 
         response_never_tracked = self.client.get("/tv/123/")
-        self.assertNotContains(response_never_tracked, ">Delete show<")
+        self.assertNotContains(response_never_tracked, 'aria-label="Delete show"')
 
-        UserShow.objects.create(user=self.user, show=show, is_tracking=False)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.DROPPED)
         response_dropped = self.client.get("/tv/123/")
-        self.assertContains(response_dropped, ">Delete show<")
+        self.assertContains(response_dropped, 'aria-label="Delete show"')
+
+    def test_paused_show_can_be_tracked_or_deleted_but_not_paused_again(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.PAUSED)
+
+        response = self.client.get("/tv/123/")
+
+        self.assertContains(response, 'aria-label="Track show"')
+        self.assertContains(response, 'aria-label="Delete show"')
+        self.assertNotContains(response, 'aria-label="Pause show"')
 
 
 class ShowTrackViewTests(TestCase):
@@ -187,7 +199,7 @@ class ShowDropViewTests(TestCase):
 
     def test_drops_show_and_redirects(self):
         show = Show.objects.create(external_id="123", name="Foo")
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
 
         response = self.client.post("/tv/123/drop/", HTTP_HX_REQUEST="true")
 
@@ -198,7 +210,24 @@ class ShowDropViewTests(TestCase):
         # via raw SQL that the real row is correctly updated) — bypass the cache for this read.
         with cachalot_disabled():
             user_show = UserShow.objects.get(user=self.user, show=show)
-        self.assertFalse(user_show.is_tracking)
+        self.assertEqual(user_show.status, UserShow.Status.DROPPED)
+
+
+class ShowPauseViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("user@example.com", password="password")
+        self.client.login(username="user@example.com", password="password")
+
+    def test_pauses_show_and_redirects(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        response = self.client.post("/tv/123/pause/", HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response["HX-Redirect"], "/tv/123/")
+        with cachalot_disabled():
+            user_show = UserShow.objects.get(user=self.user, show=show)
+        self.assertEqual(user_show.status, UserShow.Status.PAUSED)
 
 
 class ShowDeleteViewTests(TestCase):
@@ -212,7 +241,7 @@ class ShowDeleteViewTests(TestCase):
         episode = Episode.objects.create(
             show=show, season=season, season_number=1, episode_number=1, name="Pilot"
         )
-        UserShow.objects.create(user=self.user, show=show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=episode)
 
         response = self.client.post("/tv/123/delete/", HTTP_HX_REQUEST="true")
@@ -242,7 +271,7 @@ class ShowWatchedViewTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_post_marks_show_watched_and_redirects(self):
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
         response = self.client.post("/tv/123/watched/", HTTP_HX_REQUEST="true")
 
@@ -252,7 +281,7 @@ class ShowWatchedViewTests(TestCase):
         )
 
     def test_delete_unmarks_show_watched(self):
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=self.episode)
 
         response = self.client.delete("/tv/123/watched/", HTTP_HX_REQUEST="true")
@@ -282,7 +311,7 @@ class SeasonWatchedViewTests(TestCase):
             name="Pilot",
             air_date=date.today() - timedelta(days=1),
         )
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
     def test_requires_htmx_header(self):
         response = self.client.post(f"/tv/123/seasons/{self.season.id}/watched/")
@@ -336,7 +365,7 @@ class EpisodeWatchedViewTests(TestCase):
             name="Pilot",
             air_date=date.today() - timedelta(days=1),
         )
-        UserShow.objects.create(user=self.user, show=self.show, is_tracking=True)
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
     def test_requires_htmx_header(self):
         response = self.client.post(f"/tv/123/episodes/{self.episode.id}/watched/")

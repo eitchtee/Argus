@@ -1,25 +1,25 @@
 {% load i18n %}
 <div id="show-actions" class="flex flex-wrap gap-2">
-  {% if show.tracked %}
-  <button type="button" class="btn btn-outline btn-sm"
-          hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}"
-          hx-disabled-elt="this">{% trans "Drop show" %}</button>
+  {% if show.tracking_status == "tracked" %}
+  <div class="tooltip tooltip-bottom" data-tip="{% trans 'Pause show' %}"><button type="button" aria-label="{% trans 'Pause show' %}" class="btn btn-square btn-sm btn-warning btn-outline"
+          hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}" hx-disabled-elt="this"><i class="fa-solid fa-pause"></i></button></div>
+  <div class="tooltip tooltip-bottom" data-tip="{% trans 'Drop show' %}"><button type="button" aria-label="{% trans 'Drop show' %}" class="btn btn-square btn-sm btn-warning btn-outline"
+          hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}" hx-disabled-elt="this"><i class="fa-solid fa-bookmark-minus"></i></button></div>
   {% else %}
-  <button type="button" class="btn btn-primary btn-sm"
-          hx-post="{% url 'tv-detail-track' external_id=show.external_id %}"
-          hx-disabled-elt="this">{% trans "Track" %}</button>
+  <div class="tooltip tooltip-bottom" data-tip="{% trans 'Track show' %}"><button type="button" aria-label="{% trans 'Track show' %}" class="btn btn-square btn-sm btn-primary"
+          hx-post="{% url 'tv-detail-track' external_id=show.external_id %}" hx-disabled-elt="this"><i class="fa-solid fa-bookmark"></i></button></div>
   {% endif %}
 
   {% if show.can_delete %}
-  <button type="button" class="btn btn-error btn-sm"
+  <div class="tooltip tooltip-bottom" data-tip="{% trans 'Delete show' %}"><button type="button" aria-label="{% trans 'Delete show' %}" class="btn btn-square btn-sm btn-error"
           hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
           hx-confirm="{% trans 'This permanently deletes your watch history for this show. Continue?' %}"
-          hx-disabled-elt="this">{% trans "Delete show" %}</button>
+          hx-disabled-elt="this"><i class="fa-solid fa-trash"></i></button></div>
   {% endif %}
 
   {% if show.tracked and show.seasons %}
-  <button type="button" class="btn btn-sm {% if show.show_fully_watched %}btn-outline{% else %}btn-success{% endif %}"
+  <div class="tooltip tooltip-bottom" data-tip="{% if show.show_fully_watched %}{% trans 'Mark show unwatched' %}{% else %}{% trans 'Mark show watched' %}{% endif %}"><input type="checkbox" aria-label="{% if show.show_fully_watched %}{% trans 'Mark show unwatched' %}{% else %}{% trans 'Mark show watched' %}{% endif %}" class="checkbox checkbox-success checkbox-lg" {% if show.show_fully_watched %}checked{% endif %}
           hx-{% if show.show_fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-watched' external_id=show.external_id %}"
-          hx-disabled-elt="this">{% if show.show_fully_watched %}{% trans "Unmark show watched" %}{% else %}{% trans "Mark show watched" %}{% endif %}</button>
+          hx-trigger="change" hx-disabled-elt="this"></div>
   {% endif %}
 </div>

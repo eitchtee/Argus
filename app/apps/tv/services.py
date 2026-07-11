@@ -107,9 +107,9 @@ def import_show(external_id: str, *, provider_getter=get_provider) -> Show:
 def track_show(user, external_id: str, *, import_func=import_show) -> UserShow:
     show = import_func(external_id)
     user_show, _created = UserShow.objects.get_or_create(user=user, show=show)
-    user_show.is_tracking = True
+    user_show.status = UserShow.Status.TRACKED
     user_show.tracking_started_at = timezone.now()
-    user_show.save(update_fields=["is_tracking", "tracking_started_at", "updated_at"])
+    user_show.save(update_fields=["status", "tracking_started_at", "updated_at"])
     return user_show
 
 
@@ -128,8 +128,15 @@ def _parse_date(value: str | None) -> date | None:
 
 def drop_show(user, show: Show) -> UserShow:
     user_show, _created = UserShow.objects.get_or_create(user=user, show=show)
-    user_show.is_tracking = False
-    user_show.save(update_fields=["is_tracking", "updated_at"])
+    user_show.status = UserShow.Status.DROPPED
+    user_show.save(update_fields=["status", "updated_at"])
+    return user_show
+
+
+def pause_show(user, show: Show) -> UserShow:
+    user_show, _created = UserShow.objects.get_or_create(user=user, show=show)
+    user_show.status = UserShow.Status.PAUSED
+    user_show.save(update_fields=["status", "updated_at"])
     return user_show
 
 
@@ -140,7 +147,7 @@ def delete_show_data(user, show: Show) -> None:
 
 def _require_tracking(user, show: Show) -> UserShow:
     try:
-        return UserShow.objects.get(user=user, show=show, is_tracking=True)
+        return UserShow.objects.get(user=user, show=show, status=UserShow.Status.TRACKED)
     except UserShow.DoesNotExist as exc:
         raise ValueError("Show must be tracked before managing watched episodes.") from exc
 
@@ -197,7 +204,9 @@ class WatchlistEntry:
 
 
 def get_watchlist(user) -> list[WatchlistEntry]:
-    tracked_shows = list(Show.objects.filter(user_states__user=user, user_states__is_tracking=True))
+    tracked_shows = list(
+        Show.objects.filter(user_states__user=user, user_states__status=UserShow.Status.TRACKED)
+    )
     if not tracked_shows:
         return []
 
@@ -267,7 +276,10 @@ def countdown_label(air_date: date, today: date) -> str:
 
 
 def get_upcoming_episodes(user, count: int = 10) -> list[UpcomingEntry]:
-    tracked_shows = Show.objects.filter(user_states__user=user, user_states__is_tracking=True)
+    tracked_shows = Show.objects.filter(
+        user_states__user=user,
+        user_states__status=UserShow.Status.TRACKED,
+    )
     today = timezone.localdate()
     yesterday = today - timedelta(days=1)
 
