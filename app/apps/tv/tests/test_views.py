@@ -114,6 +114,20 @@ class ShowDetailViewTests(TestCase):
         # Current user has not tracked it themselves: no checkboxes, no watched state.
         self.assertNotContains(response, "checkbox-sm")
 
+    def test_cloaks_collapsed_season_content_until_alpine_initializes(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        Episode.objects.create(
+            show=show, season=season, season_number=1, episode_number=1, name="Pilot"
+        )
+
+        response = self.client.get("/tv/123/")
+
+        self.assertRegex(
+            response.content.decode(),
+            r'<div(?=[^>]*x-show="expanded")(?=[^>]*x-cloak\b)[^>]*>',
+        )
+
     def test_renders_interactive_checkboxes_when_current_user_tracks_it(self):
         show = Show.objects.create(external_id="123", name="Foo")
         season = Season.objects.create(show=show, season_number=1, name="Season 1")
