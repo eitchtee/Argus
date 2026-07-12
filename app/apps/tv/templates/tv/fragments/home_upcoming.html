@@ -5,6 +5,11 @@
   {% include "tv/fragments/home_upcoming_row.html" %}
   {% endfor %}
 </div>
+<div class="flex justify-center mt-4">
+  <a href="{% url 'tv-upcoming' %}" hx-boost="true" class="btn btn-outline">
+    {% trans "Show more" %}
+  </a>
+</div>
 {% else %}
 <div class="text-subtle py-12 text-center">{% trans "No upcoming episodes." %}</div>
 {% endif %}

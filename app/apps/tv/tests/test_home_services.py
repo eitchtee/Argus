@@ -249,6 +249,93 @@ class GetUpNextServiceTests(TestCase):
         self.assertEqual(sections.not_seen_in_a_while, [])
 
 
+class UpcomingMonthServiceTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("user@example.com")
+        self.today = timezone.localdate()
+
+    def _make_show(self, name, external_id):
+        show = Show.objects.create(external_id=external_id, name=name)
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        return show, season
+
+    def _make_episode(self, show, season, number, air_date, name):
+        return Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=number,
+            air_date=air_date,
+            name=name,
+        )
+
+    def _get_upcoming_month(self, after_month=None):
+        get_upcoming_month = getattr(services, "get_upcoming_month", None)
+        self.assertIsNotNone(get_upcoming_month)
+        return get_upcoming_month(self.user, after_month=after_month)
+
+    def _next_month_start(self, month_start):
+        if month_start.month == 12:
+            return month_start.replace(year=month_start.year + 1, month=1)
+        return month_start.replace(month=month_start.month + 1)
+
+    def test_returns_all_episodes_in_month_with_current_users_watched_state(self):
+        show, season = self._make_show("My Show", "my-show")
+        first = self._make_episode(show, season, 1, self.today, "Today")
+        second = self._make_episode(
+            show, season, 2, self.today + timedelta(days=5), "Later"
+        )
+        other_user = get_user_model().objects.create_user("other@example.com")
+        UserEpisode.objects.create(user=self.user, episode=first)
+        UserEpisode.objects.create(user=other_user, episode=second)
+
+        month = self._get_upcoming_month()
+
+        self.assertEqual(month.month_start, self.today.replace(day=1))
+        self.assertEqual([entry.episode.name for entry in month.entries], ["Today", "Later"])
+        self.assertTrue(month.entries[0].watched)
+        self.assertFalse(month.entries[1].watched)
+
+    def test_uses_the_shared_yesterday_onward_window(self):
+        show, season = self._make_show("My Show", "my-show")
+        self._make_episode(show, season, 1, self.today - timedelta(days=2), "Too old")
+        self._make_episode(show, season, 2, self.today - timedelta(days=1), "Yesterday")
+        self._make_episode(show, season, 3, self.today, "Today")
+        self._make_episode(show, season, 4, self.today + timedelta(days=1), "Tomorrow")
+
+        month = self._get_upcoming_month()
+
+        self.assertEqual(
+            [entry.episode.name for entry in month.entries],
+            ["Yesterday", "Today", "Tomorrow"],
+        )
+
+    def test_advances_to_next_available_month_and_skips_empty_months(self):
+        show, season = self._make_show("My Show", "my-show")
+        current_month = self.today.replace(day=1)
+        empty_month = self._next_month_start(current_month)
+        next_month = self._next_month_start(empty_month)
+        self._make_episode(show, season, 1, self.today, "Current month")
+        self._make_episode(show, season, 2, next_month, "Next available month")
+
+        first = self._get_upcoming_month()
+        second = self._get_upcoming_month(after_month=first.month_start)
+
+        self.assertEqual(first.next_cursor, current_month)
+        self.assertEqual(second.month_start, next_month)
+        self.assertEqual([entry.episode.name for entry in second.entries], ["Next available month"])
+
+    def test_returns_none_after_last_available_month(self):
+        show, season = self._make_show("My Show", "my-show")
+        self._make_episode(show, season, 1, self.today, "Only month")
+
+        month = self._get_upcoming_month()
+
+        self.assertIsNone(month.next_cursor)
+        self.assertIsNone(self._get_upcoming_month(after_month=month.month_start))
+
+
 class GetWatchlistEntryServiceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")

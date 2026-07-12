@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
@@ -308,6 +309,113 @@ class UpNextViewTests(TestCase):
         self.assertFalse(UserEpisode.objects.filter(user=self.user, episode=episode).exists())
 
 
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    },
+    DJANGO_VITE_DEV_MODE=True,
+)
+class UpcomingViewTests(TestCase):
+    def setUp(self):
+        from django_vite.core.asset_loader import DjangoViteAssetLoader
+
+        DjangoViteAssetLoader._instance = None
+        self.user = get_user_model().objects.create_user(
+            "user@example.com", password="password"
+        )
+        self.client.login(username="user@example.com", password="password")
+        self.today = timezone.localdate()
+        self.show = Show.objects.create(external_id="1", name="My Show")
+        self.season = Season.objects.create(show=self.show, season_number=1, name="Season 1")
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
+
+    def tearDown(self):
+        from django_vite.core.asset_loader import DjangoViteAssetLoader
+
+        DjangoViteAssetLoader._instance = None
+        super().tearDown()
+
+    def _next_month_start(self, month_start):
+        if month_start.month == 12:
+            return month_start.replace(year=month_start.year + 1, month=1)
+        return month_start.replace(month=month_start.month + 1)
+
+    def _make_episode(self, number, air_date, name):
+        return Episode.objects.create(
+            show=self.show,
+            season=self.season,
+            season_number=1,
+            episode_number=number,
+            air_date=air_date,
+            name=name,
+        )
+
+    def test_requires_auth(self):
+        self.client.logout()
+
+        response = self.client.get("/tv/upcoming/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response["Location"])
+
+    def test_renders_first_month_and_intersection_loader(self):
+        current_month = self.today.replace(day=1)
+        next_month = self._next_month_start(current_month)
+        self._make_episode(1, self.today, "Current episode")
+        self._make_episode(2, self.today + timedelta(days=1), "Another current episode")
+        self._make_episode(3, next_month, "Next month episode")
+
+        response = self.client.get("/tv/upcoming/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn(f"{self.today:%B %Y}", content)
+        self.assertIn("Current episode", content)
+        self.assertIn("Another current episode", content)
+        self.assertNotIn("Next month episode", content)
+        self.assertIn("on intersection", content)
+        self.assertIn(f"after={current_month:%Y-%m}", content)
+        self.assertIn('class="sidebar-item menu-active"', content)
+
+    def test_cursor_returns_only_next_month_fragment(self):
+        current_month = self.today.replace(day=1)
+        next_month = self._next_month_start(current_month)
+        month_after_next = self._next_month_start(next_month)
+        self._make_episode(1, self.today, "Current episode")
+        self._make_episode(2, next_month, "Next month episode")
+        self._make_episode(3, month_after_next, "Later month episode")
+
+        response = self.client.get(
+            f"/tv/upcoming/?after={current_month:%Y-%m}",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn(f"{next_month:%B %Y}", content)
+        self.assertIn("Next month episode", content)
+        self.assertNotIn("Current episode", content)
+        self.assertNotIn("<html", content)
+        self.assertIn(f"after={next_month:%Y-%m}", content)
+
+    def test_final_month_has_no_intersection_loader(self):
+        self._make_episode(1, self.today, "Only episode")
+
+        response = self.client.get("/tv/upcoming/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Only episode")
+        self.assertNotContains(response, "on intersection")
+
+    def test_rejects_invalid_month_cursor(self):
+        for cursor in ["invalid", "2026-13"]:
+            response = self.client.get(f"/tv/upcoming/?after={cursor}")
+            self.assertEqual(response.status_code, 400)
+
+
 class HomeUpcomingViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
@@ -355,3 +463,5 @@ class HomeUpcomingViewTests(TestCase):
 
         self.assertNotContains(response, "hx-trigger=\"revealed\"")
         self.assertEqual(response.content.decode().count('id="upcoming-episode-'), 10)
+        self.assertContains(response, f'href="{reverse("tv-upcoming")}"')
+        self.assertContains(response, "Show more")

@@ -317,6 +317,13 @@ class UpcomingEntry:
     watched: bool
 
 
+@dataclass
+class UpcomingMonth:
+    month_start: date
+    entries: list[UpcomingEntry]
+    next_cursor: date | None
+
+
 def countdown_label(air_date: date, today: date) -> str:
     delta = (air_date - today).days
     if delta == -1:
@@ -328,26 +335,35 @@ def countdown_label(air_date: date, today: date) -> str:
     return f"{delta} days"
 
 
-def get_upcoming_episodes(user, count: int = 10) -> list[UpcomingEntry]:
+def _next_month_start(month_start: date) -> date:
+    if month_start.month == 12:
+        return month_start.replace(year=month_start.year + 1, month=1)
+    return month_start.replace(month=month_start.month + 1)
+
+
+def _upcoming_queryset(user):
     tracked_shows = Show.objects.filter(
         user_states__user=user,
         user_states__status=UserShow.Status.TRACKED,
     )
-    today = timezone.localdate()
-    yesterday = today - timedelta(days=1)
+    yesterday = timezone.localdate() - timedelta(days=1)
 
-    episodes = list(
+    return (
         Episode.objects.filter(
             show__in=tracked_shows,
             season_number__gt=0,
             air_date__gte=yesterday,
         )
         .select_related("show")
-        .order_by("air_date", "show__name", "episode_number")[:count]
+        .order_by("air_date", "show__name", "episode_number")
     )
+
+
+def _build_upcoming_entries(user, episodes) -> list[UpcomingEntry]:
     if not episodes:
         return []
 
+    today = timezone.localdate()
     watched_ids = set(
         UserEpisode.objects.filter(user=user, episode__in=episodes).values_list(
             "episode_id", flat=True
@@ -362,3 +378,32 @@ def get_upcoming_episodes(user, count: int = 10) -> list[UpcomingEntry]:
         )
         for episode in episodes
     ]
+
+
+def get_upcoming_episodes(user, count: int = 10) -> list[UpcomingEntry]:
+    episodes = list(_upcoming_queryset(user)[:count])
+    return _build_upcoming_entries(user, episodes)
+
+
+def get_upcoming_month(user, after_month: date | None = None) -> UpcomingMonth | None:
+    episodes = _upcoming_queryset(user)
+    if after_month is not None:
+        episodes = episodes.filter(air_date__gte=_next_month_start(after_month))
+
+    first_episode = episodes.first()
+    if first_episode is None:
+        return None
+
+    month_start = first_episode.air_date.replace(day=1)
+    following_month = _next_month_start(month_start)
+    month_episodes = list(
+        episodes.filter(air_date__gte=month_start, air_date__lt=following_month)
+    )
+    next_cursor = (
+        month_start if episodes.filter(air_date__gte=following_month).exists() else None
+    )
+    return UpcomingMonth(
+        month_start=month_start,
+        entries=_build_upcoming_entries(user, month_episodes),
+        next_cursor=next_cursor,
+    )

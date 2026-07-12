@@ -46,7 +46,8 @@
             </a>
           </li>
           <li>
-            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+            <a href="{% url 'tv-upcoming' %}" hx-boost="true"
+               class="sidebar-item {% active_link 'tv-upcoming' css_class='menu-active' %}">
               <i class="fa-solid fa-calendar-days fa-fw"></i>
               <span>{% trans "Upcoming" %}</span>
             </a>
