@@ -34,19 +34,31 @@ class CalendarViewTests(TestCase):
 
         DjangoViteAssetLoader._instance = None
 
-    def make_episode(self, name, status, air_date, *, external_id=None):
+    def make_episode(
+        self,
+        name,
+        status,
+        air_date,
+        *,
+        external_id=None,
+        season_number=1,
+    ):
         show = Show.objects.create(
             external_id=external_id or name.lower().replace(" ", "-"),
             name=name,
             network="Example Network",
             airs_time=time(21, 0),
         )
-        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        season = Season.objects.create(
+            show=show,
+            season_number=season_number,
+            name="Specials" if season_number == 0 else f"Season {season_number}",
+        )
         UserShow.objects.create(user=self.user, show=show, status=status)
         return Episode.objects.create(
             show=show,
             season=season,
-            season_number=1,
+            season_number=season_number,
             episode_number=1,
             name="Pilot",
             overview="Summary",
@@ -128,6 +140,31 @@ class CalendarViewTests(TestCase):
         self.assertContains(response, '<input class="checkbox checkbox-primary" type="checkbox" name="paused" value="1">')
         self.assertContains(response, '<input class="checkbox checkbox-primary" type="checkbox" name="dropped" value="1">')
         self.assertContains(response, '<input class="checkbox checkbox-primary" type="checkbox" name="movies" value="1">')
+
+    def test_calendar_and_feed_exclude_special_episodes(self):
+        regular = self.make_episode(
+            "Regular Calendar Show",
+            UserShow.Status.TRACKED,
+            date(2026, 7, 10),
+        )
+        special = self.make_episode(
+            "Specials Calendar Show",
+            UserShow.Status.TRACKED,
+            date(2026, 7, 10),
+            season_number=0,
+        )
+        feed = get_calendar_feed(self.user)
+
+        page_response = self.client.get("/calendar/?month=2026-07")
+        feed_response = self.client.get(f"/calendar/feed/{feed.uuid}.ics")
+        feed_content = feed_response.content.decode()
+
+        self.assertEqual(page_response.status_code, 200)
+        self.assertEqual(feed_response.status_code, 200)
+        self.assertContains(page_response, "Regular Calendar Show")
+        self.assertNotContains(page_response, "Specials Calendar Show")
+        self.assertIn(f"episode-{regular.id}@argus", feed_content)
+        self.assertNotIn(f"episode-{special.id}@argus", feed_content)
 
     def test_calendar_places_empty_state_before_grid_and_subscription_after_grid(self):
         response = self.client.get("/calendar/?month=2026-07")
