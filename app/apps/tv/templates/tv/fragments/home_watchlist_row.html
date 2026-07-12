@@ -1,4 +1,5 @@
 {% load i18n %}
+{% with toggle_target=toggle_target|default:"" %}
 <c-ui.components.episode-card
     id="watchlist-show-{{ entry.show.id }}"
     :image_url="entry.next_episode.show.poster_url"
@@ -10,5 +11,7 @@
     title_url="{% url 'tv-episode-detail' external_id=entry.show.external_id episode_id=entry.next_episode.id %}"
     checkbox_position="right"
     :checked="False"
-    toggle_url="{% url 'tv-home-watchlist-episode-watched' episode_id=entry.next_episode.id %}">
+    toggle_url="{% if watch_toggle_url %}{{ watch_toggle_url }}{% else %}{% url 'tv-home-watchlist-episode-watched' episode_id=entry.next_episode.id %}{% endif %}"
+    :toggle_target="toggle_target">
 </c-ui.components.episode-card>
+{% endwith %}

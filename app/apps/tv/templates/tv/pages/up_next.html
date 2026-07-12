@@ -1,0 +1,10 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Up next" %}{% endblock %}
+
+{% block content %}
+<div id="up-next-content">
+  {% include "tv/fragments/up_next_content.html" %}
+</div>
+{% endblock %}

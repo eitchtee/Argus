@@ -39,7 +39,8 @@
         </h2>
         <ul>
           <li>
-            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+            <a href="{% url 'tv-up-next' %}" hx-boost="true"
+               class="sidebar-item {% active_link 'tv-up-next' css_class='menu-active' %}">
               <i class="fa-solid fa-forward-step fa-fw"></i>
               <span>{% trans "Up next" %}</span>
             </a>

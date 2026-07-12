@@ -15,6 +15,7 @@ from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 from apps.tv.services import (
     delete_show_data,
     drop_show,
+    get_up_next,
     get_upcoming_episodes,
     get_watchlist,
     get_watchlist_entry,
@@ -28,6 +29,35 @@ from apps.tv.services import (
     unmark_show_watched,
 )
 
+
+
+@htmx_login_required
+@require_http_methods(["GET"])
+def up_next(request):
+    return render(request, "tv/pages/up_next.html", {"sections": get_up_next(request.user)})
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST", "DELETE"])
+def up_next_episode_watched(request, episode_id):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    episode = get_object_or_404(Episode, id=episode_id)
+    try:
+        if request.method == "POST":
+            mark_episode_watched(request.user, episode)
+        else:
+            unmark_episode_watched(request.user, episode)
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+
+    return render(
+        request,
+        "tv/fragments/up_next_content.html",
+        {"sections": get_up_next(request.user)},
+    )
 
 
 @htmx_login_required

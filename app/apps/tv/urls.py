@@ -3,6 +3,12 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path("tv/up-next/", views.up_next, name="tv-up-next"),
+    path(
+        "tv/up-next/episodes/<int:episode_id>/watched/",
+        views.up_next_episode_watched,
+        name="tv-up-next-episode-watched",
+    ),
     path("tv/<str:external_id>/", views.show_detail, name="tv-detail"),
     path("tv/<str:external_id>/track/", views.show_track, name="tv-detail-track"),
     path("tv/<str:external_id>/drop/", views.show_drop, name="tv-detail-drop"),
