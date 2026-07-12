@@ -1,10 +1,13 @@
+from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.catalog.models import Tier
 from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
     clear_tier,
+    get_watchlist_movies,
     mark_seen,
     remove_from_watchlist,
     set_tier,
@@ -16,6 +19,54 @@ from apps.movies.services import (
 class MovieServiceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")
+
+    def test_get_watchlist_movies_scopes_unwatched_entries_to_user(self):
+        older = Movie.objects.create(external_id="1", title="Older")
+        newer = Movie.objects.create(external_id="2", title="Newer")
+        seen = Movie.objects.create(external_id="3", title="Seen")
+        untracked = Movie.objects.create(external_id="4", title="Untracked")
+        other = Movie.objects.create(external_id="5", title="Other user")
+        now = timezone.now()
+
+        UserMovie.objects.create(
+            user=self.user,
+            movie=older,
+            on_watchlist=True,
+            watchlist_added_at=now - timedelta(days=1),
+        )
+        UserMovie.objects.create(
+            user=self.user,
+            movie=newer,
+            on_watchlist=True,
+            watchlist_added_at=now,
+        )
+        UserMovie.objects.create(
+            user=self.user,
+            movie=seen,
+            on_watchlist=True,
+            is_seen=True,
+            watchlist_added_at=now,
+        )
+        UserMovie.objects.create(user=self.user, movie=untracked, on_watchlist=False)
+        UserMovie.objects.create(
+            user=get_user_model().objects.create_user("other@example.com"),
+            movie=other,
+            on_watchlist=True,
+            watchlist_added_at=now + timedelta(days=1),
+        )
+
+        self.assertEqual(get_watchlist_movies(self.user), [newer, older])
+
+    def test_get_watchlist_movies_uses_deterministic_fallback_ordering(self):
+        alpha = Movie.objects.create(external_id="2", title="Alpha")
+        beta = Movie.objects.create(external_id="1", title="Beta")
+        untimed = Movie.objects.create(external_id="3", title="Untimed")
+
+        UserMovie.objects.create(user=self.user, movie=beta, on_watchlist=True)
+        UserMovie.objects.create(user=self.user, movie=untimed, on_watchlist=True)
+        UserMovie.objects.create(user=self.user, movie=alpha, on_watchlist=True)
+
+        self.assertEqual(get_watchlist_movies(self.user), [alpha, beta, untimed])
 
     def test_track_movie_imports_movie_and_adds_to_watchlist(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")

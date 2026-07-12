@@ -1,0 +1,95 @@
+{% load i18n %}
+
+<label id="theme-toggle" data-theme-toggle
+       data-theme="{% if request.session.theme == 'argus_light' %}argus_light{% else %}argus_dark{% endif %}"
+       data-theme-next="{% if request.session.theme == 'argus_light' %}argus_dark{% else %}argus_light{% endif %}"
+       class="swap swap-rotate btn btn-ghost btn-sm btn-circle"
+       aria-label="{% if request.session.theme == 'argus_light' %}{% translate 'Switch to dark mode' %}{% else %}{% translate 'Switch to light mode' %}{% endif %}"
+       data-tippy-content="{% if request.session.theme == 'argus_light' %}{% translate 'Switch to dark mode' %}{% else %}{% translate 'Switch to light mode' %}{% endif %}"
+       title="{% if request.session.theme == 'argus_light' %}{% translate 'Switch to dark mode' %}{% else %}{% translate 'Switch to light mode' %}{% endif %}">
+  <input type="checkbox"
+         {% if request.session.theme != 'argus_light' %}checked{% endif %}
+         data-theme-url="{% url 'toggle_theme' %}"
+         data-csrf-token="{{ csrf_token }}"
+         _="on change
+              set toggle to closest <label/>
+              set previousTheme to <html/>'s @data-theme
+              if my.checked
+                set nextTheme to 'argus_dark'
+              else
+                set nextTheme to 'argus_light'
+              end
+              add @disabled
+              set <html/>'s @data-theme to nextTheme
+              set toggle's @data-theme to nextTheme
+              if nextTheme is 'argus_light'
+                set toggle's @data-theme-next to 'argus_dark'
+                set toggle's @aria-label to 'Switch to dark mode'
+                set toggle's @data-tippy-content to 'Switch to dark mode'
+                set toggle's @title to 'Switch to dark mode'
+                if toggle._tippy
+                  call toggle._tippy.setContent('Switch to dark mode')
+                end
+              else
+                set toggle's @data-theme-next to 'argus_light'
+                set toggle's @aria-label to 'Switch to light mode'
+                set toggle's @data-tippy-content to 'Switch to light mode'
+                set toggle's @title to 'Switch to light mode'
+                if toggle._tippy
+                  call toggle._tippy.setContent('Switch to light mode')
+                end
+              end
+              fetch my @data-theme-url as JSON with method:'POST', body:`theme=${nextTheme}`, headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8', 'HX-Request':'true', 'X-CSRFToken':my @data-csrf-token, 'X-Requested-With':'XMLHttpRequest'}
+              if it.theme is 'argus_light' or it.theme is 'argus_dark'
+                set <html/>'s @data-theme to it.theme
+                set toggle's @data-theme to it.theme
+                if it.theme is 'argus_light'
+                  set my.checked to false
+                  set toggle's @data-theme-next to 'argus_dark'
+                  set toggle's @aria-label to 'Switch to dark mode'
+                  set toggle's @data-tippy-content to 'Switch to dark mode'
+                  set toggle's @title to 'Switch to dark mode'
+                  if toggle._tippy
+                    call toggle._tippy.setContent('Switch to dark mode')
+                  end
+                else
+                  set my.checked to true
+                  set toggle's @data-theme-next to 'argus_light'
+                  set toggle's @aria-label to 'Switch to light mode'
+                  set toggle's @data-tippy-content to 'Switch to light mode'
+                  set toggle's @title to 'Switch to light mode'
+                  if toggle._tippy
+                    call toggle._tippy.setContent('Switch to light mode')
+                  end
+                end
+              else
+                throw 'Invalid theme response'
+              end
+              catch error
+                set <html/>'s @data-theme to previousTheme
+                set toggle's @data-theme to previousTheme
+                if previousTheme is 'argus_light'
+                  set my.checked to false
+                  set toggle's @data-theme-next to 'argus_dark'
+                  set toggle's @aria-label to 'Switch to dark mode'
+                  set toggle's @data-tippy-content to 'Switch to dark mode'
+                  set toggle's @title to 'Switch to dark mode'
+                  if toggle._tippy
+                    call toggle._tippy.setContent('Switch to dark mode')
+                  end
+                else
+                  set my.checked to true
+                  set toggle's @data-theme-next to 'argus_light'
+                  set toggle's @aria-label to 'Switch to light mode'
+                  set toggle's @data-tippy-content to 'Switch to light mode'
+                  set toggle's @title to 'Switch to light mode'
+                  if toggle._tippy
+                    call toggle._tippy.setContent('Switch to light mode')
+                  end
+                end
+              finally
+                remove @disabled
+              end" />
+  <i class="fa-solid fa-sun swap-off" aria-hidden="true"></i>
+  <i class="fa-solid fa-moon swap-on" aria-hidden="true"></i>
+</label>

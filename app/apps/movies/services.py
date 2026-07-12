@@ -2,6 +2,7 @@ import dataclasses
 from datetime import date
 
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from apps.catalog.models import Genre, SyncStatus
@@ -152,3 +153,20 @@ def get_watch_something(user, count: int = 10) -> list[Movie]:
             user_states__user=user, user_states__on_watchlist=True, user_states__is_seen=False
         ).order_by("?")[:count]
     )
+
+
+def get_watchlist_movies(user) -> list[Movie]:
+    entries = (
+        UserMovie.objects.filter(
+            user=user,
+            on_watchlist=True,
+            is_seen=False,
+        )
+        .select_related("movie")
+        .order_by(
+            F("watchlist_added_at").desc(nulls_last=True),
+            "movie__title",
+            "movie__external_id",
+        )
+    )
+    return [entry.movie for entry in entries]

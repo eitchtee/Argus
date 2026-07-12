@@ -1,0 +1,41 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Watchlist" %}{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <div class="section-heading">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "TV Shows" %}</p>
+      <h1 class="text-3xl font-bold tracking-tight">{% trans "Watchlist" %}</h1>
+    </div>
+  </div>
+
+  <div role="tablist" class="tabs tabs-border w-fit" aria-label="{% trans 'TV watchlist filters' %}">
+    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'All' %}"
+           checked
+           hx-get="{% url 'tv-watchlist-tab' section='all' %}"
+           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
+           hx-trigger="load, change">
+    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'Watching' %}"
+           hx-get="{% url 'tv-watchlist-tab' section='watching' %}"
+           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
+           hx-trigger="change">
+    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'Completed' %}"
+           hx-get="{% url 'tv-watchlist-tab' section='completed' %}"
+           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
+           hx-trigger="change">
+    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'Paused' %}"
+           hx-get="{% url 'tv-watchlist-tab' section='paused' %}"
+           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
+           hx-trigger="change">
+    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'Dropped' %}"
+           hx-get="{% url 'tv-watchlist-tab' section='dropped' %}"
+           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
+           hx-trigger="change">
+  </div>
+
+  <div id="tv-watchlist-panel"></div>
+</section>
+{% endblock %}

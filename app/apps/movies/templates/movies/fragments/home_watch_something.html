@@ -3,17 +3,7 @@
 <div class="flex gap-4 overflow-x-auto pb-2">
   {% for movie in movies %}
   <div class="w-[20%] md:w-[40%] lg:w-[10%] shrink-0">
-    <a href="{% url 'movie-detail' external_id=movie.external_id %}" class="block">
-      {% if movie.poster_url %}
-      <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="w-full aspect-2/3 object-cover rounded-box">
-      {% else %}
-      <div class="w-full aspect-2/3 flex items-center justify-center bg-base-200 text-base-content/30 rounded-box">
-        <i class="fa-solid fa-image text-4xl"></i>
-      </div>
-      {% endif %}
-      <div class="mt-1 text-sm font-medium truncate">{{ movie.title }}</div>
-    </a>
-    <div class="text-subtle text-xs">{{ movie.release_date|date:"M d, Y"|default:"TBA" }}</div>
+    <c-movies.movie-poster :movie="movie" show_release_date="true" />
   </div>
   {% endfor %}
 </div>

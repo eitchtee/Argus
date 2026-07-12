@@ -1,0 +1,19 @@
+<a href="{% url 'movie-detail' external_id=movie.external_id %}" hx-boost="true"
+   class="group card overflow-hidden border border-base-300 bg-base-200/60 transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
+  <figure class="aspect-[2/3] overflow-hidden bg-base-300">
+    {% if movie.poster_url %}
+    <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" loading="lazy"
+         class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
+    {% else %}
+    <div class="flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
+      <i class="fa-solid fa-film text-4xl"></i>
+    </div>
+    {% endif %}
+  </figure>
+  <div class="card-body p-3">
+    <h2 class="truncate text-sm font-semibold" title="{{ movie.title }}">{{ movie.title }}</h2>
+    {% if show_release_date %}
+    <div class="mt-1 text-xs text-subtle">{{ movie.release_date|date:"M d, Y"|default:"TBA" }}</div>
+    {% endif %}
+  </div>
+</a>

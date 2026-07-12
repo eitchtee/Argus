@@ -8,7 +8,14 @@ from apps.catalog.services import get_movie_detail
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.movies.models import Movie, UserMovie
-from apps.movies.services import import_movie, mark_seen, remove_from_watchlist, track_movie, unmark_seen
+from apps.movies.services import (
+    get_watchlist_movies,
+    import_movie,
+    mark_seen,
+    remove_from_watchlist,
+    track_movie,
+    unmark_seen,
+)
 
 
 @htmx_login_required
@@ -16,6 +23,16 @@ from apps.movies.services import import_movie, mark_seen, remove_from_watchlist,
 def movie_detail(request, external_id):
     context = {"movie": _build_movie_context(request.user, external_id)}
     return render(request, "movies/pages/detail.html", context)
+
+
+@htmx_login_required
+@require_http_methods(["GET"])
+def movie_watchlist(request):
+    return render(
+        request,
+        "movies/pages/watchlist.html",
+        {"movies": get_watchlist_movies(request.user)},
+    )
 
 
 @only_htmx
