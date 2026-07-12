@@ -78,7 +78,8 @@
             </a>
           </li>
           <li>
-            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+            <a href="{% url 'movies-watched-page' %}" hx-boost="true"
+               class="sidebar-item {% active_link 'movies-watched-page' css_class='menu-active' %}">
               <i class="fa-solid fa-eye fa-fw"></i>
               <span>{% trans "Watched" %}</span>
             </a>

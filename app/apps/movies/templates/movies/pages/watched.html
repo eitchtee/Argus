@@ -1,0 +1,25 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Watched Movies" %}{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <div class="section-heading">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Movies" %}</p>
+      <h1 class="text-3xl font-bold tracking-tight">{% trans "Watched" %}</h1>
+    </div>
+  </div>
+
+  {% if movies %}
+  <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+    {% for movie in movies %}
+    <c-movies.movie-poster :movie="movie" />
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state py-12 text-center">{% trans "No watched movies yet." %}</div>
+  {% endif %}
+</section>
+{% endblock %}

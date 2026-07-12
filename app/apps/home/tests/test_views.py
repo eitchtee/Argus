@@ -66,6 +66,7 @@ class IndexViewTests(TestCase):
         upcoming_url = reverse("tv-upcoming")
         watchlist_url = reverse("tv-watchlist")
         movie_watchlist_url = reverse("movies-watchlist-page")
+        movie_watched_url = reverse("movies-watched-page")
 
         self.assertIn('hx-boost="true"', sidebar)
         self.assertIn('class="menu menu-sm', sidebar)
@@ -108,8 +109,11 @@ class IndexViewTests(TestCase):
         for anchor in anchors:
             self.assertIn('hx-boost="true"', anchor)
 
-        for label in ["Home", "Watched"]:
-            self.assertIn(f'href="{home_url}"', self._sidebar_link(sidebar, label))
+        self.assertIn(f'href="{home_url}"', self._sidebar_link(sidebar, "Home"))
+        self.assertIn(
+            f'href="{movie_watched_url}"',
+            self._sidebar_link(sidebar, "Watched"),
+        )
         self.assertIn(f'href="{up_next_url}"', self._sidebar_link(sidebar, "Up next"))
         self.assertIn(f'href="{upcoming_url}"', self._sidebar_link(sidebar, "Upcoming"))
 
@@ -188,6 +192,15 @@ class IndexViewTests(TestCase):
 
         self.assertIn(f'href="{reverse("movies-watchlist-page")}"', watchlist_link)
         self.assertIn('class="sidebar-item menu-active"', watchlist_link)
+
+    def test_movie_watched_sidebar_link_is_active(self):
+        response = self.client.get(reverse("movies-watched-page"))
+        sidebar = self._sidebar_menu(response)
+
+        watched_link = self._sidebar_link(sidebar, "Watched")
+
+        self.assertIn(f'href="{reverse("movies-watched-page")}"', watched_link)
+        self.assertIn('class="sidebar-item menu-active"', watched_link)
 
     def test_sidebar_shows_admin_link_for_staff(self):
         self.user.is_staff = True

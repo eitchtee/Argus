@@ -170,3 +170,19 @@ def get_watchlist_movies(user) -> list[Movie]:
         )
     )
     return [entry.movie for entry in entries]
+
+
+def get_watched_movies(user) -> list[Movie]:
+    entries = (
+        UserMovie.objects.filter(
+            user=user,
+            is_seen=True,
+        )
+        .select_related("movie")
+        .order_by(
+            F("seen_at").desc(nulls_last=True),
+            "movie__title",
+            "movie__external_id",
+        )
+    )
+    return [entry.movie for entry in entries]
