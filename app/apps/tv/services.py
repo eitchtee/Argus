@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, time, timedelta
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.utils import timezone
 
 from apps.catalog.models import Genre, SyncStatus
@@ -213,6 +213,13 @@ class WatchlistEntry:
     pending_count: int
 
 
+@dataclass
+class UpNextSections:
+    active: list[WatchlistEntry]
+    not_seen_in_a_while: list[WatchlistEntry]
+    not_started: list[WatchlistEntry]
+
+
 def get_watchlist(user) -> list[WatchlistEntry]:
     tracked_shows = list(
         Show.objects.filter(user_states__user=user, user_states__status=UserShow.Status.TRACKED)
@@ -251,6 +258,42 @@ def get_watchlist(user) -> list[WatchlistEntry]:
 
     entries.sort(key=lambda entry: entry.next_episode.air_date, reverse=True)
     return entries
+
+
+def get_up_next(user) -> UpNextSections:
+    entries = get_watchlist(user)
+    if not entries:
+        return UpNextSections(active=[], not_seen_in_a_while=[], not_started=[])
+
+    show_ids = [entry.show.id for entry in entries]
+    activity = {
+        row["episode__show_id"]: row
+        for row in UserEpisode.objects.filter(
+            user=user,
+            episode__show_id__in=show_ids,
+        )
+        .values("episode__show_id")
+        .annotate(watched_count=Count("id"), last_seen_at=Max("seen_at"))
+    }
+    stale_cutoff = timezone.now() - timedelta(days=30)
+    active = []
+    not_seen_in_a_while = []
+    not_started = []
+
+    for entry in entries:
+        row = activity.get(entry.show.id)
+        if row is None or row["watched_count"] == 0:
+            not_started.append(entry)
+        elif row["last_seen_at"] < stale_cutoff:
+            not_seen_in_a_while.append(entry)
+        else:
+            active.append(entry)
+
+    return UpNextSections(
+        active=active,
+        not_seen_in_a_while=not_seen_in_a_while,
+        not_started=not_started,
+    )
 
 
 def get_watchlist_entry(user, show: Show) -> WatchlistEntry | None:

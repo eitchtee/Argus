@@ -5,8 +5,14 @@ from django.test import TestCase
 from django.utils import timezone
 from cachalot.api import cachalot_disabled
 
+from apps.tv import services
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
-from apps.tv.services import countdown_label, get_upcoming_episodes, get_watchlist, get_watchlist_entry
+from apps.tv.services import (
+    countdown_label,
+    get_upcoming_episodes,
+    get_watchlist,
+    get_watchlist_entry,
+)
 
 
 class GetWatchlistServiceTests(TestCase):
@@ -88,6 +94,159 @@ class GetWatchlistServiceTests(TestCase):
 
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0].next_episode, episode)
+
+
+class GetUpNextServiceTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("user@example.com")
+        self.today = timezone.localdate()
+
+    def _make_show(self, name, external_id):
+        show = Show.objects.create(external_id=external_id, name=name)
+        UserShow.objects.create(
+            user=self.user,
+            show=show,
+            status=UserShow.Status.TRACKED,
+        )
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        return show, season
+
+    def _make_episode(self, show, season, number, air_date, name):
+        return Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=number,
+            air_date=air_date,
+            name=name,
+        )
+
+    def _get_up_next(self):
+        get_up_next = getattr(services, "get_up_next", None)
+        self.assertIsNotNone(get_up_next)
+        return get_up_next(self.user)
+
+    def test_returns_pending_entries_in_newest_first_order(self):
+        older, older_season = self._make_show("Older", "older")
+        newer, newer_season = self._make_show("Newer", "newer")
+        self._make_episode(
+            older, older_season, 1, self.today - timedelta(days=10), "Older pending"
+        )
+        newer_episode = self._make_episode(
+            newer, newer_season, 1, self.today - timedelta(days=1), "Newer pending"
+        )
+
+        sections = self._get_up_next()
+
+        self.assertEqual([entry.show for entry in sections.not_started], [newer, older])
+        self.assertEqual(sections.not_started[0].next_episode, newer_episode)
+        self.assertEqual(sections.active, [])
+        self.assertEqual(sections.not_seen_in_a_while, [])
+
+    def test_classifies_shows_by_current_users_seen_at(self):
+        not_started, not_started_season = self._make_show("Not started", "not-started")
+        stale, stale_season = self._make_show("Stale", "stale")
+        active, active_season = self._make_show("Active", "active")
+
+        self._make_episode(
+            not_started, not_started_season, 1, self.today - timedelta(days=1), "Pilot"
+        )
+        stale_watched = self._make_episode(
+            stale, stale_season, 1, self.today - timedelta(days=60), "Old watched"
+        )
+        self._make_episode(stale, stale_season, 2, self.today - timedelta(days=1), "Stale pending")
+        active_watched = self._make_episode(
+            active, active_season, 1, self.today - timedelta(days=10), "Recent watched"
+        )
+        self._make_episode(active, active_season, 2, self.today - timedelta(days=1), "Active pending")
+        now = timezone.now()
+        UserEpisode.objects.create(
+            user=self.user,
+            episode=stale_watched,
+            seen_at=now - timedelta(days=31),
+        )
+        UserEpisode.objects.create(
+            user=self.user,
+            episode=active_watched,
+            seen_at=now - timedelta(days=29),
+        )
+
+        sections = self._get_up_next()
+
+        self.assertEqual([entry.show for entry in sections.active], [active])
+        self.assertEqual([entry.show for entry in sections.not_seen_in_a_while], [stale])
+        self.assertEqual([entry.show for entry in sections.not_started], [not_started])
+
+    def test_uses_strict_thirty_day_seen_at_cutoff(self):
+        boundary_active, boundary_active_season = self._make_show("Boundary active", "active")
+        boundary_stale, boundary_stale_season = self._make_show("Boundary stale", "stale")
+        active_episode = self._make_episode(
+            boundary_active, boundary_active_season, 1, self.today - timedelta(days=2), "Active"
+        )
+        self._make_episode(
+            boundary_active,
+            boundary_active_season,
+            2,
+            self.today - timedelta(days=1),
+            "Active pending",
+        )
+        stale_episode = self._make_episode(
+            boundary_stale, boundary_stale_season, 1, self.today - timedelta(days=1), "Stale"
+        )
+        self._make_episode(
+            boundary_stale,
+            boundary_stale_season,
+            2,
+            self.today,
+            "Stale pending",
+        )
+        now = timezone.now()
+        UserEpisode.objects.create(
+            user=self.user,
+            episode=active_episode,
+            seen_at=now - timedelta(days=30) + timedelta(seconds=5),
+        )
+        UserEpisode.objects.create(
+            user=self.user,
+            episode=stale_episode,
+            seen_at=now - timedelta(days=30) - timedelta(seconds=5),
+        )
+
+        sections = self._get_up_next()
+
+        self.assertEqual([entry.show for entry in sections.active], [boundary_active])
+        self.assertEqual([entry.show for entry in sections.not_seen_in_a_while], [boundary_stale])
+
+    def test_omits_shows_without_pending_episodes(self):
+        show, season = self._make_show("Finished", "finished")
+        episode = self._make_episode(
+            show, season, 1, self.today - timedelta(days=1), "Finished episode"
+        )
+        UserEpisode.objects.create(user=self.user, episode=episode)
+
+        sections = self._get_up_next()
+
+        self.assertEqual(sections.active, [])
+        self.assertEqual(sections.not_seen_in_a_while, [])
+        self.assertEqual(sections.not_started, [])
+
+    def test_does_not_use_another_users_seen_state(self):
+        other_user = get_user_model().objects.create_user("other@example.com")
+        show, season = self._make_show("Shared", "shared")
+        episode = self._make_episode(
+            show, season, 1, self.today - timedelta(days=1), "Shared episode"
+        )
+        UserEpisode.objects.create(
+            user=other_user,
+            episode=episode,
+            seen_at=timezone.now() - timedelta(days=60),
+        )
+
+        sections = self._get_up_next()
+
+        self.assertEqual([entry.show for entry in sections.not_started], [show])
+        self.assertEqual(sections.active, [])
+        self.assertEqual(sections.not_seen_in_a_while, [])
 
 
 class GetWatchlistEntryServiceTests(TestCase):

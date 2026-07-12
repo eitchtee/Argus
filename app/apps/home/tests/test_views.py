@@ -60,6 +60,7 @@ class IndexViewTests(TestCase):
         home_url = reverse("index")
         search_url = reverse("catalog-search-page")
         calendar_url = reverse("calendar")
+        up_next_url = reverse("tv-up-next")
 
         self.assertIn('hx-boost="true"', sidebar)
         self.assertIn('class="menu menu-sm', sidebar)
@@ -102,8 +103,9 @@ class IndexViewTests(TestCase):
         for anchor in anchors:
             self.assertIn('hx-boost="true"', anchor)
 
-        for label in ["Home", "Up next", "Upcoming", "Watched"]:
+        for label in ["Home", "Upcoming", "Watched"]:
             self.assertIn(f'href="{home_url}"', self._sidebar_link(sidebar, label))
+        self.assertIn(f'href="{up_next_url}"', self._sidebar_link(sidebar, "Up next"))
 
         watchlist_links = [
             link
