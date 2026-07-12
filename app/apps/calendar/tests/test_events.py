@@ -90,6 +90,35 @@ class CalendarEventServiceTests(TestCase):
 
         self.assertEqual([event.show_name for event in events], ["Tracked"])
 
+    def test_season_zero_episodes_are_excluded_from_calendar_events(self):
+        show = self.make_show("Calendar Show", UserShow.Status.TRACKED)
+        special_season = Season.objects.create(
+            show=show,
+            season_number=0,
+            name="Specials",
+        )
+        Episode.objects.create(
+            show=show,
+            season=special_season,
+            season_number=0,
+            episode_number=1,
+            name="Behind the Scenes",
+            air_date=date(2026, 7, 10),
+        )
+        self.make_episode(show, date(2026, 7, 10), name="Regular Episode")
+
+        events = get_calendar_events(
+            self.user,
+            date(2026, 7, 1),
+            date(2026, 7, 31),
+            filters=CalendarFilters(),
+        )
+
+        self.assertEqual(
+            [(event.season_number, event.title) for event in events],
+            [(1, "Regular Episode")],
+        )
+
     def test_optional_statuses_are_included_without_leaking_other_users(self):
         tracked = self.make_show("Tracked", UserShow.Status.TRACKED)
         paused = self.make_show("Paused", UserShow.Status.PAUSED)

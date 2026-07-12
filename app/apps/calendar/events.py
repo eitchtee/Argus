@@ -150,6 +150,7 @@ def _get_episode_events(user, start_date, end_date, filters):
         Episode.objects.filter(
             show__user_states__user=user,
             show__user_states__status__in=filters.statuses,
+            season_number__gt=0,
             air_date__gte=start_date,
             air_date__lte=end_date,
         )
