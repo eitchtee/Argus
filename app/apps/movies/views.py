@@ -9,6 +9,7 @@ from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
+    get_watched_movies,
     get_watchlist_movies,
     import_movie,
     mark_seen,
@@ -32,6 +33,16 @@ def movie_watchlist(request):
         request,
         "movies/pages/watchlist.html",
         {"movies": get_watchlist_movies(request.user)},
+    )
+
+
+@htmx_login_required
+@require_http_methods(["GET"])
+def movie_watched_list(request):
+    return render(
+        request,
+        "movies/pages/watched.html",
+        {"movies": get_watched_movies(request.user)},
     )
 
 
