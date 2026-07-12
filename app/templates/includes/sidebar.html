@@ -9,10 +9,13 @@
       <span class="logo"></span>
       <span class="text-xl font-bold">{% settings "SITE_TITLE" %}</span>
     </a>
-    <button type="button" class="btn btn-ghost btn-sm btn-circle lg:hidden" data-bs-target="#sidebar"
-            data-bs-dismiss="offcanvas" aria-label="{% trans 'Close' %}">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
+    <div class="flex items-center gap-1">
+      {% include "includes/theme_toggle.html" %}
+      <button type="button" class="btn btn-ghost btn-sm btn-circle lg:hidden" data-bs-target="#sidebar"
+              data-bs-dismiss="offcanvas" aria-label="{% trans 'Close' %}">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
   </div>
 
   {% url 'index' as home_url %}
@@ -53,7 +56,8 @@
             </a>
           </li>
           <li>
-            <a href="{{ home_url }}" hx-boost="true" class="sidebar-item">
+            <a href="{% url 'tv-watchlist' %}" hx-boost="true"
+               class="sidebar-item {% active_link 'tv-watchlist' css_class='menu-active' %}">
               <i class="fa-solid fa-bookmark fa-fw"></i>
               <span>{% trans "Watchlist" %}</span>
             </a>

@@ -1,15 +1,6 @@
 {% load settings %}
 {% load i18n %}
 <div class="flex justify-end gap-2 px-3 py-2">
-  <label class="swap swap-rotate btn btn-secondary btn-sm" data-tippy-content="{% translate 'Toggle theme' %}">
-    <input type="checkbox" hx-get="{% url 'toggle_theme' %}" hx-swap="none"
-           _="on change
-              if my.checked set <html/>'s @data-theme to 'argus_dark'
-              else set <html/>'s @data-theme to 'argus_light' end end" />
-    <i class="fa-regular fa-sun swap-off"></i>
-    <i class="fa-regular fa-moon swap-on"></i>
-  </label>
-
   <div class="dropdown dropdown-end">
     <div role="button" class="btn btn-secondary btn-sm" tabindex="0" aria-expanded="false">
       <i class="fa-solid fa-user fa-fw"></i>

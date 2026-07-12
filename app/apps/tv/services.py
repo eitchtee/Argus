@@ -220,6 +220,73 @@ class UpNextSections:
     not_started: list[WatchlistEntry]
 
 
+WATCHLIST_SECTIONS = ("all", "watching", "completed", "paused", "dropped")
+
+
+def get_watchlist_shows(user, section: str = "all") -> list[Show]:
+    if section not in WATCHLIST_SECTIONS:
+        raise ValueError(f"Unknown watchlist section: {section}")
+
+    user_shows = list(
+        UserShow.objects.filter(user=user)
+        .select_related("show")
+        .order_by("show__name", "show_id")
+    )
+    if section == "all":
+        return [user_show.show for user_show in user_shows]
+
+    if section in {"paused", "dropped"}:
+        status = (
+            UserShow.Status.PAUSED
+            if section == "paused"
+            else UserShow.Status.DROPPED
+        )
+        return [user_show.show for user_show in user_shows if user_show.status == status]
+
+    tracked_shows = [
+        user_show.show
+        for user_show in user_shows
+        if user_show.status == UserShow.Status.TRACKED
+    ]
+    if not tracked_shows:
+        return []
+
+    tracked_show_ids = [show.id for show in tracked_shows]
+    aired_episodes = Episode.objects.filter(
+        show_id__in=tracked_show_ids,
+        season_number__gt=0,
+        air_date__isnull=False,
+        air_date__lte=timezone.localdate(),
+    )
+    aired_counts = {
+        row["show_id"]: row["aired_count"]
+        for row in aired_episodes.order_by()
+        .values("show_id")
+        .annotate(aired_count=Count("id"))
+    }
+    watched_counts = {
+        row["episode__show_id"]: row["watched_count"]
+        for row in UserEpisode.objects.filter(
+            user=user,
+            episode__in=aired_episodes,
+        )
+        .values("episode__show_id")
+        .annotate(watched_count=Count("id"))
+    }
+
+    selected = []
+    for show in tracked_shows:
+        aired_count = aired_counts.get(show.id, 0)
+        watched_count = watched_counts.get(show.id, 0)
+        if section == "completed":
+            include = aired_count > 0 and watched_count == aired_count
+        else:
+            include = aired_count > watched_count
+        if include:
+            selected.append(show)
+    return selected
+
+
 def get_watchlist(user) -> list[WatchlistEntry]:
     tracked_shows = list(
         Show.objects.filter(user_states__user=user, user_states__status=UserShow.Status.TRACKED)
