@@ -20,6 +20,7 @@ from apps.tv.services import (
     get_upcoming_episodes,
     get_watchlist,
     get_watchlist_entry,
+    get_watchlist_shows,
     mark_episode_watched,
     mark_season_watched,
     mark_show_watched,
@@ -61,6 +62,24 @@ def upcoming(request):
     if month is None:
         return HttpResponse("")
     return render(request, "tv/fragments/upcoming_month.html", {"month": month})
+
+
+@htmx_login_required
+@require_http_methods(["GET"])
+def watchlist(request):
+    return render(request, "tv/pages/watchlist.html")
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["GET"])
+def watchlist_tab(request, section):
+    try:
+        shows = get_watchlist_shows(request.user, section)
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+
+    return render(request, "tv/fragments/watchlist_grid.html", {"shows": shows})
 
 
 @only_htmx

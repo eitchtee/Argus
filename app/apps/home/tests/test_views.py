@@ -56,12 +56,14 @@ class IndexViewTests(TestCase):
 
     def test_sidebar_renders_daisyui_hierarchy_with_boosted_links(self):
         response = self.client.get("/")
+        content = response.content.decode()
         sidebar = self._sidebar_menu(response)
         home_url = reverse("index")
         search_url = reverse("catalog-search-page")
         calendar_url = reverse("calendar")
         up_next_url = reverse("tv-up-next")
         upcoming_url = reverse("tv-upcoming")
+        watchlist_url = reverse("tv-watchlist")
 
         self.assertIn('hx-boost="true"', sidebar)
         self.assertIn('class="menu menu-sm', sidebar)
@@ -115,11 +117,61 @@ class IndexViewTests(TestCase):
             if ">Watchlist</span>" in link
         ]
         self.assertEqual(len(watchlist_links), 2)
-        for link in watchlist_links:
-            self.assertIn(f'href="{home_url}"', link)
+        self.assertIn(f'href="{watchlist_url}"', watchlist_links[0])
+        self.assertIn(f'href="{home_url}"', watchlist_links[1])
 
         self.assertIn(f'href="{search_url}"', self._sidebar_link(sidebar, "Search"))
         self.assertIn(f'href="{calendar_url}"', self._sidebar_link(sidebar, "Calendar"))
+        self.assertEqual(sidebar.count("data-theme-toggle"), 1)
+        self.assertIn("swap swap-rotate", sidebar)
+        self.assertIn("btn btn-ghost btn-sm btn-circle", sidebar)
+        self.assertIn('data-theme-url="/user/session/toggle-theme/"', sidebar)
+        self.assertIn('data-theme="argus_dark"', sidebar)
+        self.assertIn("data-csrf-token=", sidebar)
+        self.assertIn("fa-moon", sidebar)
+        self.assertIn("Switch to light mode", sidebar)
+        self.assertIn('_="on change', sidebar)
+        self.assertIn("fetch my @data-theme-url as JSON", sidebar)
+        self.assertIn("method:'POST'", sidebar)
+        self.assertIn("setContent", sidebar)
+        theme_toggle_start = sidebar.index('id="theme-toggle"')
+        input_start = sidebar.index("<input", theme_toggle_start)
+        input_end = sidebar.index(">", input_start)
+        self.assertIn("checked", sidebar[input_start:input_end])
+        self.assertNotIn("data-theme-toggle", content[content.index("<main"):])
+
+        logo_end = sidebar.index("</a>")
+        theme_toggle = sidebar.index("data-theme-toggle")
+        navigation = sidebar.index("<nav")
+        self.assertLess(logo_end, theme_toggle)
+        self.assertLess(theme_toggle, navigation)
+
+    def test_sidebar_theme_toggle_reflects_light_session(self):
+        session = self.client.session
+        session["theme"] = "argus_light"
+        session.save()
+
+        response = self.client.get("/")
+        content = response.content.decode()
+        sidebar = self._sidebar_menu(response)
+
+        self.assertIn('data-theme="argus_light"', content)
+        self.assertIn('data-theme="argus_light"', sidebar)
+        self.assertIn("fa-sun", sidebar)
+        self.assertIn("Switch to dark mode", sidebar)
+        theme_toggle_start = sidebar.index('id="theme-toggle"')
+        input_start = sidebar.index("<input", theme_toggle_start)
+        input_end = sidebar.index(">", input_start)
+        self.assertNotIn("checked", sidebar[input_start:input_end])
+
+    def test_tv_watchlist_sidebar_link_is_active(self):
+        response = self.client.get(reverse("tv-watchlist"))
+        sidebar = self._sidebar_menu(response)
+
+        watchlist_link = self._sidebar_link(sidebar, "Watchlist")
+
+        self.assertIn(f'href="{reverse("tv-watchlist")}"', watchlist_link)
+        self.assertIn('class="sidebar-item menu-active"', watchlist_link)
 
     def test_sidebar_shows_admin_link_for_staff(self):
         self.user.is_staff = True

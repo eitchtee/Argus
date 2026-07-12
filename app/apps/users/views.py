@@ -4,11 +4,14 @@ from apps.users.forms import LoginForm, UserSettingsForm
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.views import LoginView
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
+
+
+SUPPORTED_THEMES = {"argus_dark", "argus_light"}
 
 
 def logout_view(request):
@@ -43,16 +46,12 @@ def update_settings(request):
 
 
 @htmx_login_required
-@require_http_methods(["GET"])
+@require_http_methods(["POST"])
 def toggle_theme(request):
-    if not request.session.get("theme"):
-        request.session["theme"] = "argus_dark"
+    theme = request.POST.get("theme")
+    if theme not in SUPPORTED_THEMES:
+        return HttpResponseBadRequest("Unsupported theme.")
 
-    if request.session["theme"] == "argus_dark":
-        request.session["theme"] = "argus_light"
-    elif request.session["theme"] == "argus_light":
-        request.session["theme"] = "argus_dark"
-    else:
-        request.session["theme"] = "argus_light"
-
-    return HttpResponse(status=204)
+    request.session["theme"] = theme
+    request.session.modified = True
+    return JsonResponse({"theme": theme})
