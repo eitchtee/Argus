@@ -1,0 +1,17 @@
+{% load i18n %}
+<section class="space-y-3"{% if month.next_cursor %}
+         _="on intersection(intersecting)
+              if intersecting and not @data-loaded
+                set @data-loaded to 'true'
+                fetch '{% url 'tv-upcoming' %}?after={{ month.month_start|date:'Y-m' }}' as HTML with headers:{'HX-Request':'true'}
+                put it after me
+              end"{% endif %}>
+  <div class="section-heading">
+    <h2 class="text-2xl font-bold tracking-tight">{{ month.month_start|date:"F Y" }}</h2>
+  </div>
+  <div class="flex flex-col gap-2">
+    {% for entry in month.entries %}
+      {% include "tv/fragments/home_upcoming_row.html" %}
+    {% endfor %}
+  </div>
+</section>

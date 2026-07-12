@@ -9,6 +9,7 @@ urlpatterns = [
         views.up_next_episode_watched,
         name="tv-up-next-episode-watched",
     ),
+    path("tv/upcoming/", views.upcoming, name="tv-upcoming"),
     path("tv/<str:external_id>/", views.show_detail, name="tv-detail"),
     path("tv/<str:external_id>/track/", views.show_track, name="tv-detail-track"),
     path("tv/<str:external_id>/drop/", views.show_drop, name="tv-detail-drop"),

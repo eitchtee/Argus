@@ -16,6 +16,7 @@ from apps.tv.services import (
     delete_show_data,
     drop_show,
     get_up_next,
+    get_upcoming_month,
     get_upcoming_episodes,
     get_watchlist,
     get_watchlist_entry,
@@ -35,6 +36,31 @@ from apps.tv.services import (
 @require_http_methods(["GET"])
 def up_next(request):
     return render(request, "tv/pages/up_next.html", {"sections": get_up_next(request.user)})
+
+
+def _parse_upcoming_month_cursor(value):
+    if len(value) != 7 or value[4] != "-" or not value[:4].isdigit() or not value[5:].isdigit():
+        raise ValueError
+    return date(int(value[:4]), int(value[5:]), 1)
+
+
+@htmx_login_required
+@require_http_methods(["GET"])
+def upcoming(request):
+    cursor = request.GET.get("after")
+    if cursor is None:
+        month = get_upcoming_month(request.user)
+        return render(request, "tv/pages/upcoming.html", {"month": month})
+
+    try:
+        after_month = _parse_upcoming_month_cursor(cursor)
+    except ValueError:
+        return HttpResponseBadRequest("Invalid upcoming month cursor.")
+
+    month = get_upcoming_month(request.user, after_month=after_month)
+    if month is None:
+        return HttpResponse("")
+    return render(request, "tv/fragments/upcoming_month.html", {"month": month})
 
 
 @only_htmx
