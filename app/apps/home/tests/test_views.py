@@ -1,3 +1,4 @@
+from datetime import date
 import re
 
 from django.contrib.auth import get_user_model
@@ -64,6 +65,7 @@ class IndexViewTests(TestCase):
         up_next_url = reverse("tv-up-next")
         upcoming_url = reverse("tv-upcoming")
         watchlist_url = reverse("tv-watchlist")
+        movie_watchlist_url = reverse("movies-watchlist-page")
 
         self.assertIn('hx-boost="true"', sidebar)
         self.assertIn('class="menu menu-sm', sidebar)
@@ -118,7 +120,7 @@ class IndexViewTests(TestCase):
         ]
         self.assertEqual(len(watchlist_links), 2)
         self.assertIn(f'href="{watchlist_url}"', watchlist_links[0])
-        self.assertIn(f'href="{home_url}"', watchlist_links[1])
+        self.assertIn(f'href="{movie_watchlist_url}"', watchlist_links[1])
 
         self.assertIn(f'href="{search_url}"', self._sidebar_link(sidebar, "Search"))
         self.assertIn(f'href="{calendar_url}"', self._sidebar_link(sidebar, "Calendar"))
@@ -173,6 +175,20 @@ class IndexViewTests(TestCase):
         self.assertIn(f'href="{reverse("tv-watchlist")}"', watchlist_link)
         self.assertIn('class="sidebar-item menu-active"', watchlist_link)
 
+    def test_movie_watchlist_sidebar_link_is_active(self):
+        response = self.client.get(reverse("movies-watchlist-page"))
+        sidebar = self._sidebar_menu(response)
+
+        watchlist_links = [
+            link
+            for link in re.findall(r"<a\b[^>]*>.*?</a>", sidebar, re.S)
+            if ">Watchlist</span>" in link
+        ]
+        watchlist_link = watchlist_links[1]
+
+        self.assertIn(f'href="{reverse("movies-watchlist-page")}"', watchlist_link)
+        self.assertIn('class="sidebar-item menu-active"', watchlist_link)
+
     def test_sidebar_shows_admin_link_for_staff(self):
         self.user.is_staff = True
         self.user.save(update_fields=["is_staff"])
@@ -211,10 +227,18 @@ class IndexViewTests(TestCase):
     def test_shows_watch_something_movie(self):
         from apps.movies.models import Movie, UserMovie
 
-        movie = Movie.objects.create(provider="tmdb", external_id="1", title="Interstellar")
+        movie = Movie.objects.create(
+            provider="tmdb",
+            external_id="1",
+            title="Interstellar",
+            release_date=date(2014, 11, 7),
+            poster_path="/interstellar.jpg",
+        )
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
 
         response = self.client.get("/")
 
         self.assertContains(response, "Interstellar")
+        self.assertContains(response, "Nov 07, 2014")
+        self.assertContains(response, "group card overflow-hidden")
         self.assertContains(response, "/movies/1/")
