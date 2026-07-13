@@ -11,6 +11,7 @@ from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
     get_watched_movies,
     get_watchlist_movies,
+    delete_movie_data,
     import_movie,
     mark_seen,
     remove_from_watchlist,
@@ -95,6 +96,30 @@ def movie_watched(request, external_id):
         "is_seen": user_movie.is_seen,
     }
     return render(request, "movies/fragments/actions.html", {"movie": movie_state})
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST"])
+def movie_delete(request, external_id):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    movie = Movie.objects.filter(provider="tmdb", external_id=external_id).first()
+    if movie is not None:
+        delete_movie_data(request.user, movie)
+
+    return render(
+        request,
+        "movies/fragments/actions.html",
+        {
+            "movie": {
+                "external_id": external_id,
+                "on_watchlist": False,
+                "is_seen": False,
+            }
+        },
+    )
 
 
 def _build_movie_context(user, external_id):

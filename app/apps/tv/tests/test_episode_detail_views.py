@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from apps.tv.models import Episode, Season, Show, UserShow
+from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
 @override_settings(
@@ -66,12 +66,24 @@ class EpisodeDetailViewTests(TestCase):
         self.assertContains(response, "The beginning.")
         self.assertNotContains(response, "Mark watched")
 
-    def test_renders_watched_indicator_when_tracking(self):
+    def test_renders_watched_fab_when_tracking(self):
         UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
         response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
 
         self.assertContains(response, "Mark watched")
+        self.assertContains(response, 'class="fab"')
+        self.assertContains(response, "fa-eye")
+
+    def test_renders_unwatched_fab_for_watched_episode(self):
+        UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
+        UserEpisode.objects.create(user=self.user, episode=self.episode)
+
+        response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
+
+        self.assertContains(response, "Mark unwatched")
+        self.assertContains(response, 'class="fab"')
+        self.assertContains(response, "fa-eye-slash")
 
     def test_shows_finale_badge(self):
         self.episode.finale_type = "series"
