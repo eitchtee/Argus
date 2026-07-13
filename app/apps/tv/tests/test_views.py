@@ -72,6 +72,7 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "Pilot")
         self.assertContains(response, "https://artworks.thetvdb.com/fanart.jpg")
         self.assertContains(response, "Emilia Clarke")
+        self.assertContains(response, 'aria-label="Track show"')
         self.assertNotContains(response, "checkbox-sm")
         self.assertFalse(Show.objects.filter(external_id="123").exists())
 
@@ -111,6 +112,7 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "Airs at 9:00 PM UTC")
         self.assertContains(response, "Emilia Clarke")
         self.assertContains(response, "Daenerys Targaryen")
+        self.assertContains(response, 'aria-label="Track show"')
         # Current user has not tracked it themselves: no checkboxes, no watched state.
         self.assertNotContains(response, "checkbox-sm")
 
@@ -146,10 +148,53 @@ class ShowDetailViewTests(TestCase):
 
         self.assertContains(response, "checkbox-sm")
         self.assertContains(response, "checked")
+        self.assertContains(response, 'aria-label="Show actions"')
         self.assertContains(response, 'aria-label="Drop show"')
         self.assertContains(response, 'aria-label="Pause show"')
-        self.assertContains(response, "fa-bookmark-minus")
+        self.assertContains(response, 'aria-label="Mark show unwatched"')
+        self.assertContains(response, "fa-circle-minus")
         self.assertContains(response, f"/tv/123/episodes/{episode.id}/\"")
+
+    def test_tracked_show_renders_status_and_watched_actions(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        Episode.objects.create(
+            show=show, season=season, season_number=1, episode_number=1
+        )
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        response = self.client.get("/tv/123/")
+
+        self.assertContains(response, 'aria-label="Show actions"')
+        self.assertContains(response, 'aria-label="Pause show"')
+        self.assertContains(response, 'aria-label="Drop show"')
+        self.assertContains(response, 'aria-label="Delete show"')
+        self.assertContains(response, 'aria-label="Mark show watched"')
+        self.assertNotContains(response, "fa-bookmark-minus")
+
+    def test_paused_show_renders_resume_drop_delete(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.PAUSED)
+
+        response = self.client.get("/tv/123/")
+
+        self.assertContains(response, 'aria-label="Start watching again"')
+        self.assertContains(response, 'aria-label="Drop show"')
+        self.assertContains(response, 'aria-label="Delete show"')
+        self.assertNotContains(response, 'aria-label="Pause show"')
+        self.assertNotContains(response, 'aria-label="Mark watched"')
+
+    def test_dropped_show_renders_resume_pause_delete(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.DROPPED)
+
+        response = self.client.get("/tv/123/")
+
+        self.assertContains(response, 'aria-label="Start watching again"')
+        self.assertContains(response, 'aria-label="Pause show"')
+        self.assertContains(response, 'aria-label="Delete show"')
+        self.assertNotContains(response, 'aria-label="Drop show"')
+        self.assertNotContains(response, 'aria-label="Mark watched"')
 
     def test_shows_track_button_when_show_exists_but_user_not_tracking(self):
         other_user = get_user_model().objects.create_user("other@example.com")
@@ -176,7 +221,7 @@ class ShowDetailViewTests(TestCase):
 
         response = self.client.get("/tv/123/")
 
-        self.assertContains(response, 'aria-label="Track show"')
+        self.assertContains(response, 'aria-label="Start watching again"')
         self.assertContains(response, 'aria-label="Delete show"')
         self.assertNotContains(response, 'aria-label="Pause show"')
 

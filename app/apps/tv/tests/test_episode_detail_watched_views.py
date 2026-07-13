@@ -34,6 +34,8 @@ class EpisodeDetailWatchedViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Mark unwatched")
+        self.assertContains(response, 'class="fab"')
+        self.assertContains(response, "fa-eye-slash")
         self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=self.episode).exists())
 
     def test_unmarking_watched_swaps_button_to_mark(self):
@@ -45,6 +47,8 @@ class EpisodeDetailWatchedViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Mark watched")
+        self.assertContains(response, 'class="fab"')
+        self.assertContains(response, "fa-eye")
         self.assertFalse(UserEpisode.objects.filter(user=self.user, episode=self.episode).exists())
 
     def test_requires_tracking(self):

@@ -45,10 +45,10 @@
         {% if episode.runtime %}<span>· {{ episode.runtime }} {% trans "min" %}</span>{% endif %}
       </div>
       <p class="mt-2">{{ episode.overview }}</p>
-      <div class="mt-4">
-        {% include "tv/fragments/episode_detail_watched_button.html" with tracked=tracked watched=watched show_external_id=show.external_id episode_id=episode.id %}
-      </div>
     </div>
   </div>
+  {% if tracked %}
+  {% include "tv/fragments/episode_detail_watched_button.html" with tracked=tracked watched=watched show_external_id=show.external_id episode_id=episode.id %}
+  {% endif %}
 </div>
 {% endblock %}
