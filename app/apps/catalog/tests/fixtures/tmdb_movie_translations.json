@@ -1,0 +1,24 @@
+{
+  "translations": [
+    {
+      "iso_3166_1": "US",
+      "iso_639_1": "en",
+      "name": "English",
+      "data": {
+        "title": "Fight Club",
+        "overview": "English overview",
+        "tagline": ""
+      }
+    },
+    {
+      "iso_3166_1": "BR",
+      "iso_639_1": "pt",
+      "name": "Portugu\u00eas",
+      "data": {
+        "title": "Clube da Luta",
+        "overview": "Vis\u00e3o geral em portugu\u00eas.",
+        "tagline": "Caos. Confus\u00e3o. Sab\u00e3o."
+      }
+    }
+  ]
+}

@@ -38,10 +38,14 @@ class ShowDetailViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
+    @patch("apps.tv.views.get_show_seasons")
     @patch("apps.tv.views.get_show_episodes")
     @patch("apps.tv.views.get_show_detail")
     def test_renders_preview_from_provider_cache_when_not_imported(
-        self, get_show_detail_mock, get_show_episodes_mock
+        self,
+        get_show_detail_mock,
+        get_show_episodes_mock,
+        get_show_seasons_mock,
     ):
         get_show_detail_mock.return_value = DetailDTO(
             provider="tvdb",
@@ -64,6 +68,7 @@ class ShowDetailViewTests(TestCase):
         get_show_episodes_mock.return_value = [
             EpisodeDTO(season_number=1, episode_number=1, name="Pilot", air_date="2020-01-01"),
         ]
+        get_show_seasons_mock.return_value = []
 
         response = self.client.get("/tv/123/")
 

@@ -152,8 +152,13 @@ class MovieWatchedViewTests(TestCase):
         response = self.client.post("/movies/550/watched/")
         self.assertEqual(response.status_code, 403)
 
+    @patch("apps.movies.views.hydrate_movie_translations")
     @patch("apps.movies.views.import_movie")
-    def test_post_marks_watched_without_prior_tracking(self, import_movie_mock):
+    def test_post_marks_watched_without_prior_tracking(
+        self,
+        import_movie_mock,
+        hydrate_movie_translations,
+    ):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         import_movie_mock.return_value = movie
 
@@ -161,6 +166,8 @@ class MovieWatchedViewTests(TestCase):
 
         import_movie_mock.assert_called_once_with("tmdb", "550")
         self.assertContains(response, 'aria-label="Movie actions"')
+        import_movie_mock.assert_called_once_with("tmdb", "550", language="en-US")
+        hydrate_movie_translations.assert_called_once_with(movie.id)
         self.assertContains(response, 'aria-label="Mark unwatched"')
         self.assertContains(response, 'aria-label="Delete movie"')
         self.assertTrue(

@@ -64,7 +64,7 @@ class TVDBProviderTests(SimpleTestCase):
         )
         provider = TVDBProvider(opener=opener)
 
-        results = provider.search("game of thrones", page=1)
+        results = provider.search("game of thrones", language="por", page=1)
 
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].provider, "tvdb")
@@ -80,6 +80,7 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(json.loads(login_request.data.decode("utf-8")), {"apikey": "test-tvdb-key"})
         self.assertIn("/search", search_request.full_url)
         self.assertIn("query=game+of+thrones", search_request.full_url)
+        self.assertIn("language=por", search_request.full_url)
         self.assertEqual(search_request.headers["Authorization"], "Bearer cached-tvdb-token")
 
     def test_cached_token_avoids_login_call(self):
@@ -87,7 +88,7 @@ class TVDBProviderTests(SimpleTestCase):
         opener = SequenceOpener([load_fixture("tvdb_search.json")])
         provider = TVDBProvider(opener=opener)
 
-        provider.search("game of thrones")
+        provider.search("game of thrones", language="eng")
 
         self.assertEqual(len(opener.requests), 1)
         self.assertIn("/search", opener.requests[0][0].full_url)
@@ -98,7 +99,7 @@ class TVDBProviderTests(SimpleTestCase):
         opener = SequenceOpener([load_fixture("tvdb_series_extended.json")])
         provider = TVDBProvider(opener=opener)
 
-        detail = provider.fetch_detail("121361")
+        detail = provider.fetch_detail("121361", language="eng")
 
         self.assertEqual(detail.provider, "tvdb")
         self.assertEqual(detail.external_id, "121361")
@@ -122,13 +123,38 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.cast[0].character, "Daenerys Targaryen")
         self.assertEqual(detail.cast[0].photo_url, "https://artworks.thetvdb.com/clarke.jpg")
         self.assertIn("/series/121361/extended", opener.requests[0][0].full_url)
+        self.assertEqual(
+            detail.translations["eng"],
+            {
+                "title": "Game of Thrones",
+                "overview": "Nine noble families fight for control.",
+            },
+        )
+
+    def test_fetch_detail_merges_requested_series_translation(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener(
+            [
+                load_fixture("tvdb_series_extended.json"),
+                load_fixture("tvdb_series_translation_por.json"),
+            ]
+        )
+        provider = TVDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("121361", language="por")
+
+        self.assertEqual(
+            detail.translations["por"],
+            {"title": "A Guerra dos Tronos", "overview": "Visão geral."},
+        )
+        self.assertIn("/series/121361/translations/por", opener.requests[1][0].full_url)
 
     def test_fetch_episodes_normalizes_default_episode_response(self):
         cache.set("catalog:tvdb:token", "existing-token")
         opener = SequenceOpener([load_fixture("tvdb_episodes_default.json")])
         provider = TVDBProvider(opener=opener)
 
-        episodes = provider.fetch_episodes("121361")
+        episodes = provider.fetch_episodes("121361", language="eng")
 
         self.assertEqual(len(episodes), 2)
         self.assertEqual(episodes[0].season_number, 1)
@@ -142,6 +168,67 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertIsNone(episodes[1].finale_type)
         self.assertEqual(episodes[1].season_number, 0)
         self.assertIn("/series/121361/episodes/default", opener.requests[0][0].full_url)
+        self.assertEqual(
+            episodes[0].translations["eng"],
+            {"name": "Winter Is Coming", "overview": "Episode overview."},
+        )
+
+    def test_fetch_episodes_uses_requested_language_batch(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener([load_fixture("tvdb_episodes_por.json")])
+        provider = TVDBProvider(opener=opener)
+
+        episodes = provider.fetch_episodes("121361", language="por")
+
+        self.assertEqual(episodes[0].name, "O Inverno Está Chegando")
+        self.assertEqual(
+            episodes[0].translations["por"],
+            {"name": "O Inverno Está Chegando", "overview": "Resumo do episódio."},
+        )
+        self.assertIn("/series/121361/episodes/default/por", opener.requests[0][0].full_url)
+
+    def test_fetch_episodes_expands_relative_still_urls(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_episodes_default.json")
+        payload["data"]["episodes"][0]["image"] = "/banners/episodes/still.jpg"
+        provider = TVDBProvider(opener=SequenceOpener([payload]))
+
+        episodes = provider.fetch_episodes("121361", language="eng")
+
+        self.assertEqual(
+            episodes[0].still_path,
+            "https://artworks.thetvdb.com/banners/episodes/still.jpg",
+        )
+
+    def test_fetch_seasons_merges_requested_translation_by_season_number(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener(
+            [
+                load_fixture("tvdb_series_extended.json"),
+                load_fixture("tvdb_season_translation_por.json"),
+            ]
+        )
+        provider = TVDBProvider(opener=opener)
+
+        seasons = provider.fetch_seasons("121361", language="por")
+
+        self.assertEqual(seasons[0].season_number, 1)
+        self.assertEqual(
+            seasons[0].translations["por"],
+            {"name": "Temporada 1", "overview": "A primeira temporada."},
+        )
+        self.assertIn("/seasons/501/translations/por", opener.requests[1][0].full_url)
+
+    def test_list_languages_returns_provider_native_codes(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        provider = TVDBProvider(opener=SequenceOpener([load_fixture("tvdb_languages.json")]))
+
+        languages = provider.list_languages()
+
+        self.assertEqual(
+            [(language.code, language.name) for language in languages],
+            [("eng", "English"), ("por", "Português")],
+        )
 
     def test_401_refreshes_token_once_and_retries_request(self):
         cache.set("catalog:tvdb:token", "expired-token")
@@ -154,7 +241,7 @@ class TVDBProviderTests(SimpleTestCase):
         )
         provider = TVDBProvider(opener=opener)
 
-        results = provider.search("game of thrones")
+        results = provider.search("game of thrones", language="eng")
 
         self.assertEqual(results[0].external_id, "121361")
         self.assertEqual(len(opener.requests), 3)
@@ -166,14 +253,14 @@ class TVDBProviderTests(SimpleTestCase):
         provider = TVDBProvider(api_key="", opener=SequenceOpener([]))
 
         with self.assertRaises(AuthError):
-            provider.search("game of thrones")
+            provider.search("game of thrones", language="eng")
 
     def test_http_404_maps_to_not_found(self):
         cache.set("catalog:tvdb:token", "existing-token")
         provider = TVDBProvider(opener=SequenceOpener([http_error("url", 404)]))
 
         with self.assertRaises(NotFound):
-            provider.fetch_detail("missing")
+            provider.fetch_detail("missing", language="eng")
 
     def test_http_429_maps_to_rate_limited(self):
         cache.set("catalog:tvdb:token", "existing-token")
@@ -182,7 +269,7 @@ class TVDBProviderTests(SimpleTestCase):
         )
 
         with self.assertRaisesMessage(RateLimited, "Retry after 20 seconds"):
-            provider.search("game of thrones")
+            provider.search("game of thrones", language="eng")
 
 
 class TVDBAirsTimeTests(SimpleTestCase):
@@ -198,7 +285,7 @@ class TVDBAirsTimeTests(SimpleTestCase):
         payload["data"].update(overrides)
         opener = SequenceOpener([payload])
         provider = TVDBProvider(opener=opener)
-        return provider.fetch_detail("121361")
+        return provider.fetch_detail("121361", language="eng")
 
     def test_preserves_raw_airing_time(self):
         detail = self._fetch_with_data_overrides(airsTime="21:00")

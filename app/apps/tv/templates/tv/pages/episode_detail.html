@@ -7,15 +7,15 @@
 <div>
   <div class="surface-card rounded-box flex items-center justify-between mb-6 p-3">
     {% if previous_episode %}
-    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=previous_episode.id %}" class="btn btn-outline btn-sm">
+    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=previous_episode.id %}" hx-boost="true" class="btn btn-outline btn-sm">
       <i class="fa-solid fa-chevron-left"></i> {% trans "Previous" %}
     </a>
     {% else %}
     <span></span>
     {% endif %}
-    <a href="{% url 'tv-detail' external_id=show.external_id %}" class="link link-hover text-sm">{{ show.name }}</a>
+    <a href="{% url 'tv-detail' external_id=show.external_id %}" hx-boost="true" class="link link-hover text-sm">{{ show.name }}</a>
     {% if next_episode %}
-    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=next_episode.id %}" class="btn btn-outline btn-sm">
+    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=next_episode.id %}" hx-boost="true" class="btn btn-outline btn-sm">
       {% trans "Next" %} <i class="fa-solid fa-chevron-right"></i>
     </a>
     {% else %}

@@ -61,6 +61,46 @@ class CalendarEventServiceTests(TestCase):
         )
         return movie
 
+    def test_events_use_owner_provider_metadata_languages(self):
+        self.user.settings.tvdb_metadata_language = "por"
+        self.user.settings.tmdb_metadata_language = "pt-BR"
+        self.user.settings.save()
+        show = self.make_show("English Show", UserShow.Status.TRACKED)
+        show.translations = {"por": {"name": "Série"}}
+        show.save(update_fields=["translations"])
+        episode = self.make_episode(show, date(2026, 7, 10), name="Episode")
+        episode.translations = {
+            "por": {"name": "Episódio", "overview": "Resumo do episódio."}
+        }
+        episode.save(update_fields=["translations"])
+        movie = self.make_movie(
+            "english-movie",
+            on_watchlist=True,
+            release_date=date(2026, 7, 11),
+        )
+        movie.translations = {
+            "pt-BR": {"title": "Filme", "overview": "Resumo do filme."}
+        }
+        movie.save(update_fields=["translations"])
+
+        events = get_calendar_events(
+            self.user,
+            date(2026, 7, 1),
+            date(2026, 7, 31),
+            filters=CalendarFilters(include_movies=True),
+        )
+
+        episode_event = next(event for event in events if event.kind == "episode")
+        movie_event = next(event for event in events if event.kind == "movie")
+        self.assertEqual(
+            (episode_event.title, episode_event.overview, episode_event.show_name),
+            ("Episódio", "Resumo do episódio.", "Série"),
+        )
+        self.assertEqual(
+            (movie_event.title, movie_event.overview),
+            ("Filme", "Resumo do filme."),
+        )
+
     def test_tracked_filter_defaults_to_true_and_can_be_disabled(self):
         self.assertTrue(parse_filters(QueryDict()).include_tracked)
         self.assertFalse(parse_filters(QueryDict("tracked=0")).include_tracked)

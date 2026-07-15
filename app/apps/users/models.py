@@ -28,6 +28,16 @@ class UserSettings(models.Model):
         default="auto",
         verbose_name=_("Language"),
     )
+    tvdb_metadata_language = models.CharField(
+        max_length=16,
+        default="eng",
+        verbose_name=_("TV metadata language"),
+    )
+    tmdb_metadata_language = models.CharField(
+        max_length=16,
+        default="en-US",
+        verbose_name=_("Movie metadata language"),
+    )
     timezone = models.CharField(
         max_length=50,
         default="auto",

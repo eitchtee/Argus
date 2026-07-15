@@ -5,6 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
 from apps.catalog.forms import SearchForm
+from apps.catalog.localization import metadata_language_for_user
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.services import search as catalog_search
 from apps.catalog.tracking import tracked_keys
@@ -78,7 +79,14 @@ def _find_tracked_item(request, query, media_type, page, external_id, error):
         return None
 
     try:
-        raw_results = catalog_search(query, media_type=media_type, page=page)
+        provider = "tmdb" if media_type == "movie" else "tvdb"
+        language = metadata_language_for_user(request.user, provider)
+        raw_results = catalog_search(
+            query,
+            media_type=media_type,
+            language=language,
+            page=page,
+        )
     except ValueError:
         return None
 
@@ -127,7 +135,14 @@ def _search_context(request, query, media_type, page):
         return context
 
     try:
-        raw_results = catalog_search(query, media_type=media_type, page=page)
+        provider = "tmdb" if media_type == "movie" else "tvdb"
+        language = metadata_language_for_user(request.user, provider)
+        raw_results = catalog_search(
+            query,
+            media_type=media_type,
+            language=language,
+            page=page,
+        )
     except ValueError:
         return context
 
