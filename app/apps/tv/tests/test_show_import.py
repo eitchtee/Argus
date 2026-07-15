@@ -4,32 +4,38 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.catalog.models import Genre, SyncStatus
-from apps.catalog.providers.base import CastMemberDTO, DetailDTO, EpisodeDTO, GenreDTO
+from apps.catalog.providers.base import CastMemberDTO, DetailDTO, EpisodeDTO, GenreDTO, SeasonDTO
 from apps.catalog.providers.exceptions import ProviderError
 from apps.tv.models import Episode, Season, Show
 from apps.tv.services import import_show
 
 
 class FakeProvider:
-    def __init__(self, detail=None, episodes=None, detail_error=None, episodes_error=None):
+    def __init__(self, detail=None, episodes=None, seasons=None, detail_error=None, episodes_error=None):
         self.detail = detail
         self.episodes = episodes or []
+        self.seasons = seasons or []
         self.detail_error = detail_error
         self.episodes_error = episodes_error
         self.detail_calls = []
         self.episode_calls = []
+        self.season_calls = []
 
-    def fetch_detail(self, external_id):
-        self.detail_calls.append(external_id)
+    def fetch_detail(self, external_id, *, language):
+        self.detail_calls.append((external_id, language))
         if self.detail_error:
             raise self.detail_error
         return self.detail
 
-    def fetch_episodes(self, external_id):
-        self.episode_calls.append(external_id)
+    def fetch_episodes(self, external_id, *, language):
+        self.episode_calls.append((external_id, language))
         if self.episodes_error:
             raise self.episodes_error
         return self.episodes
+
+    def fetch_seasons(self, external_id, *, language):
+        self.season_calls.append((external_id, language))
+        return self.seasons
 
 
 def show_detail(**overrides):
@@ -83,6 +89,31 @@ def episode(**overrides):
 
 
 class ShowImportTests(TestCase):
+    def test_import_show_saves_selected_translations_with_english_scalars(self):
+        provider = FakeProvider(
+            detail=show_detail(
+                translations={"por": {"title": "A Guerra dos Tronos", "overview": "Resumo"}}
+            ),
+            episodes=[
+                episode(
+                    translations={"eng": {"name": "Winter Is Coming"}, "por": {"name": "O Inverno Está Chegando"}}
+                )
+            ],
+            seasons=[
+                SeasonDTO(
+                    season_number=1,
+                    name="Season 1",
+                    translations={"eng": {"name": "Season 1"}, "por": {"name": "Temporada 1"}},
+                )
+            ],
+        )
+
+        show = import_show("121361", language="por", provider_getter=lambda _: provider)
+
+        self.assertEqual(show.name, "Game of Thrones")
+        self.assertEqual(show.translations["por"]["name"], "A Guerra dos Tronos")
+        self.assertEqual(show.seasons.get().translations["por"]["name"], "Temporada 1")
+        self.assertEqual(show.episodes.get().translations["por"]["name"], "O Inverno Está Chegando")
     def test_import_show_persists_airing_time_as_a_time(self):
         provider = FakeProvider(detail=show_detail(airs_time="21:00"), episodes=[])
 
@@ -109,8 +140,8 @@ class ShowImportTests(TestCase):
 
         show = import_show("121361", provider_getter=lambda provider_name: provider)
 
-        self.assertEqual(provider.detail_calls, ["121361"])
-        self.assertEqual(provider.episode_calls, ["121361"])
+        self.assertEqual(provider.detail_calls, [("121361", "eng")])
+        self.assertEqual(provider.episode_calls, [("121361", "eng")])
         self.assertEqual(show.provider, "tvdb")
         self.assertEqual(show.external_id, "121361")
         self.assertEqual(show.name, "Game of Thrones")

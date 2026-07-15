@@ -48,6 +48,9 @@ class SearchPageViewTests(TestCase):
         User = get_user_model()
         self.user = User.objects.create_user("user@example.com", password="password")
         self.client.login(username="user@example.com", password="password")
+        self.user.settings.tmdb_metadata_language = "pt-BR"
+        self.user.settings.tvdb_metadata_language = "por"
+        self.user.settings.save()
 
     def tearDown(self):
         from django_vite.core.asset_loader import DjangoViteAssetLoader
@@ -72,6 +75,9 @@ class SearchResultsViewTests(TestCase):
         User = get_user_model()
         self.user = User.objects.create_user("user@example.com", password="password")
         self.client.login(username="user@example.com", password="password")
+        self.user.settings.tmdb_metadata_language = "pt-BR"
+        self.user.settings.tvdb_metadata_language = "por"
+        self.user.settings.save()
 
     @patch("apps.catalog.views.catalog_search")
     def test_results_require_htmx_header(self, catalog_search):
@@ -89,7 +95,9 @@ class SearchResultsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fight Club")
         self.assertContains(response, ">Track<")
-        catalog_search.assert_called_once_with("Fight", media_type="movie", page=1)
+        catalog_search.assert_called_once_with(
+            "Fight", media_type="movie", language="pt-BR", page=1
+        )
 
     @patch("apps.catalog.views.catalog_search")
     def test_results_link_to_movie_detail_page(self, catalog_search):

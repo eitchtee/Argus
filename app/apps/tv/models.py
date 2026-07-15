@@ -9,6 +9,7 @@ class Show(ProviderBackedModel):
     provider = models.CharField(max_length=16, default="tvdb")
     name = models.CharField(max_length=255)
     overview = models.TextField(blank=True)
+    translations = models.JSONField(default=dict, blank=True)
     poster_path = models.CharField(max_length=255, null=True, blank=True)
     backdrop_path = models.CharField(max_length=255, null=True, blank=True)
     cast = models.JSONField(default=list, blank=True)
@@ -53,6 +54,7 @@ class Season(models.Model):
     season_number = models.PositiveIntegerField()
     name = models.CharField(max_length=255, blank=True)
     overview = models.TextField(blank=True)
+    translations = models.JSONField(default=dict, blank=True)
     poster_path = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
@@ -84,6 +86,7 @@ class Episode(models.Model):
     absolute_number = models.PositiveIntegerField(null=True, blank=True)
     name = models.CharField(max_length=255, blank=True)
     overview = models.TextField(blank=True)
+    translations = models.JSONField(default=dict, blank=True)
     still_path = models.CharField(max_length=255, null=True, blank=True)
     air_date = models.DateField(null=True, blank=True)
     runtime = models.PositiveIntegerField(null=True, blank=True)
