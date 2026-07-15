@@ -1,8 +1,16 @@
 {% load i18n %}
-<div id="episode-watched-button">
-  {% if tracked %}
-  <div class="tooltip tooltip-bottom" data-tip="{% if watched %}{% trans 'Mark unwatched' %}{% else %}{% trans 'Mark watched' %}{% endif %}"><input type="checkbox" aria-label="{% if watched %}{% trans 'Mark unwatched' %}{% else %}{% trans 'Mark watched' %}{% endif %}" class="checkbox checkbox-success checkbox-lg" {% if watched %}checked{% endif %}
-          hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'tv-episode-detail-watched' external_id=show_external_id episode_id=episode_id %}"
-          hx-trigger="change" hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this"></div>
-  {% endif %}
+{% trans "Mark unwatched" as mark_unwatched_label %}
+{% trans "Mark watched" as mark_watched_label %}
+
+<div id="episode-watched-button" class="fab">
+  <div class="tooltip tooltip-left" data-tip="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}">
+    <button type="button"
+            aria-label="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
+            aria-pressed="{{ watched|yesno:'true,false' }}"
+            class="btn btn-lg btn-circle btn-success"
+            hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'tv-episode-detail-watched' external_id=show_external_id episode_id=episode_id %}"
+            hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this">
+      <i class="fa-solid fa-{% if watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
+    </button>
+  </div>
 </div>

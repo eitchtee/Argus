@@ -41,7 +41,6 @@
         </div>
         {% endif %}
         <div class="flex flex-wrap gap-2 items-center pt-1">
-          {% include "tv/fragments/actions.html" %}
           {% if show.imdb_id %}
           <a href="https://www.imdb.com/title/{{ show.imdb_id }}/" target="_blank" rel="noopener" class="btn btn-outline btn-sm">IMDb</a>
           {% endif %}
@@ -54,6 +53,8 @@
       </div>
     </div>
   </div>
+
+  {% include "tv/fragments/actions.html" %}
 
   {% if show.cast %}
   <div class="surface-card rounded-box p-4 sm:p-6">

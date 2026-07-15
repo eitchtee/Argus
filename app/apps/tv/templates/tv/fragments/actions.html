@@ -1,25 +1,157 @@
 {% load i18n %}
-<div id="show-actions" class="flex flex-wrap gap-2">
-  {% if show.tracking_status == "tracked" %}
-  <div class="tooltip tooltip-bottom" data-tip="{% trans 'Pause show' %}"><button type="button" aria-label="{% trans 'Pause show' %}" class="btn btn-square btn-sm btn-warning btn-outline"
-          hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}" hx-disabled-elt="this"><i class="fa-solid fa-pause"></i></button></div>
-  <div class="tooltip tooltip-bottom" data-tip="{% trans 'Drop show' %}"><button type="button" aria-label="{% trans 'Drop show' %}" class="btn btn-square btn-sm btn-warning btn-outline"
-          hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}" hx-disabled-elt="this"><i class="fa-solid fa-bookmark-minus"></i></button></div>
+{% trans "Track show" as track_show_label %}
+{% trans "Start watching again" as resume_show_label %}
+{% trans "Show actions" as show_actions_label %}
+{% trans "Pause show" as pause_show_label %}
+{% trans "Drop show" as drop_show_label %}
+{% trans "Delete show" as delete_show_label %}
+{% trans "Delete show?" as delete_show_title %}
+{% trans "This permanently deletes your watch history for this show. Continue?" as delete_show_message %}
+{% trans "Delete" as delete_label %}
+{% trans "Cancel" as cancel_label %}
+{% if show.show_fully_watched %}
+  {% trans "Mark show unwatched" as show_watched_label %}
+{% else %}
+  {% trans "Mark show watched" as show_watched_label %}
+{% endif %}
+
+<div id="show-actions" class="fab">
+  {% if not show.tracking_status %}
+  <div class="tooltip tooltip-left" data-tip="{{ track_show_label }}">
+    <button type="button" aria-label="{{ track_show_label }}"
+            class="btn btn-lg btn-circle btn-primary"
+            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+    </button>
+  </div>
   {% else %}
-  <div class="tooltip tooltip-bottom" data-tip="{% trans 'Track show' %}"><button type="button" aria-label="{% trans 'Track show' %}" class="btn btn-square btn-sm btn-primary"
-          hx-post="{% url 'tv-detail-track' external_id=show.external_id %}" hx-disabled-elt="this"><i class="fa-solid fa-bookmark"></i></button></div>
-  {% endif %}
+  <button type="button" tabindex="0" role="button" aria-haspopup="true"
+          aria-label="{{ show_actions_label }}" class="btn btn-lg btn-circle btn-primary">
+    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+  </button>
 
-  {% if show.can_delete %}
-  <div class="tooltip tooltip-bottom" data-tip="{% trans 'Delete show' %}"><button type="button" aria-label="{% trans 'Delete show' %}" class="btn btn-square btn-sm btn-error"
-          hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
-          hx-confirm="{% trans 'This permanently deletes your watch history for this show. Continue?' %}"
-          hx-disabled-elt="this"><i class="fa-solid fa-trash"></i></button></div>
-  {% endif %}
-
-  {% if show.tracked and show.seasons %}
-  <div class="tooltip tooltip-bottom" data-tip="{% if show.show_fully_watched %}{% trans 'Mark show unwatched' %}{% else %}{% trans 'Mark show watched' %}{% endif %}"><input type="checkbox" aria-label="{% if show.show_fully_watched %}{% trans 'Mark show unwatched' %}{% else %}{% trans 'Mark show watched' %}{% endif %}" class="checkbox checkbox-success checkbox-lg" {% if show.show_fully_watched %}checked{% endif %}
-          hx-{% if show.show_fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-watched' external_id=show.external_id %}"
-          hx-trigger="change" hx-disabled-elt="this"></div>
+    {% if show.tracking_status == "tracked" %}
+  <div class="tooltip tooltip-left" data-tip="{{ pause_show_label }}">
+    <button type="button" aria-label="{{ pause_show_label }}"
+            class="btn btn-lg btn-circle btn-warning btn-outline"
+            hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-pause" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="tooltip tooltip-left" data-tip="{{ drop_show_label }}">
+    <button type="button" aria-label="{{ drop_show_label }}"
+            class="btn btn-lg btn-circle btn-warning btn-outline"
+            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
+    <button type="button" aria-label="{{ delete_show_label }}"
+            class="btn btn-lg btn-circle btn-error"
+            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
+            hx-trigger="confirmed" hx-disabled-elt="this"
+            _="on click
+                call Swal.fire({
+                  title: '{{ delete_show_title|escapejs }}',
+                  text: '{{ delete_show_message|escapejs }}',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: '{{ delete_label|escapejs }}',
+                  cancelButtonText: '{{ cancel_label|escapejs }}',
+                  reverseButtons: true
+                })
+                if it.isConfirmed
+                  trigger confirmed">
+      <i class="fa-solid fa-trash" aria-hidden="true"></i>
+    </button>
+  </div>
+      {% if show.tracked and show.seasons %}
+  <div class="tooltip tooltip-left" data-tip="{{ show_watched_label }}">
+    <button type="button" aria-label="{{ show_watched_label }}"
+            class="btn btn-lg btn-circle btn-success"
+            hx-{% if show.show_fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-watched' external_id=show.external_id %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-{% if show.show_fully_watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
+    </button>
+  </div>
+      {% endif %}
+    {% elif show.tracking_status == "paused" %}
+  <div class="tooltip tooltip-left" data-tip="{{ resume_show_label }}">
+    <button type="button" aria-label="{{ resume_show_label }}"
+            class="btn btn-lg btn-circle btn-primary"
+            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-play" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="tooltip tooltip-left" data-tip="{{ drop_show_label }}">
+    <button type="button" aria-label="{{ drop_show_label }}"
+            class="btn btn-lg btn-circle btn-warning btn-outline"
+            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
+    <button type="button" aria-label="{{ delete_show_label }}"
+            class="btn btn-lg btn-circle btn-error"
+            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
+            hx-trigger="confirmed" hx-disabled-elt="this"
+            _="on click
+                call Swal.fire({
+                  title: '{{ delete_show_title|escapejs }}',
+                  text: '{{ delete_show_message|escapejs }}',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: '{{ delete_label|escapejs }}',
+                  cancelButtonText: '{{ cancel_label|escapejs }}',
+                  reverseButtons: true
+                })
+                if it.isConfirmed
+                  trigger confirmed">
+      <i class="fa-solid fa-trash" aria-hidden="true"></i>
+    </button>
+  </div>
+    {% else %}
+  <div class="tooltip tooltip-left" data-tip="{{ resume_show_label }}">
+    <button type="button" aria-label="{{ resume_show_label }}"
+            class="btn btn-lg btn-circle btn-primary"
+            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-play" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="tooltip tooltip-left" data-tip="{{ pause_show_label }}">
+    <button type="button" aria-label="{{ pause_show_label }}"
+            class="btn btn-lg btn-circle btn-warning btn-outline"
+            hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-pause" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
+    <button type="button" aria-label="{{ delete_show_label }}"
+            class="btn btn-lg btn-circle btn-error"
+            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
+            hx-trigger="confirmed" hx-disabled-elt="this"
+            _="on click
+                call Swal.fire({
+                  title: '{{ delete_show_title|escapejs }}',
+                  text: '{{ delete_show_message|escapejs }}',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: '{{ delete_label|escapejs }}',
+                  cancelButtonText: '{{ cancel_label|escapejs }}',
+                  reverseButtons: true
+                })
+                if it.isConfirmed
+                  trigger confirmed">
+      <i class="fa-solid fa-trash" aria-hidden="true"></i>
+    </button>
+  </div>
+    {% endif %}
   {% endif %}
 </div>

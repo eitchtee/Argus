@@ -129,6 +129,10 @@ def remove_from_watchlist(user, movie: Movie) -> UserMovie | None:
     return user_movie
 
 
+def delete_movie_data(user, movie: Movie) -> None:
+    UserMovie.objects.filter(user=user, movie=movie).delete()
+
+
 def mark_seen(user, movie: Movie) -> UserMovie:
     user_movie, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
     user_movie.is_seen = True

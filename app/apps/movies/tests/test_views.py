@@ -53,7 +53,7 @@ class MovieDetailViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fight Club")
         self.assertContains(response, "A movie about a fight club.")
-        self.assertContains(response, 'aria-label="Track"')
+        self.assertContains(response, 'aria-label="Add to watchlist"')
         self.assertContains(response, "fa-bookmark")
         self.assertContains(response, "https://image.tmdb.org/t/p/w1280/backdrop.jpg")
         self.assertContains(response, "David Fincher")
@@ -67,7 +67,8 @@ class MovieDetailViewTests(TestCase):
 
         response = self.client.get("/movies/550/")
 
-        self.assertContains(response, 'aria-label="Untrack"')
+        self.assertContains(response, 'aria-label="Movie actions"')
+        self.assertContains(response, 'aria-label="Remove from watchlist"')
 
     def test_does_not_leak_another_users_watchlist_state(self):
         other_user = get_user_model().objects.create_user("other@example.com")
@@ -76,7 +77,7 @@ class MovieDetailViewTests(TestCase):
 
         response = self.client.get("/movies/550/")
 
-        self.assertContains(response, 'aria-label="Track"')
+        self.assertContains(response, 'aria-label="Add to watchlist"')
 
     @patch("apps.movies.views.get_movie_detail")
     def test_renders_from_provider_cache_when_not_yet_imported(self, get_movie_detail_mock):
@@ -119,7 +120,8 @@ class MovieTrackViewTests(TestCase):
         response = self.client.post("/movies/550/track/", HTTP_HX_REQUEST="true")
 
         track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
-        self.assertContains(response, 'aria-label="Untrack"')
+        self.assertContains(response, 'aria-label="Movie actions"')
+        self.assertContains(response, 'aria-label="Remove from watchlist"')
 
     def test_delete_untracks_movie(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
@@ -127,7 +129,7 @@ class MovieTrackViewTests(TestCase):
 
         response = self.client.delete("/movies/550/track/", HTTP_HX_REQUEST="true")
 
-        self.assertContains(response, 'aria-label="Track"')
+        self.assertContains(response, 'aria-label="Add to watchlist"')
         self.assertFalse(
             UserMovie.objects.filter(user=self.user, movie=movie, on_watchlist=True).exists()
         )
@@ -164,8 +166,10 @@ class MovieWatchedViewTests(TestCase):
 
         import_movie_mock.assert_called_once_with("tmdb", "550", language="en-US")
         hydrate_movie_translations.assert_called_once_with(movie.id)
+        import_movie_mock.assert_called_once_with("tmdb", "550")
+        self.assertContains(response, 'aria-label="Movie actions"')
         self.assertContains(response, 'aria-label="Mark unwatched"')
-        self.assertContains(response, "checkbox-success")
+        self.assertContains(response, 'aria-label="Delete movie"')
         self.assertTrue(
             UserMovie.objects.filter(user=self.user, movie=movie, is_seen=True).exists()
         )
@@ -178,7 +182,95 @@ class MovieWatchedViewTests(TestCase):
 
         response = self.client.delete("/movies/550/watched/", HTTP_HX_REQUEST="true")
 
-        self.assertContains(response, 'aria-label="Mark watched"')
+        self.assertContains(response, 'aria-label="Add to watchlist"')
         self.assertFalse(
             UserMovie.objects.filter(user=self.user, movie=movie, is_seen=True).exists()
         )
+
+
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    },
+    DJANGO_VITE_DEV_MODE=True,
+)
+class MovieFabViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            "user@example.com", password="password"
+        )
+        self.client.login(username="user@example.com", password="password")
+
+    def test_untracked_movie_renders_single_fab_action(self):
+        Movie.objects.create(external_id="550", title="Fight Club")
+
+        response = self.client.get("/movies/550/")
+
+        self.assertContains(response, 'id="movie-actions"')
+        self.assertContains(response, 'class="fab"')
+        self.assertContains(response, 'aria-label="Add to watchlist"')
+        self.assertNotContains(response, 'aria-label="Movie actions"')
+
+    def test_watchlisted_movie_renders_watch_menu(self):
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
+
+        response = self.client.get("/movies/550/")
+
+        self.assertContains(response, 'aria-label="Movie actions"')
+        self.assertContains(response, 'aria-label="Mark watched"')
+        self.assertContains(response, 'aria-label="Remove from watchlist"')
+        self.assertNotContains(response, 'aria-label="Add to watchlist"')
+
+    def test_watched_movie_renders_watched_menu(self):
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
+
+        response = self.client.get("/movies/550/")
+
+        self.assertContains(response, 'aria-label="Movie actions"')
+        self.assertContains(response, 'aria-label="Mark unwatched"')
+        self.assertContains(response, 'aria-label="Delete movie"')
+        self.assertNotContains(response, 'aria-label="Mark watched"')
+
+
+class MovieDeleteViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            "user@example.com", password="password"
+        )
+        self.client.login(username="user@example.com", password="password")
+
+    def test_requires_htmx_header(self):
+        response = self.client.post("/movies/550/delete/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_deletes_only_current_users_movie_state(self):
+        other_user = get_user_model().objects.create_user("other@example.com")
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
+        UserMovie.objects.create(user=other_user, movie=movie, is_seen=True)
+
+        response = self.client.post(
+            "/movies/550/delete/", HTTP_HX_REQUEST="true"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(UserMovie.objects.filter(user=self.user, movie=movie).exists())
+        self.assertTrue(UserMovie.objects.filter(user=other_user, movie=movie).exists())
+
+    def test_demo_mode_blocks_non_superusers(self):
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
+
+        with self.settings(DEMO=True):
+            response = self.client.post(
+                "/movies/550/delete/", HTTP_HX_REQUEST="true"
+            )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(UserMovie.objects.filter(user=self.user, movie=movie).exists())
