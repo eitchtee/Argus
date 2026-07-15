@@ -1,16 +1,78 @@
 {% load i18n %}
-<div id="movie-actions" class="flex flex-wrap gap-2">
-  <div class="tooltip tooltip-bottom" data-tip="{% if movie.on_watchlist %}{% trans 'Untrack' %}{% else %}{% trans 'Track' %}{% endif %}">
-  <button type="button" aria-label="{% if movie.on_watchlist %}{% trans 'Untrack' %}{% else %}{% trans 'Track' %}{% endif %}"
-          class="btn btn-square btn-sm {% if movie.on_watchlist %}btn-outline{% else %}btn-primary{% endif %}"
-          hx-{% if movie.on_watchlist %}delete{% else %}post{% endif %}="{% url 'movie-detail-track' external_id=movie.external_id %}"
-          hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this"><i class="fa-solid fa-bookmark"></i></button>
+{% trans "Add to watchlist" as add_to_watchlist_label %}
+{% trans "Movie actions" as movie_actions_label %}
+{% trans "Mark watched" as mark_watched_label %}
+{% trans "Mark unwatched" as mark_unwatched_label %}
+{% trans "Remove from watchlist" as remove_from_watchlist_label %}
+{% trans "Delete movie" as delete_movie_label %}
+{% trans "Delete movie?" as delete_movie_title %}
+{% trans "This removes your watchlist and watched state for this movie. Continue?" as delete_movie_message %}
+{% trans "Delete" as delete_label %}
+{% trans "Cancel" as cancel_label %}
+
+<div id="movie-actions" class="fab">
+  {% if not movie.on_watchlist and not movie.is_seen %}
+  <div class="tooltip tooltip-left" data-tip="{{ add_to_watchlist_label }}">
+    <button type="button" aria-label="{{ add_to_watchlist_label }}"
+            class="btn btn-lg btn-circle btn-primary"
+            hx-post="{% url 'movie-detail-track' external_id=movie.external_id %}"
+            hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
+      <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+    </button>
   </div>
-  <div class="tooltip tooltip-bottom" data-tip="{% if movie.is_seen %}{% trans 'Mark unwatched' %}{% else %}{% trans 'Mark watched' %}{% endif %}">
-  <input type="checkbox" aria-label="{% if movie.is_seen %}{% trans 'Mark unwatched' %}{% else %}{% trans 'Mark watched' %}{% endif %}"
-          class="checkbox checkbox-success checkbox-lg"
-          {% if movie.is_seen %}checked{% endif %}
-          hx-{% if movie.is_seen %}delete{% else %}post{% endif %}="{% url 'movie-detail-watched' external_id=movie.external_id %}"
-          hx-trigger="change" hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
+  {% else %}
+  <button type="button" tabindex="0" role="button" aria-haspopup="true"
+          aria-label="{{ movie_actions_label }}" class="btn btn-lg btn-circle btn-primary">
+    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+  </button>
+
+    {% if movie.is_seen %}
+  <div class="tooltip tooltip-left" data-tip="{{ mark_unwatched_label }}">
+    <button type="button" aria-label="{{ mark_unwatched_label }}"
+            class="btn btn-lg btn-circle btn-success"
+            hx-delete="{% url 'movie-detail-watched' external_id=movie.external_id %}"
+            hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
+      <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+    </button>
   </div>
+  <div class="tooltip tooltip-left" data-tip="{{ delete_movie_label }}">
+    <button type="button" aria-label="{{ delete_movie_label }}"
+            class="btn btn-lg btn-circle btn-error"
+            hx-post="{% url 'movie-detail-delete' external_id=movie.external_id %}"
+            hx-trigger="confirmed" hx-target="#movie-actions" hx-swap="outerHTML"
+            hx-disabled-elt="this"
+            _="on click
+                call Swal.fire({
+                  title: '{{ delete_movie_title|escapejs }}',
+                  text: '{{ delete_movie_message|escapejs }}',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: '{{ delete_label|escapejs }}',
+                  cancelButtonText: '{{ cancel_label|escapejs }}',
+                  reverseButtons: true
+                })
+                if it.isConfirmed
+                  trigger confirmed">
+      <i class="fa-solid fa-trash" aria-hidden="true"></i>
+    </button>
+  </div>
+    {% else %}
+  <div class="tooltip tooltip-left" data-tip="{{ mark_watched_label }}">
+    <button type="button" aria-label="{{ mark_watched_label }}"
+            class="btn btn-lg btn-circle btn-success"
+            hx-post="{% url 'movie-detail-watched' external_id=movie.external_id %}"
+            hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
+      <i class="fa-solid fa-eye" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="tooltip tooltip-left" data-tip="{{ remove_from_watchlist_label }}">
+    <button type="button" aria-label="{{ remove_from_watchlist_label }}"
+            class="btn btn-lg btn-circle btn-warning btn-outline"
+            hx-delete="{% url 'movie-detail-track' external_id=movie.external_id %}"
+            hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
+      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+    </button>
+  </div>
+    {% endif %}
+  {% endif %}
 </div>
