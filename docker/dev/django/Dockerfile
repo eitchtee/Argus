@@ -12,7 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv
 
 RUN apt-get update && \
-    apt-get install --no-install-recommends -y gettext supervisor && \
+    apt-get install --no-install-recommends -y gettext supervisor tzdata && \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./

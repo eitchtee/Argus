@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-from cachalot.api import invalidate
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
@@ -9,7 +8,6 @@ from apps.catalog.models import Tier
 from apps.movies.models import Movie, UserMovie
 
 
-@override_settings(CACHALOT_ENABLED=False)
 class MovieAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -143,7 +141,6 @@ class MovieAPITests(TestCase):
         response = self.client.post(f"/api/movies/{shared_movie.id}/seen")
 
         self.assertEqual(response.status_code, 200)
-        invalidate(UserMovie)
         user_movie = UserMovie.objects.get(user=self.user, movie=shared_movie)
         other_user_movie = UserMovie.objects.get(user=self.other_user, movie=shared_movie)
         self.assertTrue(user_movie.is_seen)

@@ -434,13 +434,17 @@ HUEY = {
     "name": "argus",
     "filename": os.getenv("HUEY_SQLITE_PATH", str(DATA_DIR / "huey.sqlite3")),
     "immediate": False,
-    "utc": USE_TZ,
+    "utc": False,
     "consumer": {
         "workers": int(os.getenv("TASK_WORKERS", 1)),
         "worker_type": "thread",
     },
 }
 
+# Test database rows are rolled back and recreated with the same primary keys;
+# persistent query caching can leak results between tests. Cache-specific tests
+# can opt back in with override_settings(CACHALOT_ENABLED=True).
+CACHALOT_ENABLED = "test" not in sys.argv
 CACHALOT_UNCACHABLE_TABLES = ("django_migrations",)
 
 # Catalog providers

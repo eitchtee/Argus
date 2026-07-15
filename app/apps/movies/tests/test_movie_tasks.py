@@ -1,7 +1,7 @@
 from datetime import timedelta
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import call, patch
 
-from cachalot.api import invalidate
 from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
@@ -12,7 +12,6 @@ from apps.catalog.providers.base import LanguageOptionDTO
 from apps.movies.models import Movie, UserMovie
 
 
-@override_settings(CACHALOT_ENABLED=False)
 class MovieTaskTests(TransactionTestCase):
     @patch("apps.movies.tasks.get_provider")
     @patch("apps.movies.tasks.movie_services.import_movie")
@@ -43,14 +42,6 @@ class MovieTaskTests(TransactionTestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")
 
-    @patch("apps.movies.tasks.movie_services.import_movie")
-    def test_import_movie_task_calls_import_service(self, import_movie):
-        from apps.movies.tasks import import_movie_task
-
-        import_movie_task.call_local("tmdb", "550")
-
-        import_movie.assert_called_once_with("tmdb", "550", language="en-US")
-
     @patch("apps.movies.tasks.hydrate_movie_translations")
     @patch("apps.movies.tasks.movie_services.import_movie")
     def test_sync_movie_imports_existing_movie_and_queues_translation_hydration(
@@ -68,6 +59,26 @@ class MovieTaskTests(TransactionTestCase):
         import_movie.assert_called_once_with("tmdb", "550", language="en-US")
         hydrate_movie_translations.assert_called_once_with(movie.id)
 
+    @patch("apps.movies.tasks.hydrate_movie_translations")
+    @patch("apps.movies.tasks.movie_services.import_movie")
+    def test_sync_movie_returns_the_translation_task_id(
+        self,
+        import_movie,
+        hydrate_movie_translations,
+    ):
+        from apps.movies.tasks import sync_movie
+
+        movie = Movie.objects.create(provider="tmdb", external_id="550", title="Fight Club")
+        import_movie.return_value = movie
+        hydrate_movie_translations.return_value = SimpleNamespace(id="translation-1")
+
+        result = sync_movie.call_local(movie.id)
+
+        self.assertEqual(
+            result,
+            {"item_id": movie.id, "translation_task_id": "translation-1"},
+        )
+
     @patch("apps.movies.tasks.movie_services.import_movie")
     def test_sync_movie_marks_provider_failures_as_error(self, import_movie):
         from apps.movies.tasks import sync_movie
@@ -83,14 +94,13 @@ class MovieTaskTests(TransactionTestCase):
         with self.assertRaises(ProviderError):
             sync_movie.call_local(movie.id)
 
-        invalidate(Movie)
         movie.refresh_from_db()
         self.assertEqual(movie.sync_status, SyncStatus.ERROR)
 
     @override_settings(CATALOG_MOVIE_SYNC_INTERVAL_DAYS=14)
     @patch("apps.movies.tasks.sync_movie")
-    def test_enqueue_stale_movies_enqueues_only_tracked_stale_movies(self, sync_movie):
-        from apps.movies.tasks import enqueue_stale_movies
+    def test_sync_movies_enqueues_only_tracked_stale_movies(self, sync_movie):
+        from apps.movies.tasks import sync_movies
 
         stale_tracked = self._create_movie(
             external_id="1",
@@ -120,9 +130,14 @@ class MovieTaskTests(TransactionTestCase):
             on_watchlist=True,
         )
 
-        enqueued_count = enqueue_stale_movies.call_local()
+        sync_movie.side_effect = [
+            SimpleNamespace(id="movie-task-1"),
+            SimpleNamespace(id="movie-task-2"),
+        ]
 
-        self.assertEqual(enqueued_count, 2)
+        enqueued_task_ids = sync_movies.call_local()
+
+        self.assertEqual(enqueued_task_ids, ["movie-task-1", "movie-task-2"])
         self.assertCountEqual(
             [call.args[0] for call in sync_movie.call_args_list],
             [stale_tracked.id, never_synced_tracked.id],
@@ -131,6 +146,34 @@ class MovieTaskTests(TransactionTestCase):
             stale_untracked.id,
             [call.args[0] for call in sync_movie.call_args_list],
         )
+
+    @patch("apps.movies.tasks.sync_movie")
+    def test_sync_movies_force_all_enqueues_every_tmdb_movie(self, sync_movie):
+        from apps.movies.tasks import sync_movies
+
+        first = self._create_movie(external_id="1", title="Tracked")
+        second = self._create_movie(external_id="2", title="Untracked")
+        Movie.objects.create(provider="other", external_id="3", title="Other provider")
+        sync_movie.side_effect = [
+            SimpleNamespace(id="task-1"),
+            SimpleNamespace(id="task-2"),
+        ]
+
+        result = sync_movies.call_local(force_all=True)
+
+        self.assertEqual(result, ["task-1", "task-2"])
+        self.assertCountEqual(
+            [call.args[0] for call in sync_movie.call_args_list],
+            [first.id, second.id],
+        )
+
+    @patch("apps.movies.tasks.sync_movies")
+    def test_daily_movie_sync_queues_default_dispatch(self, sync_movies):
+        from apps.movies.tasks import daily_movie_sync
+
+        daily_movie_sync.call_local()
+
+        sync_movies.assert_called_once_with()
 
     def _create_movie(self, **overrides):
         defaults = {

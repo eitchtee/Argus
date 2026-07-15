@@ -50,7 +50,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Install runtime dependencies
 RUN --mount=type=cache,target=/root/.cache/apt \
     apt-get update && \
-    apt-get install --no-install-recommends -y gettext supervisor && \
+    apt-get install --no-install-recommends -y gettext supervisor tzdata && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --chown=app:app ./docker/prod/django/start /start
