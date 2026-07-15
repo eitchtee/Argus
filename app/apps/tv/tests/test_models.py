@@ -8,6 +8,21 @@ from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
 class TvModelTests(TestCase):
+    def test_tv_metadata_translations_default_to_empty_dict(self):
+        show = Show.objects.create(external_id="series-1", name="The Expanse")
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        episode = Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=1,
+            name="Dulcinea",
+        )
+
+        self.assertEqual(show.translations, {})
+        self.assertEqual(season.translations, {})
+        self.assertEqual(episode.translations, {})
+
     def test_show_provider_external_id_is_unique(self):
         Show.objects.create(external_id="series-1", name="The Expanse")
 

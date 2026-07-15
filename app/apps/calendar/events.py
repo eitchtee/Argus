@@ -5,6 +5,7 @@ from cachalot.api import cachalot_disabled
 from django.db.models import Prefetch
 from django.utils import timezone as django_timezone
 
+from apps.catalog.localization import metadata_language_for_user, resolve_field
 from apps.movies.models import Movie
 from apps.tv.models import Episode, UserShow
 
@@ -98,9 +99,24 @@ def get_calendar_events(
 ) -> list[CalendarEvent]:
     events = []
     if filters.statuses:
-        events.extend(_get_episode_events(user, start_date, end_date, filters))
+        events.extend(
+            _get_episode_events(
+                user,
+                start_date,
+                end_date,
+                filters,
+                metadata_language_for_user(user, "tvdb"),
+            )
+        )
     if filters.include_movies:
-        events.extend(_get_movie_events(user, start_date, end_date))
+        events.extend(
+            _get_movie_events(
+                user,
+                start_date,
+                end_date,
+                metadata_language_for_user(user, "tmdb"),
+            )
+        )
     return sorted(events, key=_event_sort_key)
 
 
@@ -111,7 +127,11 @@ def get_calendar_event(
     kind: str = "episode",
 ) -> CalendarEvent | None:
     if kind == "movie":
-        return _get_movie_event(user, object_id)
+        return _get_movie_event(
+            user,
+            object_id,
+            metadata_language_for_user(user, "tmdb"),
+        )
     if kind != "episode":
         return None
 
@@ -131,7 +151,11 @@ def get_calendar_event(
         return None
 
     status = UserShow.objects.get(user=user, show=episode.show).status
-    return _episode_event(episode, status=status)
+    return _episode_event(
+        episode,
+        status=status,
+        language=metadata_language_for_user(user, "tvdb"),
+    )
 
 
 def get_calendar_feed(user) -> CalendarFeed:
@@ -145,7 +169,7 @@ def get_feed_window(*, now: datetime | None = None) -> tuple[date, date]:
     return current_date - timedelta(days=30), current_date + timedelta(days=90)
 
 
-def _get_episode_events(user, start_date, end_date, filters):
+def _get_episode_events(user, start_date, end_date, filters, language):
     episodes = (
         Episode.objects.filter(
             show__user_states__user=user,
@@ -163,10 +187,10 @@ def _get_episode_events(user, start_date, end_date, filters):
             )
         )
     )
-    return [_episode_event(episode) for episode in episodes]
+    return [_episode_event(episode, language=language) for episode in episodes]
 
 
-def _get_movie_events(user, start_date, end_date):
+def _get_movie_events(user, start_date, end_date, language):
     movies = (
         Movie.objects.filter(
             user_states__user=user,
@@ -177,10 +201,10 @@ def _get_movie_events(user, start_date, end_date):
         .prefetch_related("genres")
         .order_by("release_date", "title", "id")
     )
-    return [_movie_event(movie) for movie in movies]
+    return [_movie_event(movie, language) for movie in movies]
 
 
-def _get_movie_event(user, movie_id: int) -> CalendarEvent | None:
+def _get_movie_event(user, movie_id: int, language: str) -> CalendarEvent | None:
     movie = (
         Movie.objects.filter(
             id=movie_id,
@@ -193,10 +217,15 @@ def _get_movie_event(user, movie_id: int) -> CalendarEvent | None:
     )
     if movie is None:
         return None
-    return _movie_event(movie)
+    return _movie_event(movie, language)
 
 
-def _episode_event(episode: Episode, *, status: str | None = None) -> CalendarEvent:
+def _episode_event(
+    episode: Episode,
+    *,
+    status: str | None = None,
+    language: str = "eng",
+) -> CalendarEvent:
     if status is None:
         status = episode.show._calendar_user_states[0].status
 
@@ -212,15 +241,15 @@ def _episode_event(episode: Episode, *, status: str | None = None) -> CalendarEv
         kind="episode",
         object_id=episode.id,
         external_id=episode.show.external_id,
-        title=episode.name,
+        title=resolve_field(episode, "name", language),
         subtitle=f"S{episode.season_number:02d}E{episode.episode_number:02d}",
-        overview=episode.overview,
+        overview=resolve_field(episode, "overview", language),
         release_date=episode.air_date,
         starts_at=starts_at,
         ends_at=ends_at,
         runtime=episode.runtime,
         status=status,
-        show_name=episode.show.name,
+        show_name=resolve_field(episode.show, "name", language),
         network=episode.show.network,
         episode_id=episode.id,
         show_id=episode.show_id,
@@ -229,21 +258,21 @@ def _episode_event(episode: Episode, *, status: str | None = None) -> CalendarEv
     )
 
 
-def _movie_event(movie: Movie) -> CalendarEvent:
+def _movie_event(movie: Movie, language: str = "en-US") -> CalendarEvent:
     return CalendarEvent(
         kind="movie",
         object_id=movie.id,
         external_id=movie.external_id,
-        title=movie.title,
+        title=resolve_field(movie, "title", language),
         subtitle="Movie",
-        overview=movie.overview,
+        overview=resolve_field(movie, "overview", language),
         release_date=movie.release_date,
         starts_at=None,
         ends_at=None,
         runtime=movie.runtime,
         status="tracked",
         director=movie.director,
-        genres=tuple(genre.name for genre in movie.genres.all()),
+        genres=tuple(resolve_field(genre, "name", language) for genre in movie.genres.all()),
         movie_id=movie.id,
     )
 

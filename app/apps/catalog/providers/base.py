@@ -13,10 +13,17 @@ class SearchResultDTO:
 
 
 @dataclass(frozen=True)
+class LanguageOptionDTO:
+    code: str
+    name: str
+
+
+@dataclass(frozen=True)
 class GenreDTO:
     provider: str
     external_id: str
     name: str
+    translations: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -52,6 +59,7 @@ class DetailDTO:
     next_air_date: str | None = None
     last_air_date: str | None = None
     airs_time: str | None = None
+    translations: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -60,6 +68,7 @@ class SeasonDTO:
     name: str = ""
     overview: str = ""
     poster_path: str | None = None
+    translations: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -73,20 +82,31 @@ class EpisodeDTO:
     air_date: str | None = None
     runtime: int | None = None
     finale_type: str | None = None
+    translations: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 class BaseProvider(ABC):
     name: str
 
     @abstractmethod
-    def search(self, query: str, *, page: int = 1) -> list[SearchResultDTO]:
+    def search(self, query: str, *, language: str, page: int = 1) -> list[SearchResultDTO]:
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_detail(self, external_id: str) -> DetailDTO:
+    def fetch_detail(self, external_id: str, *, language: str) -> DetailDTO:
         raise NotImplementedError
 
-    def fetch_episodes(self, external_id: str) -> list[EpisodeDTO]:
+    def fetch_episodes(self, external_id: str, *, language: str) -> list[EpisodeDTO]:
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support episode fetching."
+        )
+
+    def fetch_seasons(self, external_id: str, *, language: str) -> list[SeasonDTO]:
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support season fetching."
+        )
+
+    def list_languages(self) -> list[LanguageOptionDTO]:
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support language listing."
         )

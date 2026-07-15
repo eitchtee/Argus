@@ -6,19 +6,26 @@ from django.db.models import F
 from django.utils import timezone
 
 from apps.catalog.models import Genre, SyncStatus
+from apps.catalog.localization import merge_translation_maps
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.movies.models import Movie, UserMovie
 
 
-def import_movie(provider: str, external_id: str, *, provider_getter=get_provider) -> Movie:
+def import_movie(
+    provider: str,
+    external_id: str,
+    *,
+    language: str = "en-US",
+    provider_getter=get_provider,
+) -> Movie:
     if provider != "tmdb":
         raise ValueError("Movies must use tmdb provider metadata.")
 
     provider_client = provider_getter(provider)
 
     try:
-        detail = provider_client.fetch_detail(external_id)
+        detail = provider_client.fetch_detail(external_id, language=language)
     except ProviderError:
         Movie.objects.filter(provider=provider, external_id=external_id).update(
             sync_status=SyncStatus.ERROR,
@@ -26,6 +33,15 @@ def import_movie(provider: str, external_id: str, *, provider_getter=get_provide
         raise
 
     with transaction.atomic():
+        existing_movie = Movie.objects.filter(
+            provider=provider,
+            external_id=external_id,
+        ).first()
+        translations = merge_translation_maps(
+            existing_movie.translations if existing_movie else {},
+            detail.translations,
+        )
+        default_text = translations.get("en-US", {})
         movie, _created = Movie.objects.update_or_create(
             provider=provider,
             external_id=external_id,
@@ -34,10 +50,11 @@ def import_movie(provider: str, external_id: str, *, provider_getter=get_provide
                 "director": detail.director or "",
                 "trailer_url": detail.trailer_url,
                 "cast": [dataclasses.asdict(member) for member in detail.cast],
-                "title": detail.title,
+                "title": default_text.get("title", detail.title),
                 "original_title": detail.original_title,
-                "overview": detail.overview,
-                "tagline": detail.tagline,
+                "overview": default_text.get("overview", detail.overview),
+                "tagline": default_text.get("tagline", detail.tagline),
+                "translations": translations,
                 "poster_path": detail.poster_path,
                 "backdrop_path": detail.backdrop_path,
                 "release_date": _parse_date(detail.release_date),
@@ -50,14 +67,24 @@ def import_movie(provider: str, external_id: str, *, provider_getter=get_provide
             },
         )
 
-        genres = [
-            Genre.objects.update_or_create(
+        genres = []
+        for genre in detail.genres:
+            saved_genre, _created = Genre.objects.get_or_create(
                 provider=genre.provider,
                 external_id=genre.external_id,
                 defaults={"name": genre.name},
-            )[0]
-            for genre in detail.genres
-        ]
+            )
+            saved_genre.name = (
+                genre.translations.get("en-US", {}).get("name")
+                or saved_genre.name
+                or genre.name
+            )
+            saved_genre.translations = merge_translation_maps(
+                saved_genre.translations,
+                genre.translations,
+            )
+            saved_genre.save(update_fields=["name", "translations"])
+            genres.append(saved_genre)
         movie.genres.set(genres)
 
     return movie
@@ -69,12 +96,19 @@ def track_movie(
     external_id: str,
     *,
     import_func=import_movie,
+    hydrate_func=None,
 ) -> UserMovie:
-    movie = import_func(provider, external_id)
+    language = user.settings.tmdb_metadata_language
+    movie = import_func(provider, external_id, language=language)
     user_movie, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
     user_movie.on_watchlist = True
     user_movie.watchlist_added_at = timezone.now()
     user_movie.save(update_fields=["on_watchlist", "watchlist_added_at", "updated_at"])
+    if hydrate_func is None:
+        from apps.movies.tasks import hydrate_movie_translations
+
+        hydrate_func = hydrate_movie_translations
+    hydrate_func(movie.id)
     return user_movie
 
 
