@@ -7,6 +7,7 @@ from apps.catalog.providers.base import (
     DetailDTO,
     EpisodeDTO,
     GenreDTO,
+    LanguageOptionDTO,
     SearchResultDTO,
     SeasonDTO,
 )
@@ -14,6 +15,25 @@ from apps.catalog.providers.exceptions import NotFound, ProviderError
 
 
 class ProviderDTOTests(SimpleTestCase):
+    def test_language_and_translation_dtos_use_provider_native_codes(self):
+        language = LanguageOptionDTO(code="pt-BR", name="Português (Brasil)")
+        detail = DetailDTO(
+            provider="tmdb",
+            external_id="550",
+            title="Fight Club",
+            translations={"pt-BR": {"title": "Clube da Luta"}},
+        )
+        genre = GenreDTO(
+            provider="tmdb",
+            external_id="18",
+            name="Drama",
+            translations={"pt-BR": {"name": "Drama"}},
+        )
+
+        self.assertEqual(language.code, "pt-BR")
+        self.assertEqual(detail.translations["pt-BR"]["title"], "Clube da Luta")
+        self.assertEqual(genre.translations["pt-BR"]["name"], "Drama")
+
     def test_search_result_dto_contains_normalized_search_fields(self):
         self.assertTrue(is_dataclass(SearchResultDTO))
 
@@ -96,16 +116,16 @@ class BaseProviderTests(SimpleTestCase):
         class MovieOnlyProvider(BaseProvider):
             name = "movie-only"
 
-            def search(self, query, *, page=1):
+            def search(self, query, *, language, page=1):
                 return []
 
-            def fetch_detail(self, external_id):
+            def fetch_detail(self, external_id, *, language):
                 raise NotFound("missing")
 
         provider = MovieOnlyProvider()
 
         with self.assertRaises(NotImplementedError):
-            provider.fetch_episodes("550")
+            provider.fetch_episodes("550", language="en-US")
 
     def test_provider_exceptions_share_base_type(self):
         self.assertTrue(issubclass(NotFound, ProviderError))

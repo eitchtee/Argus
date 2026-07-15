@@ -5,6 +5,11 @@ from apps.catalog.models import Genre, ProviderBackedModel, SyncStatus, Tier
 
 
 class CatalogModelTests(TransactionTestCase):
+    def test_genre_translations_default_to_empty_dict(self):
+        genre = Genre.objects.create(provider="tmdb", external_id="18", name="Drama")
+
+        self.assertEqual(genre.translations, {})
+
     def test_tier_choices_are_s_through_f(self):
         self.assertEqual(
             Tier.values,

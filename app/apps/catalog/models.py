@@ -43,6 +43,7 @@ class Genre(models.Model):
     provider = models.CharField(max_length=16)
     external_id = models.CharField(max_length=32)
     name = models.CharField(max_length=120)
+    translations = models.JSONField(default=dict, blank=True)
 
     class Meta:
         constraints = [

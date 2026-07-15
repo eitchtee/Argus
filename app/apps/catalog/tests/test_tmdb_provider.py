@@ -35,6 +35,16 @@ class FakeOpener:
         return FakeResponse(self.payload)
 
 
+class SequenceOpener:
+    def __init__(self, payloads):
+        self.payloads = list(payloads)
+        self.requests = []
+
+    def __call__(self, request, timeout):
+        self.requests.append((request, timeout))
+        return FakeResponse(self.payloads.pop(0))
+
+
 def load_fixture(name):
     return json.loads((FIXTURE_DIR / name).read_text())
 
@@ -48,7 +58,7 @@ class TMDBProviderTests(SimpleTestCase):
         opener = FakeOpener(load_fixture("tmdb_search_movie.json"))
         provider = TMDBProvider(opener=opener)
 
-        results = provider.search("fight club", page=2)
+        results = provider.search("fight club", language="pt-BR", page=2)
 
         self.assertEqual(len(results), 2)
         self.assertEqual(results[0].provider, "tmdb")
@@ -67,12 +77,13 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertIn("api_key=test-key", requested_url)
         self.assertIn("query=fight+club", requested_url)
         self.assertIn("page=2", requested_url)
+        self.assertIn("language=pt-BR", requested_url)
 
     def test_fetch_detail_normalizes_movie_detail(self):
         opener = FakeOpener(load_fixture("tmdb_movie_detail.json"))
         provider = TMDBProvider(opener=opener)
 
-        detail = provider.fetch_detail("550")
+        detail = provider.fetch_detail("550", language="en-US")
 
         self.assertEqual(detail.provider, "tmdb")
         self.assertEqual(detail.external_id, "550")
@@ -98,31 +109,74 @@ class TMDBProviderTests(SimpleTestCase):
 
         requested_url = opener.requests[0][0].full_url
         self.assertIn("/movie/550", requested_url)
-        self.assertIn("append_to_response=credits%2Cexternal_ids%2Cvideos", requested_url)
+        self.assertIn(
+            "append_to_response=credits%2Cexternal_ids%2Cvideos%2Ctranslations",
+            requested_url,
+        )
+        self.assertIn("language=en-US", requested_url)
+
+    def test_fetch_detail_normalizes_all_movie_translations(self):
+        payload = load_fixture("tmdb_movie_detail.json")
+        payload["translations"] = load_fixture("tmdb_movie_translations.json")
+        provider = TMDBProvider(opener=FakeOpener(payload))
+
+        detail = provider.fetch_detail("550", language="pt-BR")
+
+        self.assertEqual(
+            detail.translations,
+            {
+                "en-US": {"title": "Fight Club", "overview": "English overview"},
+                "pt-BR": {
+                    "title": "Clube da Luta",
+                    "overview": "Visão geral em português.",
+                    "tagline": "Caos. Confusão. Sabão.",
+                },
+            },
+        )
+        self.assertEqual(
+            detail.genres[0].translations,
+            {"pt-BR": {"name": "Drama"}},
+        )
+
+    def test_list_languages_uses_primary_tags_and_readable_names(self):
+        opener = SequenceOpener(
+            [
+                load_fixture("tmdb_primary_translations.json"),
+                load_fixture("tmdb_languages.json"),
+            ]
+        )
+        provider = TMDBProvider(opener=opener)
+
+        languages = provider.list_languages()
+
+        self.assertEqual(
+            [(language.code, language.name) for language in languages],
+            [("en-US", "English (US)"), ("pt-BR", "Português (BR)")],
+        )
 
     def test_missing_api_key_raises_auth_error(self):
         provider = TMDBProvider(api_key="", opener=FakeOpener({}))
 
         with self.assertRaises(AuthError):
-            provider.search("fight club")
+            provider.search("fight club", language="en-US")
 
     def test_http_404_maps_to_not_found(self):
         provider = TMDBProvider(opener=self.raise_http_error(404))
 
         with self.assertRaises(NotFound):
-            provider.fetch_detail("missing")
+            provider.fetch_detail("missing", language="en-US")
 
     def test_http_401_maps_to_auth_error(self):
         provider = TMDBProvider(opener=self.raise_http_error(401))
 
         with self.assertRaises(AuthError):
-            provider.search("fight club")
+            provider.search("fight club", language="en-US")
 
     def test_http_429_maps_to_rate_limited(self):
         provider = TMDBProvider(opener=self.raise_http_error(429, {"Retry-After": "12"}))
 
         with self.assertRaisesMessage(RateLimited, "Retry after 12 seconds"):
-            provider.search("fight club")
+            provider.search("fight club", language="en-US")
 
     def raise_http_error(self, status_code, headers=None):
         def opener(request, timeout):
@@ -145,7 +199,7 @@ class TMDBProviderTests(SimpleTestCase):
         opener = FakeOpener(payload)
         provider = TMDBProvider(opener=opener)
 
-        detail = provider.fetch_detail("550")
+        detail = provider.fetch_detail("550", language="en-US")
 
         self.assertEqual(len(detail.cast), 10)
         self.assertEqual(detail.cast[0].name, "Actor 0")
@@ -158,7 +212,7 @@ class TMDBProviderTests(SimpleTestCase):
         opener = FakeOpener(payload)
         provider = TMDBProvider(opener=opener)
 
-        detail = provider.fetch_detail("550")
+        detail = provider.fetch_detail("550", language="en-US")
 
         self.assertIsNone(detail.director)
         self.assertIsNone(detail.trailer_url)

@@ -16,6 +16,15 @@
       {"id": 1, "name": "Drama"},
       {"id": 2, "name": "Fantasy"}
     ],
+    "seasons": [
+      {
+        "id": 501,
+        "number": 1,
+        "name": "Season 1",
+        "overview": "The first season.",
+        "image": "https://artworks.thetvdb.com/season-1.jpg"
+      }
+    ],
     "artworks": [
       {"type": 2, "image": "https://artworks.thetvdb.com/poster-alt.jpg", "score": 100},
       {"type": 3, "image": "https://artworks.thetvdb.com/fanart-low.jpg", "score": 50},

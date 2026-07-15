@@ -5,7 +5,14 @@ from urllib.request import Request, urlopen
 
 from django.conf import settings
 
-from apps.catalog.providers.base import BaseProvider, CastMemberDTO, DetailDTO, GenreDTO, SearchResultDTO
+from apps.catalog.providers.base import (
+    BaseProvider,
+    CastMemberDTO,
+    DetailDTO,
+    GenreDTO,
+    LanguageOptionDTO,
+    SearchResultDTO,
+)
 from apps.catalog.providers.exceptions import AuthError, NotFound, ProviderError, RateLimited
 
 
@@ -29,12 +36,19 @@ class TMDBProvider(BaseProvider):
         self.opener = opener
         self.timeout = timeout
 
-    def search(self, query: str, *, page: int = 1) -> list[SearchResultDTO]:
+    def search(
+        self,
+        query: str,
+        *,
+        language: str,
+        page: int = 1,
+    ) -> list[SearchResultDTO]:
         payload = self._get_json(
             "/search/movie",
             {
                 "query": query,
                 "page": page,
+                "language": language,
             },
         )
 
@@ -50,11 +64,12 @@ class TMDBProvider(BaseProvider):
             for item in payload.get("results", [])
         ]
 
-    def fetch_detail(self, external_id: str) -> DetailDTO:
+    def fetch_detail(self, external_id: str, *, language: str) -> DetailDTO:
         payload = self._get_json(
             f"/movie/{external_id}",
             {
-                "append_to_response": "credits,external_ids,videos",
+                "language": language,
+                "append_to_response": "credits,external_ids,videos,translations",
             },
         )
 
@@ -81,10 +96,51 @@ class TMDBProvider(BaseProvider):
                     provider=self.name,
                     external_id=str(genre["id"]),
                     name=genre.get("name") or "",
+                    translations=(
+                        {language: {"name": genre["name"]}}
+                        if genre.get("name")
+                        else {}
+                    ),
                 )
                 for genre in payload.get("genres", [])
             ],
+            translations=self._translations_from_payload(payload),
         )
+
+    def list_languages(self) -> list[LanguageOptionDTO]:
+        primary_tags = self._get_json("/configuration/primary_translations", {})
+        languages = self._get_json("/configuration/languages", {})
+        names_by_code = {
+            item.get("iso_639_1"): item.get("name") or item.get("english_name")
+            for item in languages
+            if item.get("iso_639_1")
+        }
+        options = []
+        for tag in primary_tags:
+            language_code, separator, region = tag.partition("-")
+            name = names_by_code.get(language_code) or language_code
+            if separator:
+                name = f"{name} ({region})"
+            options.append(LanguageOptionDTO(code=tag, name=name))
+        return options
+
+    def _translations_from_payload(self, payload: dict) -> dict[str, dict[str, str]]:
+        translations = {}
+        for item in payload.get("translations", {}).get("translations", []):
+            language = item.get("iso_639_1")
+            if not language:
+                continue
+            region = item.get("iso_3166_1")
+            code = f"{language}-{region}" if region else language
+            data = item.get("data") or {}
+            values = {
+                field: data.get(field)
+                for field in ("title", "overview", "tagline")
+                if data.get(field)
+            }
+            if values:
+                translations[code] = values
+        return translations
 
     def _cast_from_credits(self, payload: dict) -> list[CastMemberDTO]:
         cast_members = payload.get("credits", {}).get("cast", [])

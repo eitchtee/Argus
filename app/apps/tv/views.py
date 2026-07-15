@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date, time
 
 from django.conf import settings
@@ -8,7 +9,13 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from apps.catalog.services import get_show_detail, get_show_episodes
+from apps.catalog.localization import (
+    LocalizedRecord,
+    metadata_language_for_user,
+    resolve_field,
+    resolve_from_map,
+)
+from apps.catalog.services import get_show_detail, get_show_episodes, get_show_seasons
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
@@ -36,7 +43,11 @@ from apps.tv.services import (
 @htmx_login_required
 @require_http_methods(["GET"])
 def up_next(request):
-    return render(request, "tv/pages/up_next.html", {"sections": get_up_next(request.user)})
+    return render(
+        request,
+        "tv/pages/up_next.html",
+        {"sections": _localize_sections(get_up_next(request.user), request.user)},
+    )
 
 
 def _parse_upcoming_month_cursor(value):
@@ -51,7 +62,11 @@ def upcoming(request):
     cursor = request.GET.get("after")
     if cursor is None:
         month = get_upcoming_month(request.user)
-        return render(request, "tv/pages/upcoming.html", {"month": month})
+        return render(
+            request,
+            "tv/pages/upcoming.html",
+            {"month": _localize_upcoming_month(month, request.user)},
+        )
 
     try:
         after_month = _parse_upcoming_month_cursor(cursor)
@@ -61,7 +76,11 @@ def upcoming(request):
     month = get_upcoming_month(request.user, after_month=after_month)
     if month is None:
         return HttpResponse("")
-    return render(request, "tv/fragments/upcoming_month.html", {"month": month})
+    return render(
+        request,
+        "tv/fragments/upcoming_month.html",
+        {"month": _localize_upcoming_month(month, request.user)},
+    )
 
 
 @htmx_login_required
@@ -79,7 +98,12 @@ def watchlist_tab(request, section):
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
 
-    return render(request, "tv/fragments/watchlist_grid.html", {"shows": shows})
+    language = metadata_language_for_user(request.user, "tvdb")
+    return render(
+        request,
+        "tv/fragments/watchlist_grid.html",
+        {"shows": [LocalizedRecord(show, language) for show in shows]},
+    )
 
 
 @only_htmx
@@ -101,7 +125,7 @@ def up_next_episode_watched(request, episode_id):
     return render(
         request,
         "tv/fragments/up_next_content.html",
-        {"sections": get_up_next(request.user)},
+        {"sections": _localize_sections(get_up_next(request.user), request.user)},
     )
 
 
@@ -233,8 +257,8 @@ def episode_detail(request, external_id, episode_id):
     watched = tracked and UserEpisode.objects.filter(user=request.user, episode=episode).exists()
 
     context = {
-        "episode": episode,
-        "show": show,
+        "episode": _localize_episode(episode, request.user),
+        "show": _localize_show(show, request.user),
         "tracked": tracked,
         "watched": watched,
         "previous_episode": _adjacent_episode(episode, direction="previous"),
@@ -290,7 +314,11 @@ def episode_detail_watched(request, external_id, episode_id):
 @require_http_methods(["GET"])
 def home_watchlist(request):
     entries = get_watchlist(request.user)
-    return render(request, "tv/fragments/home_watchlist.html", {"entries": entries})
+    return render(
+        request,
+        "tv/fragments/home_watchlist.html",
+        {"entries": [_localize_watchlist_entry(entry, request.user) for entry in entries]},
+    )
 
 
 @only_htmx
@@ -314,7 +342,11 @@ def home_watchlist_episode_watched(request, episode_id):
     if entry is None:
         return HttpResponse("")
 
-    return render(request, "tv/fragments/home_watchlist_row.html", {"entry": entry})
+    return render(
+        request,
+        "tv/fragments/home_watchlist_row.html",
+        {"entry": _localize_watchlist_entry(entry, request.user)},
+    )
 
 
 @only_htmx
@@ -322,7 +354,59 @@ def home_watchlist_episode_watched(request, episode_id):
 @require_http_methods(["GET"])
 def home_upcoming(request):
     entries = get_upcoming_episodes(request.user)
-    return render(request, "tv/fragments/home_upcoming.html", {"entries": entries})
+    return render(
+        request,
+        "tv/fragments/home_upcoming.html",
+        {"entries": [_localize_upcoming_entry(entry, request.user) for entry in entries]},
+    )
+
+
+def _localize_show(show, user):
+    return LocalizedRecord(show, metadata_language_for_user(user, "tvdb"))
+
+
+def _localize_episode(episode, user):
+    language = metadata_language_for_user(user, "tvdb")
+    return LocalizedRecord(
+        episode,
+        language,
+        overrides={"show": LocalizedRecord(episode.show, language)},
+    )
+
+
+def _localize_watchlist_entry(entry, user):
+    return replace(
+        entry,
+        show=_localize_show(entry.show, user),
+        next_episode=_localize_episode(entry.next_episode, user),
+    )
+
+
+def _localize_sections(sections, user):
+    return replace(
+        sections,
+        active=[_localize_watchlist_entry(entry, user) for entry in sections.active],
+        not_seen_in_a_while=[
+            _localize_watchlist_entry(entry, user)
+            for entry in sections.not_seen_in_a_while
+        ],
+        not_started=[
+            _localize_watchlist_entry(entry, user) for entry in sections.not_started
+        ],
+    )
+
+
+def _localize_upcoming_entry(entry, user):
+    return replace(entry, episode=_localize_episode(entry.episode, user))
+
+
+def _localize_upcoming_month(month, user):
+    if month is None:
+        return None
+    return replace(
+        month,
+        entries=[_localize_upcoming_entry(entry, user) for entry in month.entries],
+    )
 
 
 def _redirect_to_show_detail(external_id):
@@ -332,10 +416,11 @@ def _redirect_to_show_detail(external_id):
 
 
 def _build_show_context(user, external_id):
+    language = metadata_language_for_user(user, "tvdb")
     show = Show.objects.filter(provider="tvdb", external_id=external_id).first()
 
     if show is None:
-        return _preview_show_context(external_id)
+        return _preview_show_context(external_id, language)
 
     user_show = UserShow.objects.filter(user=user, show=show).first()
     tracked = bool(user_show and user_show.status == UserShow.Status.TRACKED)
@@ -348,19 +433,25 @@ def _build_show_context(user, external_id):
         )
 
     seasons = [
-        _season_context(season, list(season.episodes.order_by("episode_number")), watched_ids, tracked)
+        _season_context(
+            season,
+            list(season.episodes.order_by("episode_number")),
+            watched_ids,
+            tracked,
+            language,
+        )
         for season in Season.objects.filter(show=show).order_by("season_number")
     ]
     numbered_seasons = [season for season in seasons if season["season_number"] > 0]
 
     return {
         "external_id": show.external_id,
-        "title": show.name,
-        "overview": show.overview,
+        "title": resolve_field(show, "name", language),
+        "overview": resolve_field(show, "overview", language),
         "status": show.status,
         "network": show.network,
         "release_date": show.first_aired,
-        "genres": [genre.name for genre in show.genres.all()],
+        "genres": [resolve_field(genre, "name", language) for genre in show.genres.all()],
         "poster_url": show.poster_url,
         "backdrop_url": show.backdrop_url,
         "imdb_id": show.imdb_id,
@@ -381,6 +472,7 @@ def _build_show_context(user, external_id):
 
 
 def _build_season_context(user, season: Season):
+    language = metadata_language_for_user(user, "tvdb")
     tracked = UserShow.objects.filter(
         user=user,
         show=season.show,
@@ -392,10 +484,16 @@ def _build_season_context(user, season: Season):
         )
     )
     episodes = list(season.episodes.order_by("episode_number"))
-    return _season_context(season, episodes, watched_ids, tracked)
+    return _season_context(season, episodes, watched_ids, tracked, language)
 
 
-def _season_context(season: Season, episodes: list[Episode], watched_ids: set, tracked: bool):
+def _season_context(
+    season: Season,
+    episodes: list[Episode],
+    watched_ids: set,
+    tracked: bool,
+    language: str = "eng",
+):
     today = timezone.localdate()
     episode_rows = []
     aired_count = 0
@@ -412,7 +510,7 @@ def _season_context(season: Season, episodes: list[Episode], watched_ids: set, t
             {
                 "id": episode.id,
                 "episode_number": episode.episode_number,
-                "name": episode.name,
+                "name": resolve_field(episode, "name", language),
                 "air_date": episode.air_date,
                 "aired": aired,
                 "watched": watched,
@@ -422,7 +520,7 @@ def _season_context(season: Season, episodes: list[Episode], watched_ids: set, t
     return {
         "id": season.id,
         "season_number": season.season_number,
-        "name": season.name,
+        "name": resolve_field(season, "name", language),
         "episodes": episode_rows,
         "aired_count": aired_count,
         "aired_watched_count": aired_watched_count,
@@ -431,9 +529,13 @@ def _season_context(season: Season, episodes: list[Episode], watched_ids: set, t
     }
 
 
-def _preview_show_context(external_id):
-    detail = get_show_detail(external_id)
-    episodes = get_show_episodes(external_id)
+def _preview_show_context(external_id, language="eng"):
+    detail = get_show_detail(external_id, language=language)
+    episodes = get_show_episodes(external_id, language=language)
+    provider_seasons = {
+        season.season_number: season
+        for season in get_show_seasons(external_id, language=language)
+    }
     today = timezone.localdate()
 
     episodes_by_season: dict[int, list] = {}
@@ -456,7 +558,13 @@ def _preview_show_context(external_id):
                 {
                     "id": None,
                     "episode_number": episode.episode_number,
-                    "name": episode.name,
+                    "name": resolve_from_map(
+                        episode.translations,
+                        "name",
+                        language,
+                        "eng",
+                        episode.name,
+                    ),
                     "air_date": air_date,
                     "aired": aired,
                     "watched": False,
@@ -466,7 +574,15 @@ def _preview_show_context(external_id):
             {
                 "id": None,
                 "season_number": season_number,
-                "name": "Specials" if season_number == 0 else f"Season {season_number}",
+                "name": resolve_from_map(
+                    provider_seasons.get(season_number).translations,
+                    "name",
+                    language,
+                    "eng",
+                    provider_seasons.get(season_number).name,
+                )
+                if season_number in provider_seasons
+                else ("Specials" if season_number == 0 else f"Season {season_number}"),
                 "episodes": episode_rows,
                 "aired_count": aired_count,
                 "aired_watched_count": 0,
@@ -477,12 +593,17 @@ def _preview_show_context(external_id):
 
     return {
         "external_id": detail.external_id,
-        "title": detail.title,
-        "overview": detail.overview,
+        "title": resolve_from_map(detail.translations, "title", language, "eng", detail.title),
+        "overview": resolve_from_map(
+            detail.translations, "overview", language, "eng", detail.overview
+        ),
         "status": detail.status,
         "network": detail.network,
         "release_date": _parse_iso_date(detail.release_date),
-        "genres": [genre.name for genre in detail.genres],
+        "genres": [
+            resolve_from_map(genre.translations, "name", language, "eng", genre.name)
+            for genre in detail.genres
+        ],
         "poster_url": detail.poster_path,
         "backdrop_url": detail.backdrop_path,
         "imdb_id": detail.imdb_id,
