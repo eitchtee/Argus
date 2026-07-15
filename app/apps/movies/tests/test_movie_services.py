@@ -117,15 +117,25 @@ class MovieServiceTests(TestCase):
 
     def test_track_movie_imports_movie_and_adds_to_watchlist(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
+        self.user.settings.tmdb_metadata_language = "pt-BR"
+        self.user.settings.save()
         import_calls = []
+        hydration_calls = []
 
-        def import_func(provider, external_id):
-            import_calls.append((provider, external_id))
+        def import_func(provider, external_id, *, language):
+            import_calls.append((provider, external_id, language))
             return movie
 
-        user_movie = track_movie(self.user, "tmdb", "550", import_func=import_func)
+        user_movie = track_movie(
+            self.user,
+            "tmdb",
+            "550",
+            import_func=import_func,
+            hydrate_func=hydration_calls.append,
+        )
 
-        self.assertEqual(import_calls, [("tmdb", "550")])
+        self.assertEqual(import_calls, [("tmdb", "550", "pt-BR")])
+        self.assertEqual(hydration_calls, [movie.id])
         self.assertEqual(user_movie.user, self.user)
         self.assertEqual(user_movie.movie, movie)
         self.assertTrue(user_movie.on_watchlist)
@@ -139,7 +149,8 @@ class MovieServiceTests(TestCase):
             self.user,
             "tmdb",
             "550",
-            import_func=lambda provider, external_id: movie,
+            import_func=lambda provider, external_id, *, language: movie,
+            hydrate_func=lambda _movie_id: None,
         )
 
         self.assertEqual(user_movie.id, existing.id)

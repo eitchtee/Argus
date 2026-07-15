@@ -1,6 +1,6 @@
 import json
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
 from django.conf import settings
@@ -12,6 +12,8 @@ from apps.catalog.providers.base import (
     DetailDTO,
     EpisodeDTO,
     GenreDTO,
+    LanguageOptionDTO,
+    SeasonDTO,
     SearchResultDTO,
 )
 from apps.catalog.providers.exceptions import AuthError, NotFound, ProviderError, RateLimited
@@ -20,6 +22,7 @@ from apps.catalog.providers.exceptions import AuthError, NotFound, ProviderError
 class TVDBProvider(BaseProvider):
     name = "tvdb"
     api_base_url = "https://api4.thetvdb.com/v4"
+    artwork_base_url = "https://artworks.thetvdb.com/"
     token_cache_key = "catalog:tvdb:token"
     token_cache_timeout = 60 * 60 * 24
 
@@ -28,12 +31,19 @@ class TVDBProvider(BaseProvider):
         self.opener = opener
         self.timeout = timeout
 
-    def search(self, query: str, *, page: int = 1) -> list[SearchResultDTO]:
+    def search(
+        self,
+        query: str,
+        *,
+        language: str,
+        page: int = 1,
+    ) -> list[SearchResultDTO]:
         payload = self._get_json(
             "/search",
             params={
                 "query": query,
                 "type": "series",
+                "language": language,
                 # TVDB's /search endpoint is 0-indexed, unlike our 1-indexed UI pages.
                 "page": page - 1,
             },
@@ -51,11 +61,32 @@ class TVDBProvider(BaseProvider):
             for item in payload.get("data", [])
         ]
 
-    def fetch_detail(self, external_id: str) -> DetailDTO:
+    def fetch_detail(self, external_id: str, *, language: str) -> DetailDTO:
         payload = self._get_json(f"/series/{external_id}/extended")
         data = payload.get("data", {})
         status = data.get("status") or {}
         network = data.get("originalNetwork") or data.get("network") or {}
+        translations = {
+            "eng": self._non_empty_values(
+                title=data.get("name"),
+                overview=data.get("overview"),
+            )
+        }
+        if language != "eng":
+            try:
+                translated_payload = self._get_json(
+                    f"/series/{external_id}/translations/{language}"
+                )
+            except NotFound:
+                pass
+            else:
+                translated = translated_payload.get("data") or {}
+                values = self._non_empty_values(
+                    title=translated.get("name"),
+                    overview=translated.get("overview"),
+                )
+                if values:
+                    translations[language] = values
 
         return DetailDTO(
             provider=self.name,
@@ -81,9 +112,15 @@ class TVDBProvider(BaseProvider):
                     provider=self.name,
                     external_id=str(genre["id"]),
                     name=genre.get("name") or "",
+                    translations=(
+                        {"eng": {"name": genre["name"]}}
+                        if genre.get("name")
+                        else {}
+                    ),
                 )
                 for genre in data.get("genres", [])
             ],
+            translations={code: values for code, values in translations.items() if values},
         )
 
     def _cast_from_characters(self, data: dict) -> list[CastMemberDTO]:
@@ -123,8 +160,10 @@ class TVDBProvider(BaseProvider):
             return None
         return trailers[0].get("url")
 
-    def fetch_episodes(self, external_id: str) -> list[EpisodeDTO]:
-        payload = self._get_json(f"/series/{external_id}/episodes/default")
+    def fetch_episodes(self, external_id: str, *, language: str) -> list[EpisodeDTO]:
+        payload = self._get_json(
+            f"/series/{external_id}/episodes/default/{language}"
+        )
         data = payload.get("data", {})
         episodes = data.get("episodes", data if isinstance(data, list) else [])
 
@@ -135,13 +174,78 @@ class TVDBProvider(BaseProvider):
                 absolute_number=episode.get("absoluteNumber"),
                 name=episode.get("name") or "",
                 overview=episode.get("overview") or "",
-                still_path=episode.get("image"),
+                still_path=self._artwork_url(episode.get("image")),
                 air_date=episode.get("aired") or None,
                 runtime=episode.get("runtime"),
                 finale_type=episode.get("finaleType"),
+                translations={
+                    language: self._non_empty_values(
+                        name=episode.get("name"),
+                        overview=episode.get("overview"),
+                    )
+                },
             )
             for episode in episodes
         ]
+
+    def fetch_seasons(self, external_id: str, *, language: str) -> list[SeasonDTO]:
+        payload = self._get_json(f"/series/{external_id}/extended")
+        seasons = []
+        for season in (payload.get("data") or {}).get("seasons", []):
+            translations = {
+                "eng": self._non_empty_values(
+                    name=season.get("name"),
+                    overview=season.get("overview"),
+                )
+            }
+            if language != "eng":
+                try:
+                    translated_payload = self._get_json(
+                        f"/seasons/{season['id']}/translations/{language}"
+                    )
+                except NotFound:
+                    pass
+                else:
+                    translated = translated_payload.get("data") or {}
+                    values = self._non_empty_values(
+                        name=translated.get("name"),
+                        overview=translated.get("overview"),
+                    )
+                    if values:
+                        translations[language] = values
+            seasons.append(
+                SeasonDTO(
+                    season_number=season.get("number") or 0,
+                    name=season.get("name") or "",
+                    overview=season.get("overview") or "",
+                    poster_path=season.get("image"),
+                    translations={
+                        code: values
+                        for code, values in translations.items()
+                        if values
+                    },
+                )
+            )
+        return seasons
+
+    def list_languages(self) -> list[LanguageOptionDTO]:
+        payload = self._get_json("/languages")
+        return [
+            LanguageOptionDTO(
+                code=str(item.get("id") or item.get("shortCode")),
+                name=item.get("nativeName") or item.get("name") or str(item.get("id")),
+            )
+            for item in payload.get("data", [])
+            if item.get("id") or item.get("shortCode")
+        ]
+
+    def _non_empty_values(self, **values) -> dict[str, str]:
+        return {key: value for key, value in values.items() if value}
+
+    def _artwork_url(self, path: str | None) -> str | None:
+        if not path:
+            return None
+        return urljoin(self.artwork_base_url, path)
 
     def _get_json(
         self,

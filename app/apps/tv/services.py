@@ -8,18 +8,35 @@ from django.db.models import Count, Max, Q
 from django.utils import timezone
 
 from apps.catalog.models import Genre, SyncStatus
+from apps.catalog.localization import merge_translation_maps
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
-def import_show(external_id: str, *, provider_getter=get_provider) -> Show:
+def import_show(
+    external_id: str,
+    *,
+    language: str = "eng",
+    provider_getter=get_provider,
+) -> Show:
     provider = "tvdb"
     provider_client = provider_getter(provider)
 
     try:
-        detail = provider_client.fetch_detail(external_id)
-        episodes = provider_client.fetch_episodes(external_id)
+        detail = provider_client.fetch_detail(external_id, language=language)
+        episodes = provider_client.fetch_episodes(external_id, language="eng")
+        season_details = provider_client.fetch_seasons(external_id, language="eng")
+        selected_episodes = (
+            episodes
+            if language == "eng"
+            else provider_client.fetch_episodes(external_id, language=language)
+        )
+        selected_seasons = (
+            season_details
+            if language == "eng"
+            else provider_client.fetch_seasons(external_id, language=language)
+        )
     except ProviderError:
         Show.objects.filter(provider=provider, external_id=external_id).update(
             sync_status=SyncStatus.ERROR,
@@ -29,12 +46,31 @@ def import_show(external_id: str, *, provider_getter=get_provider) -> Show:
     today = timezone.localdate()
 
     with transaction.atomic():
+        existing_show = Show.objects.filter(
+            provider=provider,
+            external_id=detail.external_id,
+        ).first()
+        incoming_show_translations = {
+            code: {
+                field_name: value
+                for field_name, value in {
+                    "name": values.get("title"),
+                    "overview": values.get("overview"),
+                }.items()
+                if value
+            }
+            for code, values in detail.translations.items()
+        }
         show, _created = Show.objects.update_or_create(
             provider=provider,
             external_id=detail.external_id,
             defaults={
                 "name": detail.title,
                 "overview": detail.overview,
+                "translations": merge_translation_maps(
+                    existing_show.translations if existing_show else {},
+                    incoming_show_translations,
+                ),
                 "poster_path": detail.poster_path,
                 "backdrop_path": detail.backdrop_path,
                 "first_aired": _parse_date(detail.release_date),
@@ -53,31 +89,72 @@ def import_show(external_id: str, *, provider_getter=get_provider) -> Show:
             },
         )
 
-        genres = [
-            Genre.objects.update_or_create(
+        genres = []
+        for genre in detail.genres:
+            saved_genre, _created = Genre.objects.get_or_create(
                 provider=genre.provider,
                 external_id=genre.external_id,
                 defaults={"name": genre.name},
-            )[0]
-            for genre in detail.genres
-        ]
+            )
+            saved_genre.name = (
+                genre.translations.get("eng", {}).get("name")
+                or saved_genre.name
+                or genre.name
+            )
+            saved_genre.translations = merge_translation_maps(
+                saved_genre.translations,
+                genre.translations,
+            )
+            saved_genre.save(update_fields=["name", "translations"])
+            genres.append(saved_genre)
         show.genres.set(genres)
 
+        seasons_by_number = {item.season_number: item for item in season_details}
+        selected_seasons_by_number = {
+            item.season_number: item for item in selected_seasons
+        }
+        selected_episodes_by_key = {
+            (item.season_number, item.episode_number): item
+            for item in selected_episodes
+        }
         seasons = {}
         for item in episodes:
             season = seasons.get(item.season_number)
             if season is None:
+                season_detail = seasons_by_number.get(item.season_number)
+                selected_season = selected_seasons_by_number.get(item.season_number)
+                existing_season = Season.objects.filter(
+                    show=show,
+                    season_number=item.season_number,
+                ).first()
                 season = Season.objects.update_or_create(
                     show=show,
                     season_number=item.season_number,
                     defaults={
-                        "name": _season_name(item.season_number),
-                        "overview": "",
-                        "poster_path": None,
+                        "name": (
+                            season_detail.name
+                            if season_detail and season_detail.name
+                            else _season_name(item.season_number)
+                        ),
+                        "overview": season_detail.overview if season_detail else "",
+                        "poster_path": season_detail.poster_path if season_detail else None,
+                        "translations": merge_translation_maps(
+                            existing_season.translations if existing_season else {},
+                            season_detail.translations if season_detail else {},
+                            selected_season.translations if selected_season else {},
+                        ),
                     },
                 )[0]
                 seasons[item.season_number] = season
 
+            selected_item = selected_episodes_by_key.get(
+                (item.season_number, item.episode_number)
+            )
+            existing_episode = Episode.objects.filter(
+                show=show,
+                season_number=item.season_number,
+                episode_number=item.episode_number,
+            ).first()
             Episode.objects.update_or_create(
                 show=show,
                 season_number=item.season_number,
@@ -87,6 +164,11 @@ def import_show(external_id: str, *, provider_getter=get_provider) -> Show:
                     "absolute_number": item.absolute_number,
                     "name": item.name,
                     "overview": item.overview,
+                    "translations": merge_translation_maps(
+                        existing_episode.translations if existing_episode else {},
+                        item.translations,
+                        selected_item.translations if selected_item else {},
+                    ),
                     "still_path": item.still_path,
                     "air_date": _parse_date(item.air_date),
                     "runtime": item.runtime,
@@ -104,12 +186,50 @@ def import_show(external_id: str, *, provider_getter=get_provider) -> Show:
     return show
 
 
-def track_show(user, external_id: str, *, import_func=import_show) -> UserShow:
-    show = import_func(external_id)
+def hydrate_show_translations_sync(show_id: int) -> Show:
+    show = Show.objects.get(id=show_id)
+    provider = get_provider(show.provider)
+    failures = []
+    result = show
+
+    for option in provider.list_languages():
+        try:
+            result = import_show(
+                show.external_id,
+                language=option.code,
+                provider_getter=lambda _name: provider,
+            )
+        except ProviderError:
+            failures.append(option.code)
+
+    if failures:
+        raise ProviderError(
+            f"TV translation hydration failed for: {', '.join(failures)}"
+        )
+
+    return result
+
+
+def track_show(
+    user,
+    external_id: str,
+    *,
+    import_func=import_show,
+    hydrate_func=None,
+) -> UserShow:
+    show = import_func(
+        external_id,
+        language=user.settings.tvdb_metadata_language,
+    )
     user_show, _created = UserShow.objects.get_or_create(user=user, show=show)
     user_show.status = UserShow.Status.TRACKED
     user_show.tracking_started_at = timezone.now()
     user_show.save(update_fields=["status", "tracking_started_at", "updated_at"])
+    if hydrate_func is None:
+        from apps.tv.tasks import hydrate_show_translations
+
+        hydrate_func = hydrate_show_translations
+    hydrate_func(show.id)
     return user_show
 
 

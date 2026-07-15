@@ -12,6 +12,7 @@ class Movie(ProviderBackedModel):
     original_title = models.CharField(max_length=255, blank=True)
     overview = models.TextField(blank=True)
     tagline = models.CharField(max_length=255, blank=True)
+    translations = models.JSONField(default=dict, blank=True)
     poster_path = models.CharField(max_length=255, null=True, blank=True)
     backdrop_path = models.CharField(max_length=255, null=True, blank=True)
     cast = models.JSONField(default=list, blank=True)

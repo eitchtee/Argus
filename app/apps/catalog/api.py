@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.catalog.services import search as catalog_search
+from apps.catalog.localization import metadata_language_for_user
 from apps.catalog.tracking import tracked_keys
 
 
@@ -30,7 +31,14 @@ class SearchAPIView(APIView):
         if errors:
             return Response(errors, status=400)
 
-        results = catalog_search(query, media_type=media_type, page=page)
+        provider = "tmdb" if media_type == "movie" else "tvdb"
+        language = metadata_language_for_user(request.user, provider)
+        results = catalog_search(
+            query,
+            media_type=media_type,
+            language=language,
+            page=page,
+        )
         tracked = tracked_keys(request.user, media_type, results)
 
         return Response(

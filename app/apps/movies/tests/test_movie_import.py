@@ -13,8 +13,8 @@ class FakeProvider:
         self.error = error
         self.calls = []
 
-    def fetch_detail(self, external_id):
-        self.calls.append(external_id)
+    def fetch_detail(self, external_id, *, language):
+        self.calls.append((external_id, language))
         if self.error:
             raise self.error
         return self.detail
@@ -51,6 +51,36 @@ def movie_detail(**overrides):
 
 
 class MovieImportTests(TestCase):
+    def test_import_movie_merges_movie_and_genre_translations(self):
+        provider = FakeProvider(
+            movie_detail(
+                translations={"pt-BR": {"title": "Clube da Luta"}},
+                genres=[
+                    GenreDTO(
+                        provider="tmdb",
+                        external_id="18",
+                        name="Drama",
+                        translations={"pt-BR": {"name": "Drama"}},
+                    )
+                ],
+            )
+        )
+        Movie.objects.create(
+            external_id="550",
+            title="Fight Club",
+            translations={"en-US": {"title": "Fight Club"}},
+        )
+
+        movie = import_movie(
+            "tmdb",
+            "550",
+            language="pt-BR",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(movie.translations["en-US"]["title"], "Fight Club")
+        self.assertEqual(movie.translations["pt-BR"]["title"], "Clube da Luta")
+        self.assertEqual(movie.genres.get().translations["pt-BR"]["name"], "Drama")
     def test_import_movie_creates_movie_and_genres(self):
         provider = FakeProvider(movie_detail())
 
@@ -60,7 +90,7 @@ class MovieImportTests(TestCase):
             provider_getter=lambda provider_name: provider,
         )
 
-        self.assertEqual(provider.calls, ["550"])
+        self.assertEqual(provider.calls, [("550", "en-US")])
         self.assertEqual(movie.external_id, "550")
         self.assertEqual(movie.imdb_id, "tt0137523")
         self.assertEqual(movie.title, "Fight Club")

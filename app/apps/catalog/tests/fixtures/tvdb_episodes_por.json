@@ -1,0 +1,19 @@
+{
+  "status": "success",
+  "data": {
+    "episodes": [
+      {
+        "id": 101,
+        "seasonNumber": 1,
+        "number": 1,
+        "absoluteNumber": 1,
+        "name": "O Inverno Est\u00e1 Chegando",
+        "overview": "Resumo do epis\u00f3dio.",
+        "image": "https://artworks.thetvdb.com/still.jpg",
+        "aired": "2011-04-17",
+        "runtime": 60,
+        "finaleType": "series"
+      }
+    ]
+  }
+}

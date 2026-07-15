@@ -33,6 +33,8 @@ class SearchAPITests(TestCase):
             )
         ]
         self.client.force_authenticate(self.user)
+        self.user.settings.tmdb_metadata_language = "pt-BR"
+        self.user.settings.save()
 
         response = self.client.get("/api/search", {"q": "Fight Club", "type": "movie"})
 
@@ -53,7 +55,9 @@ class SearchAPITests(TestCase):
                 ]
             },
         )
-        catalog_search.assert_called_once_with("Fight Club", media_type="movie", page=1)
+        catalog_search.assert_called_once_with(
+            "Fight Club", media_type="movie", language="pt-BR", page=1
+        )
 
     def test_search_requires_query(self):
         self.client.force_authenticate(self.user)

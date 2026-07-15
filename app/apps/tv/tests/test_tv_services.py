@@ -13,15 +13,24 @@ class TrackShowServiceTests(TestCase):
 
     def test_track_show_imports_show_and_starts_tracking(self):
         show = Show.objects.create(external_id="123", name="Foo")
+        self.user.settings.tvdb_metadata_language = "por"
+        self.user.settings.save()
         import_calls = []
+        hydration_calls = []
 
-        def import_func(external_id):
-            import_calls.append(external_id)
+        def import_func(external_id, *, language):
+            import_calls.append((external_id, language))
             return show
 
-        user_show = track_show(self.user, "123", import_func=import_func)
+        user_show = track_show(
+            self.user,
+            "123",
+            import_func=import_func,
+            hydrate_func=hydration_calls.append,
+        )
 
-        self.assertEqual(import_calls, ["123"])
+        self.assertEqual(import_calls, [("123", "por")])
+        self.assertEqual(hydration_calls, [show.id])
         self.assertEqual(user_show.user, self.user)
         self.assertEqual(user_show.show, show)
         self.assertEqual(user_show.status, UserShow.Status.TRACKED)
@@ -34,7 +43,8 @@ class TrackShowServiceTests(TestCase):
         user_show = track_show(
             self.user,
             "123",
-            import_func=lambda external_id: show,
+            import_func=lambda external_id, *, language: show,
+            hydrate_func=lambda _show_id: None,
         )
 
         self.assertEqual(user_show.id, existing.id)
