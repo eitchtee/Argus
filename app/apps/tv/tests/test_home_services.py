@@ -3,8 +3,6 @@ from datetime import date, timedelta
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
-from cachalot.api import cachalot_disabled
-
 from apps.tv import services
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 from apps.tv.services import (
@@ -26,10 +24,9 @@ class GetWatchlistServiceTests(TestCase):
         return show
 
     def _make_episode(self, show, season_number, episode_number, air_date, name="Ep"):
-        with cachalot_disabled():
-            season, _ = Season.objects.get_or_create(
-                show=show, season_number=season_number, defaults={"name": f"Season {season_number}"}
-            )
+        season, _ = Season.objects.get_or_create(
+            show=show, season_number=season_number, defaults={"name": f"Season {season_number}"}
+        )
         return Episode.objects.create(
             show=show,
             season=season,

@@ -1,7 +1,6 @@
 from datetime import date, time, timedelta
 from unittest.mock import patch
 
-from cachalot.api import cachalot_disabled
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
@@ -268,12 +267,7 @@ class ShowDropViewTests(TestCase):
         response = self.client.post("/tv/123/drop/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response["HX-Redirect"], "/tv/123/")
-        # cachalot's per-transaction cache layer doesn't invalidate save(update_fields=[...])
-        # partial updates the way it does inserts/deletes/full saves, so a plain re-query here
-        # can read a stale pre-update row within this still-open TestCase transaction (verified
-        # via raw SQL that the real row is correctly updated) — bypass the cache for this read.
-        with cachalot_disabled():
-            user_show = UserShow.objects.get(user=self.user, show=show)
+        user_show = UserShow.objects.get(user=self.user, show=show)
         self.assertEqual(user_show.status, UserShow.Status.DROPPED)
 
 
@@ -289,8 +283,7 @@ class ShowPauseViewTests(TestCase):
         response = self.client.post("/tv/123/pause/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response["HX-Redirect"], "/tv/123/")
-        with cachalot_disabled():
-            user_show = UserShow.objects.get(user=self.user, show=show)
+        user_show = UserShow.objects.get(user=self.user, show=show)
         self.assertEqual(user_show.status, UserShow.Status.PAUSED)
 
 
