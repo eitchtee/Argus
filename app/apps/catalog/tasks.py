@@ -1,5 +1,5 @@
 from django.core.cache import cache
-from huey.contrib.djhuey import db_task
+from procrastinate.contrib.django import app
 
 from apps.catalog.languages import (
     FALLBACK_LANGUAGE_OPTIONS,
@@ -9,7 +9,7 @@ from apps.catalog.languages import (
 from apps.catalog.providers.registry import get_provider
 
 
-@db_task()
+@app.task(name="refresh_language_catalog")
 def refresh_language_catalog(provider_name: str):
     try:
         options = get_provider(provider_name).list_languages()

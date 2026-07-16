@@ -131,6 +131,36 @@ class TVDBProviderTests(SimpleTestCase):
             },
         )
 
+    def test_fetch_detail_normalizes_all_series_translation_metadata(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_series_extended.json")
+        payload["data"]["translations"] = {
+            "nameTranslations": [
+                {"language": "por", "name": "A Guerra dos Tronos"},
+                {"language": "spa", "name": "Juego de Tronos"},
+            ],
+            "overviewTranslations": [
+                {"language": "por", "overview": "Visão geral."},
+            ],
+        }
+        opener = SequenceOpener([payload])
+        provider = TVDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("121361", language="eng")
+
+        self.assertEqual(
+            detail.translations,
+            {
+                "eng": {
+                    "title": "Game of Thrones",
+                    "overview": "Nine noble families fight for control.",
+                },
+                "por": {"title": "A Guerra dos Tronos", "overview": "Visão geral."},
+                "spa": {"title": "Juego de Tronos"},
+            },
+        )
+        self.assertIn("meta=translations", opener.requests[0][0].full_url)
+
     def test_fetch_detail_merges_requested_series_translation(self):
         cache.set("catalog:tvdb:token", "existing-token")
         opener = SequenceOpener(
@@ -218,6 +248,23 @@ class TVDBProviderTests(SimpleTestCase):
             {"name": "Temporada 1", "overview": "A primeira temporada."},
         )
         self.assertIn("/seasons/501/translations/por", opener.requests[1][0].full_url)
+
+    def test_fetch_seasons_reuses_cached_series_extended_response(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        series_payload = load_fixture("tvdb_series_extended.json")
+        opener = SequenceOpener(
+            [
+                series_payload,
+                load_fixture("tvdb_season_translation_por.json"),
+            ]
+        )
+        provider = TVDBProvider(opener=opener)
+
+        provider.fetch_detail("121361", language="eng")
+        seasons = provider.fetch_seasons("121361", language="por")
+
+        self.assertEqual(len(opener.requests), 2)
+        self.assertEqual(seasons[0].translations["por"]["name"], "Temporada 1")
 
     def test_list_languages_returns_provider_native_codes(self):
         cache.set("catalog:tvdb:token", "existing-token")

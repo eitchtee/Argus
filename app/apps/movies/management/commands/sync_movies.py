@@ -17,7 +17,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--wait",
             action="store_true",
-            help="Wait for primary and translation tasks to finish.",
+            help="Wait for synchronization tasks to finish.",
+        )
+        parser.add_argument(
+            "--wait-timeout",
+            type=int,
+            default=300,
+            metavar="SECONDS",
+            help="Maximum time to wait for each task result (default: 300).",
         )
 
     def handle(self, *args, **options):
@@ -27,4 +34,5 @@ class Command(BaseCommand):
             label="movie",
             force_all=options["force_all"],
             wait=options["wait"],
+            wait_timeout=options["wait_timeout"],
         )

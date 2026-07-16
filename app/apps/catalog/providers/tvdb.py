@@ -30,6 +30,7 @@ class TVDBProvider(BaseProvider):
         self.api_key = settings.TVDB_API_KEY if api_key is None else api_key
         self.opener = opener
         self.timeout = timeout
+        self._series_extended_cache: dict[str, dict] = {}
 
     def search(
         self,
@@ -62,17 +63,12 @@ class TVDBProvider(BaseProvider):
         ]
 
     def fetch_detail(self, external_id: str, *, language: str) -> DetailDTO:
-        payload = self._get_json(f"/series/{external_id}/extended")
+        payload = self._fetch_series_extended(external_id)
         data = payload.get("data", {})
         status = data.get("status") or {}
         network = data.get("originalNetwork") or data.get("network") or {}
-        translations = {
-            "eng": self._non_empty_values(
-                title=data.get("name"),
-                overview=data.get("overview"),
-            )
-        }
-        if language != "eng":
+        translations = self._series_translations(data)
+        if language != "eng" and language not in translations:
             try:
                 translated_payload = self._get_json(
                     f"/series/{external_id}/translations/{language}"
@@ -122,6 +118,29 @@ class TVDBProvider(BaseProvider):
             ],
             translations={code: values for code, values in translations.items() if values},
         )
+
+    def _series_translations(self, data: dict) -> dict[str, dict[str, str]]:
+        translations: dict[str, dict[str, str]] = {}
+
+        def add_translation(language: str | None, **values: str | None) -> None:
+            if not language:
+                return
+            translated = self._non_empty_values(**values)
+            if translated:
+                translations.setdefault(language, {}).update(translated)
+
+        add_translation(
+            "eng",
+            title=data.get("name"),
+            overview=data.get("overview"),
+        )
+        translation_data = data.get("translations") or {}
+        for item in translation_data.get("nameTranslations", []):
+            add_translation(item.get("language"), title=item.get("name"))
+        for item in translation_data.get("overviewTranslations", []):
+            add_translation(item.get("language"), overview=item.get("overview"))
+
+        return translations
 
     def _cast_from_characters(self, data: dict) -> list[CastMemberDTO]:
         characters = [c for c in data.get("characters", []) if c.get("peopleType") == "Actor"]
@@ -189,7 +208,7 @@ class TVDBProvider(BaseProvider):
         ]
 
     def fetch_seasons(self, external_id: str, *, language: str) -> list[SeasonDTO]:
-        payload = self._get_json(f"/series/{external_id}/extended")
+        payload = self._fetch_series_extended(external_id)
         seasons = []
         for season in (payload.get("data") or {}).get("seasons", []):
             translations = {
@@ -227,6 +246,14 @@ class TVDBProvider(BaseProvider):
                 )
             )
         return seasons
+
+    def _fetch_series_extended(self, external_id: str) -> dict:
+        if external_id not in self._series_extended_cache:
+            self._series_extended_cache[external_id] = self._get_json(
+                f"/series/{external_id}/extended",
+                params={"meta": "translations"},
+            )
+        return self._series_extended_cache[external_id]
 
     def list_languages(self) -> list[LanguageOptionDTO]:
         payload = self._get_json("/languages")

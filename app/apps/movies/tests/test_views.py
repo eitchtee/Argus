@@ -165,7 +165,7 @@ class MovieWatchedViewTests(TestCase):
         response = self.client.post("/movies/550/watched/", HTTP_HX_REQUEST="true")
 
         import_movie_mock.assert_called_once_with("tmdb", "550", language="en-US")
-        hydrate_movie_translations.assert_called_once_with(movie.id)
+        hydrate_movie_translations.defer.assert_called_once_with(movie_id=movie.id)
         self.assertContains(response, 'aria-label="Movie actions"')
         self.assertContains(response, 'aria-label="Mark unwatched"')
         self.assertContains(response, 'aria-label="Delete movie"')

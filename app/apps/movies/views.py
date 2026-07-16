@@ -106,7 +106,7 @@ def movie_watched(request, external_id):
         external_id,
         language=metadata_language_for_user(request.user, "tmdb"),
     )
-    hydrate_movie_translations(movie.id)
+    hydrate_movie_translations.defer(movie_id=movie.id)
     if request.method == "POST":
         user_movie = mark_seen(request.user, movie)
     else:

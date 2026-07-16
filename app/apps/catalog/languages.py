@@ -23,5 +23,5 @@ def get_language_choices(provider: str) -> tuple[tuple[str, str], ...]:
     from apps.catalog.tasks import refresh_language_catalog
 
     if cache.add(language_catalog_refresh_key(provider), True, timeout=60):
-        refresh_language_catalog(provider)
+        refresh_language_catalog.defer(provider_name=provider)
     return FALLBACK_LANGUAGE_OPTIONS[provider]

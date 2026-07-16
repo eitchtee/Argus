@@ -1,8 +1,7 @@
 from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
-from huey import crontab
-from huey.contrib.djhuey import db_periodic_task, db_task
+from procrastinate.contrib.django import app
 
 from apps.catalog.models import SyncStatus
 from apps.catalog.providers.exceptions import ProviderError
@@ -11,7 +10,7 @@ from apps.movies import services as movie_services
 from apps.movies.models import Movie, UserMovie
 
 
-@db_task()
+@app.task(name="hydrate_movie_translations")
 def hydrate_movie_translations(movie_id: int):
     movie = Movie.objects.get(id=movie_id)
     provider = get_provider(movie.provider)
@@ -34,7 +33,7 @@ def hydrate_movie_translations(movie_id: int):
     return result
 
 
-@db_task()
+@app.task(name="sync_movie")
 def sync_movie(movie_id: int):
     movie = Movie.objects.get(id=movie_id)
     movie.sync_status = SyncStatus.ERROR
@@ -46,17 +45,17 @@ def sync_movie(movie_id: int):
             movie.external_id,
             language="en-US",
         )
-        translation_task = hydrate_movie_translations(imported_movie.id)
+        translation_task_id = hydrate_movie_translations.defer(movie_id=imported_movie.id)
         return {
             "item_id": imported_movie.id,
-            "translation_task_id": translation_task.id,
+            "translation_task_id": translation_task_id,
         }
     except Exception:
         Movie.objects.filter(id=movie_id).update(sync_status=SyncStatus.ERROR)
         raise
 
 
-@db_task()
+@app.task(name="sync_movies")
 def sync_movies(force_all: bool = False):
     if force_all:
         movie_ids = Movie.objects.filter(provider="tmdb").values_list("id", flat=True)
@@ -71,9 +70,10 @@ def sync_movies(force_all: bool = False):
             .values_list("id", flat=True)
         )
 
-    return [sync_movie(movie_id).id for movie_id in movie_ids]
+    return [sync_movie.defer(movie_id=movie_id) for movie_id in movie_ids]
 
 
-@db_periodic_task(crontab(hour=2, minute=0))
-def daily_movie_sync():
-    sync_movies()
+@app.periodic(cron="0 2 * * *")
+@app.task(name="daily_movie_sync")
+def daily_movie_sync(timestamp: int):
+    sync_movies.defer()

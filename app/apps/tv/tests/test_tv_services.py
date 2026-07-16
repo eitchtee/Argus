@@ -50,6 +50,25 @@ class TrackShowServiceTests(TestCase):
         self.assertEqual(user_show.id, existing.id)
         self.assertEqual(user_show.status, UserShow.Status.TRACKED)
 
+    def test_retracking_show_does_not_enqueue_translation_hydration_again(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        hydration_calls = []
+
+        track_show(
+            self.user,
+            "123",
+            import_func=lambda external_id, *, language: show,
+            hydrate_func=hydration_calls.append,
+        )
+        track_show(
+            self.user,
+            "123",
+            import_func=lambda external_id, *, language: show,
+            hydrate_func=hydration_calls.append,
+        )
+
+        self.assertEqual(hydration_calls, [show.id])
+
 
 class DropShowServiceTests(TestCase):
     def setUp(self):

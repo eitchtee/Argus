@@ -35,7 +35,7 @@ class LanguageCatalogTests(TestCase):
 
         self.assertEqual(first, (("en-US", "English (United States)"),))
         self.assertEqual(second, first)
-        refresh.assert_called_once_with("tmdb")
+        refresh.defer.assert_called_once_with(provider_name="tmdb")
 
     @patch("apps.catalog.tasks.get_provider")
     def test_refresh_task_stores_normalized_choices_and_english_default(self, get_provider):
@@ -45,7 +45,7 @@ class LanguageCatalogTests(TestCase):
         ]
         get_provider.return_value = provider
 
-        refresh_language_catalog.call_local("tmdb")
+        refresh_language_catalog.func("tmdb")
 
         self.assertEqual(
             get_language_choices("tmdb"),
