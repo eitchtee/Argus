@@ -3,19 +3,46 @@ from types import SimpleNamespace
 from unittest.mock import call, patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
 from apps.catalog.models import SyncStatus
-from apps.catalog.providers.base import LanguageOptionDTO
+from apps.catalog.providers.base import DetailDTO
 from apps.catalog.providers.exceptions import ProviderError
 from apps.tv.models import Show, UserShow
 
 
-class TVTranslationTaskTests(TestCase):
+class TVTranslationTaskTests(TransactionTestCase):
+    @patch("apps.tv.services.get_provider")
+    def test_hydration_reuses_english_payload_across_languages(self, get_provider):
+        from apps.tv.services import hydrate_show_translations_sync
+
+        show = Show.objects.create(external_id="123", name="Show")
+        provider = get_provider.return_value
+        provider.fetch_detail.return_value = DetailDTO(
+            provider="tvdb",
+            external_id="123",
+            title="Show",
+            translations={"eng": {}, "por": {}},
+        )
+        provider.fetch_episodes.return_value = []
+        provider.fetch_seasons.return_value = []
+
+        hydrate_show_translations_sync(show.id)
+
+        provider.fetch_detail.assert_called_once_with("123", language="eng")
+        self.assertEqual(
+            [call.kwargs["language"] for call in provider.fetch_episodes.call_args_list],
+            ["eng", "por"],
+        )
+        self.assertEqual(
+            [call.kwargs["language"] for call in provider.fetch_seasons.call_args_list],
+            ["eng", "por"],
+        )
+
     @patch("apps.tv.services.get_provider")
     @patch("apps.tv.tasks.tv_services.import_show")
-    def test_hydration_processes_all_languages_then_reports_failures(
+    def test_hydration_uses_languages_advertised_by_the_show_then_reports_failures(
         self,
         import_show,
         get_provider,
@@ -24,25 +51,28 @@ class TVTranslationTaskTests(TestCase):
 
         show = Show.objects.create(external_id="123", name="Show")
         provider = get_provider.return_value
-        provider.list_languages.return_value = [
-            LanguageOptionDTO("eng", "English"),
-            LanguageOptionDTO("por", "Português"),
-        ]
+        provider.fetch_detail.return_value = SimpleNamespace(
+            translations={"eng": {}, "por": {}},
+        )
+        provider.list_languages.side_effect = AssertionError(
+            "hydration must not enumerate the global language catalog"
+        )
         import_show.side_effect = [show, ProviderError("failed")]
 
         with self.assertRaisesMessage(ProviderError, "por"):
-            hydrate_show_translations.call_local(show.id)
+            hydrate_show_translations.func(show.id)
 
         self.assertEqual(
             [call.kwargs["language"] for call in import_show.call_args_list],
             ["eng", "por"],
         )
+        provider.fetch_detail.assert_called_once_with("123", language="eng")
 
     @patch(
         "apps.tv.tasks.tv_services.hydrate_show_translations_sync",
         create=True,
     )
-    def test_huey_task_delegates_to_synchronous_hydration(
+    def test_procrastinate_task_delegates_to_synchronous_hydration(
         self,
         hydrate_show_translations_sync,
     ):
@@ -51,7 +81,7 @@ class TVTranslationTaskTests(TestCase):
         show = Show.objects.create(external_id="123", name="Show")
         hydrate_show_translations_sync.return_value = show
 
-        result = hydrate_show_translations.call_local(show.id)
+        result = hydrate_show_translations.func(show.id)
 
         hydrate_show_translations_sync.assert_called_once_with(show.id)
         self.assertEqual(result, show)
@@ -67,15 +97,15 @@ class TVTranslationTaskTests(TestCase):
 
         show = Show.objects.create(external_id="123", name="Show")
         import_show.return_value = show
-        hydrate_show_translations.return_value = SimpleNamespace(id="translation-1")
+        hydrate_show_translations.defer.return_value = 41
 
-        result = sync_show.call_local(show.id)
+        result = sync_show.func(show.id)
 
         import_show.assert_called_once_with("123", language="eng")
-        hydrate_show_translations.assert_called_once_with(show.id)
+        hydrate_show_translations.defer.assert_called_once_with(show_id=show.id)
         self.assertEqual(
             result,
-            {"item_id": show.id, "translation_task_id": "translation-1"},
+            {"item_id": show.id, "translation_task_id": 41},
         )
 
     @patch("apps.tv.tasks.tv_services.import_show")
@@ -90,7 +120,7 @@ class TVTranslationTaskTests(TestCase):
         import_show.side_effect = ProviderError("provider down")
 
         with self.assertRaises(ProviderError):
-            sync_show.call_local(show.id)
+            sync_show.func(show.id)
 
         self.assertEqual(
             Show.objects.get(id=show.id).sync_status,
@@ -141,21 +171,18 @@ class TVTranslationTaskTests(TestCase):
         UserShow.objects.create(user=user, show=ended_stale)
         UserShow.objects.create(user=user, show=continuing_fresh)
         UserShow.objects.create(user=user, show=ended_fresh)
-        sync_show.side_effect = [
-            SimpleNamespace(id="task-1"),
-            SimpleNamespace(id="task-2"),
-        ]
+        sync_show.defer.side_effect = [41, 42]
 
-        result = sync_tv.call_local()
+        result = sync_tv.func()
 
-        self.assertEqual(result, ["task-1", "task-2"])
+        self.assertEqual(result, [41, 42])
         self.assertCountEqual(
-            [call.args[0] for call in sync_show.call_args_list],
+            [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
             [continuing_stale.id, ended_stale.id],
         )
         self.assertNotIn(
             untracked_stale.id,
-            [call.args[0] for call in sync_show.call_args_list],
+            [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
         )
 
     @patch("apps.tv.tasks.sync_show")
@@ -165,16 +192,13 @@ class TVTranslationTaskTests(TestCase):
         first = Show.objects.create(external_id="1", name="Tracked")
         second = Show.objects.create(external_id="2", name="Untracked")
         Show.objects.create(provider="other", external_id="3", name="Other provider")
-        sync_show.side_effect = [
-            SimpleNamespace(id="task-1"),
-            SimpleNamespace(id="task-2"),
-        ]
+        sync_show.defer.side_effect = [41, 42]
 
-        result = sync_tv.call_local(force_all=True)
+        result = sync_tv.func(force_all=True)
 
-        self.assertEqual(result, ["task-1", "task-2"])
+        self.assertEqual(result, [41, 42])
         self.assertCountEqual(
-            [call.args[0] for call in sync_show.call_args_list],
+            [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
             [first.id, second.id],
         )
 
@@ -182,6 +206,6 @@ class TVTranslationTaskTests(TestCase):
     def test_daily_tv_sync_queues_default_dispatch(self, sync_tv):
         from apps.tv.tasks import daily_tv_sync
 
-        daily_tv_sync.call_local()
+        daily_tv_sync.func(timestamp=0)
 
-        sync_tv.assert_called_once_with()
+        sync_tv.defer.assert_called_once_with()

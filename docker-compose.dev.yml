@@ -1,5 +1,5 @@
 volumes:
-  argus_data:
+  argus_dev_postgres_data:
   argus_temp:
 
 
@@ -24,6 +24,7 @@ services:
       - DJANGO_VITE_DEV_MODE=true
       - DJANGO_VITE_DEV_SERVER_HOST=localhost
     depends_on:
+      - db
       - vite
     restart: unless-stopped
 
@@ -42,4 +43,17 @@ services:
       - '${VITE_OUTBOUND_PORT:-5173}:5173'
     environment:
       - WATCHPACK_POLLING=true
+    restart: unless-stopped
+
+  db:
+    image: postgres:18
+    container_name: ${SQL_HOST}
+    volumes:
+      - argus_dev_postgres_data:/var/lib/postgresql
+    environment:
+      - POSTGRES_USER=${SQL_USER}
+      - POSTGRES_PASSWORD=${SQL_PASSWORD}
+      - POSTGRES_DB=${SQL_DATABASE}
+    ports:
+      - '${SQL_PORT}:5432'
     restart: unless-stopped

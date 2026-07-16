@@ -19,15 +19,15 @@ COPY pyproject.toml ./
 RUN uv sync --no-install-project --no-dev
 
 COPY ./docker/dev/django/start /start
-COPY ./docker/dev/huey/start /start-huey
+COPY ./docker/dev/procrastinate/start /start-procrastinate
 COPY ./docker/dev/supervisord/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY ./docker/dev/supervisord/supervisord.conf /etc/supervisord.conf
 COPY ./docker/dev/supervisord/start /start-supervisor
 
 RUN sed -i 's/\r$//g' /start && \
     chmod +x /start && \
-    sed -i 's/\r$//g' /start-huey && \
-    chmod +x /start-huey && \
+    sed -i 's/\r$//g' /start-procrastinate && \
+    chmod +x /start-procrastinate && \
     sed -i 's/\r$//g' /start-supervisor && \
     chmod +x /start-supervisor
 

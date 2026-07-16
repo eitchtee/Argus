@@ -1,20 +1,19 @@
 from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
-from huey import crontab
-from huey.contrib.djhuey import db_periodic_task, db_task
+from procrastinate.contrib.django import app
 
 from apps.catalog.models import SyncStatus
 from apps.tv import services as tv_services
 from apps.tv.models import Show, UserShow
 
 
-@db_task()
+@app.task(name="hydrate_show_translations")
 def hydrate_show_translations(show_id: int):
     return tv_services.hydrate_show_translations_sync(show_id)
 
 
-@db_task()
+@app.task(name="sync_show")
 def sync_show(show_id: int):
     show = Show.objects.get(id=show_id)
     show.sync_status = SyncStatus.ERROR
@@ -22,17 +21,17 @@ def sync_show(show_id: int):
 
     try:
         imported_show = tv_services.import_show(show.external_id, language="eng")
-        translation_task = hydrate_show_translations(imported_show.id)
+        translation_task_id = hydrate_show_translations.defer(show_id=imported_show.id)
         return {
             "item_id": imported_show.id,
-            "translation_task_id": translation_task.id,
+            "translation_task_id": translation_task_id,
         }
     except Exception:
         Show.objects.filter(id=show_id).update(sync_status=SyncStatus.ERROR)
         raise
 
 
-@db_task()
+@app.task(name="sync_tv")
 def sync_tv(force_all: bool = False):
     if force_all:
         show_ids = Show.objects.filter(provider="tvdb").values_list("id", flat=True)
@@ -58,9 +57,10 @@ def sync_tv(force_all: bool = False):
             .values_list("id", flat=True)
         )
 
-    return [sync_show(show_id).id for show_id in show_ids]
+    return [sync_show.defer(show_id=show_id) for show_id in show_ids]
 
 
-@db_periodic_task(crontab(hour=2, minute=0))
-def daily_tv_sync():
-    sync_tv()
+@app.periodic(cron="0 2 * * *")
+@app.task(name="daily_tv_sync")
+def daily_tv_sync(timestamp: int):
+    sync_tv.defer()

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.sites",
+    "django.contrib.postgres",
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
     "django_vite",
@@ -75,7 +76,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.openid_connect",
-    "huey.contrib.djhuey",
+    "procrastinate.contrib.django",
     "apps.common.apps.CommonConfig",
 ]
 
@@ -139,42 +140,35 @@ WSGI_APPLICATION = "argus.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASE_ENGINE = os.getenv("DATABASE_ENGINE", "django.db.backends.sqlite3")
 DATA_DIR = ROOT_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_DIR = DATA_DIR / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
-DATABASE_NAME = os.getenv("DATABASE_NAME", str(DATA_DIR / "db.sqlite3"))
+
+THREADS = int(os.getenv("GUNICORN_THREADS", 1))
+MAX_POOL_SIZE = THREADS + 1
 
 DATABASES = {
     "default": {
-        "ENGINE": DATABASE_ENGINE,
-        "NAME": DATABASE_NAME,
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("SQL_DATABASE"),
+        "USER": os.getenv("SQL_USER", "user"),
+        "PASSWORD": os.getenv("SQL_PASSWORD", "password"),
+        "HOST": os.getenv("SQL_HOST", "localhost"),
+        "PORT": os.getenv("SQL_PORT", "5432"),
+        "CONN_MAX_AGE": 0,
+        "CONN_HEALTH_CHECKS": True,
+        "OPTIONS": {
+            "pool": {
+                "min_size": 1,
+                "max_size": MAX_POOL_SIZE,
+                "timeout": 10,
+                "max_lifetime": 600,
+                "max_idle": 300,
+            },
+        },
     }
 }
-
-if DATABASE_ENGINE != "django.db.backends.sqlite3":
-    THREADS = int(os.getenv("GUNICORN_THREADS", 1))
-    MAX_POOL_SIZE = THREADS + 1
-    DATABASES["default"].update(
-        {
-            "USER": os.getenv("DATABASE_USER", "user"),
-            "PASSWORD": os.getenv("DATABASE_PASSWORD", "password"),
-            "HOST": os.getenv("DATABASE_HOST", "localhost"),
-            "PORT": os.getenv("DATABASE_PORT", "5432"),
-            "CONN_MAX_AGE": 0,
-            "CONN_HEALTH_CHECKS": True,
-            "OPTIONS": {
-                "pool": {
-                    "min_size": 1,
-                    "max_size": MAX_POOL_SIZE,
-                    "timeout": 10,
-                    "max_lifetime": 600,
-                    "max_idle": 300,
-                },
-            },
-        }
-    )
 
 
 # Password validation
@@ -367,7 +361,7 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-if "run_huey" in sys.argv:
+if "procrastinate" in sys.argv:
     LOGGING = {
         "version": 1,
         "disable_existing_loggers": True,
@@ -389,7 +383,7 @@ if "run_huey" in sys.argv:
             "level": "INFO",
         },
         "loggers": {
-            "huey": {
+            "procrastinate": {
                 "level": "INFO",
             },
         },
@@ -416,7 +410,7 @@ else:
             "level": "INFO",
         },
         "loggers": {
-            "huey": {
+            "procrastinate": {
                 "handlers": [],
                 "propagate": False,
             },
@@ -428,24 +422,14 @@ else:
         },
     }
 
-# Huey
-HUEY = {
-    "huey_class": "huey.SqliteHuey",
-    "name": "argus",
-    "filename": os.getenv("HUEY_SQLITE_PATH", str(DATA_DIR / "huey.sqlite3")),
-    "immediate": False,
-    "utc": False,
-    "consumer": {
-        "workers": int(os.getenv("TASK_WORKERS", 1)),
-        "worker_type": "thread",
-    },
-}
-
 # Test database rows are rolled back and recreated with the same primary keys;
 # persistent query caching can leak results between tests. Cache-specific tests
 # can opt back in with override_settings(CACHALOT_ENABLED=True).
 CACHALOT_ENABLED = "test" not in sys.argv
-CACHALOT_UNCACHABLE_TABLES = ("django_migrations",)
+CACHALOT_UNCACHABLE_TABLES = ("django_migrations", "procrastinate_jobs")
+
+# Procrastinate
+PROCRASTINATE_ON_APP_READY = "apps.common.procrastinate.on_app_ready"
 
 # Catalog providers
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")

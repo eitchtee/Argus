@@ -1,5 +1,4 @@
 from datetime import timedelta
-from types import SimpleNamespace
 from unittest.mock import call, patch
 
 from django.contrib.auth import get_user_model
@@ -31,7 +30,7 @@ class MovieTaskTests(TransactionTestCase):
         import_movie.side_effect = [movie, ProviderError("pt failed")]
 
         with self.assertRaisesMessage(ProviderError, "pt-BR"):
-            hydrate_movie_translations.call_local(movie.id)
+            hydrate_movie_translations.func(movie.id)
 
         self.assertEqual(import_movie.call_count, 2)
         self.assertEqual(
@@ -54,10 +53,10 @@ class MovieTaskTests(TransactionTestCase):
         movie = Movie.objects.create(provider="tmdb", external_id="550", title="Fight Club")
         import_movie.return_value = movie
 
-        sync_movie.call_local(movie.id)
+        sync_movie.func(movie.id)
 
         import_movie.assert_called_once_with("tmdb", "550", language="en-US")
-        hydrate_movie_translations.assert_called_once_with(movie.id)
+        hydrate_movie_translations.defer.assert_called_once_with(movie_id=movie.id)
 
     @patch("apps.movies.tasks.hydrate_movie_translations")
     @patch("apps.movies.tasks.movie_services.import_movie")
@@ -70,13 +69,15 @@ class MovieTaskTests(TransactionTestCase):
 
         movie = Movie.objects.create(provider="tmdb", external_id="550", title="Fight Club")
         import_movie.return_value = movie
-        hydrate_movie_translations.return_value = SimpleNamespace(id="translation-1")
+        hydrate_movie_translations.defer.return_value = 41
 
-        result = sync_movie.call_local(movie.id)
+        result = sync_movie.func(movie.id)
+
+        hydrate_movie_translations.defer.assert_called_once_with(movie_id=movie.id)
 
         self.assertEqual(
             result,
-            {"item_id": movie.id, "translation_task_id": "translation-1"},
+            {"item_id": movie.id, "translation_task_id": 41},
         )
 
     @patch("apps.movies.tasks.movie_services.import_movie")
@@ -92,7 +93,7 @@ class MovieTaskTests(TransactionTestCase):
         import_movie.side_effect = ProviderError("provider down")
 
         with self.assertRaises(ProviderError):
-            sync_movie.call_local(movie.id)
+            sync_movie.func(movie.id)
 
         movie.refresh_from_db()
         self.assertEqual(movie.sync_status, SyncStatus.ERROR)
@@ -130,21 +131,18 @@ class MovieTaskTests(TransactionTestCase):
             on_watchlist=True,
         )
 
-        sync_movie.side_effect = [
-            SimpleNamespace(id="movie-task-1"),
-            SimpleNamespace(id="movie-task-2"),
-        ]
+        sync_movie.defer.side_effect = [41, 42]
 
-        enqueued_task_ids = sync_movies.call_local()
+        enqueued_task_ids = sync_movies.func()
 
-        self.assertEqual(enqueued_task_ids, ["movie-task-1", "movie-task-2"])
+        self.assertEqual(enqueued_task_ids, [41, 42])
         self.assertCountEqual(
-            [call.args[0] for call in sync_movie.call_args_list],
+            [call.kwargs["movie_id"] for call in sync_movie.defer.call_args_list],
             [stale_tracked.id, never_synced_tracked.id],
         )
         self.assertNotIn(
             stale_untracked.id,
-            [call.args[0] for call in sync_movie.call_args_list],
+            [call.kwargs["movie_id"] for call in sync_movie.defer.call_args_list],
         )
 
     @patch("apps.movies.tasks.sync_movie")
@@ -154,16 +152,13 @@ class MovieTaskTests(TransactionTestCase):
         first = self._create_movie(external_id="1", title="Tracked")
         second = self._create_movie(external_id="2", title="Untracked")
         Movie.objects.create(provider="other", external_id="3", title="Other provider")
-        sync_movie.side_effect = [
-            SimpleNamespace(id="task-1"),
-            SimpleNamespace(id="task-2"),
-        ]
+        sync_movie.defer.side_effect = [41, 42]
 
-        result = sync_movies.call_local(force_all=True)
+        result = sync_movies.func(force_all=True)
 
-        self.assertEqual(result, ["task-1", "task-2"])
+        self.assertEqual(result, [41, 42])
         self.assertCountEqual(
-            [call.args[0] for call in sync_movie.call_args_list],
+            [call.kwargs["movie_id"] for call in sync_movie.defer.call_args_list],
             [first.id, second.id],
         )
 
@@ -171,9 +166,9 @@ class MovieTaskTests(TransactionTestCase):
     def test_daily_movie_sync_queues_default_dispatch(self, sync_movies):
         from apps.movies.tasks import daily_movie_sync
 
-        daily_movie_sync.call_local()
+        daily_movie_sync.func(timestamp=0)
 
-        sync_movies.assert_called_once_with()
+        sync_movies.defer.assert_called_once_with()
 
     def _create_movie(self, **overrides):
         defaults = {

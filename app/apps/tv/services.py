@@ -19,14 +19,29 @@ def import_show(
     *,
     language: str = "eng",
     provider_getter=get_provider,
+    base_detail=None,
+    base_episodes=None,
+    base_seasons=None,
 ) -> Show:
     provider = "tvdb"
     provider_client = provider_getter(provider)
 
     try:
-        detail = provider_client.fetch_detail(external_id, language=language)
-        episodes = provider_client.fetch_episodes(external_id, language="eng")
-        season_details = provider_client.fetch_seasons(external_id, language="eng")
+        detail = (
+            base_detail
+            if base_detail is not None
+            else provider_client.fetch_detail(external_id, language=language)
+        )
+        episodes = (
+            base_episodes
+            if base_episodes is not None
+            else provider_client.fetch_episodes(external_id, language="eng")
+        )
+        season_details = (
+            base_seasons
+            if base_seasons is not None
+            else provider_client.fetch_seasons(external_id, language="eng")
+        )
         selected_episodes = (
             episodes
             if language == "eng"
@@ -191,16 +206,27 @@ def hydrate_show_translations_sync(show_id: int) -> Show:
     provider = get_provider(show.provider)
     failures = []
     result = show
+    try:
+        detail = provider.fetch_detail(show.external_id, language="eng")
+        base_episodes = provider.fetch_episodes(show.external_id, language="eng")
+        base_seasons = provider.fetch_seasons(show.external_id, language="eng")
+    except ProviderError:
+        Show.objects.filter(id=show.id).update(sync_status=SyncStatus.ERROR)
+        raise
+    languages = dict.fromkeys(["eng", *detail.translations])
 
-    for option in provider.list_languages():
+    for language in languages:
         try:
             result = import_show(
                 show.external_id,
-                language=option.code,
+                language=language,
                 provider_getter=lambda _name: provider,
+                base_detail=detail,
+                base_episodes=base_episodes,
+                base_seasons=base_seasons,
             )
         except ProviderError:
-            failures.append(option.code)
+            failures.append(language)
 
     if failures:
         raise ProviderError(
@@ -221,14 +247,19 @@ def track_show(
         external_id,
         language=user.settings.tvdb_metadata_language,
     )
-    user_show, _created = UserShow.objects.get_or_create(user=user, show=show)
+    user_show, created = UserShow.objects.get_or_create(user=user, show=show)
+    if not created and user_show.status == UserShow.Status.TRACKED:
+        return user_show
+
     user_show.status = UserShow.Status.TRACKED
     user_show.tracking_started_at = timezone.now()
     user_show.save(update_fields=["status", "tracking_started_at", "updated_at"])
     if hydrate_func is None:
         from apps.tv.tasks import hydrate_show_translations
 
-        hydrate_func = hydrate_show_translations
+        hydrate_func = lambda show_id: hydrate_show_translations.defer(
+            show_id=show_id,
+        )
     hydrate_func(show.id)
     return user_show
 

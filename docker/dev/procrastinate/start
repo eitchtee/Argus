@@ -6,10 +6,10 @@ set -o nounset
 
 # Wait for migrations to complete
 until [ -f /tmp/migrations_complete ]; do
-    echo "Huey is waiting for web app to start..."
+    echo "Procrastinate is waiting for web app to start..."
     sleep 2
 done
 
 rm -f /tmp/migrations_complete
 
-exec watchfiles --filter python "python manage.py run_huey"
+exec watchfiles --filter python "python manage.py procrastinate worker"

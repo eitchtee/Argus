@@ -107,7 +107,9 @@ def track_movie(
     if hydrate_func is None:
         from apps.movies.tasks import hydrate_movie_translations
 
-        hydrate_func = hydrate_movie_translations
+        hydrate_func = lambda movie_id: hydrate_movie_translations.defer(
+            movie_id=movie_id,
+        )
     hydrate_func(movie.id)
     return user_movie
 
