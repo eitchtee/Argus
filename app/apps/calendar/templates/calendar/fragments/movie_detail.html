@@ -24,7 +24,7 @@
     {% if event.genres %}<div class="sm:col-span-2"><dt class="text-base-content/50">{% trans "Genres" %}</dt><dd class="font-semibold">{{ event.genres|join:", " }}</dd></div>{% endif %}
   </dl>
 
-  <a class="btn btn-primary w-full" href="{% url 'movie-detail' external_id=event.external_id %}">
+  <a class="btn btn-primary w-full" href="{% url 'movie-detail' external_id=event.external_id %}{% if event.provider != 'tmdb' %}?provider={{ event.provider }}{% endif %}">
     {% trans "Open movie" %} <i class="fa-solid fa-arrow-up-right-from-square"></i>
   </a>
 </div>

@@ -156,6 +156,26 @@ class MovieServiceTests(TestCase):
         self.assertEqual(user_movie.id, existing.id)
         self.assertTrue(user_movie.on_watchlist)
 
+    def test_track_movie_uses_the_selected_provider_language(self):
+        movie = Movie.objects.create(provider="tvdb", external_id="42", title="A Movie")
+        self.user.settings.tvdb_metadata_language = "por"
+        self.user.settings.save()
+        import_calls = []
+
+        def import_func(provider, external_id, *, language):
+            import_calls.append((provider, external_id, language))
+            return movie
+
+        track_movie(
+            self.user,
+            "tvdb",
+            "42",
+            import_func=import_func,
+            hydrate_func=lambda _movie_id: None,
+        )
+
+        self.assertEqual(import_calls, [("tvdb", "42", "por")])
+
     def test_remove_from_watchlist_deletes_empty_user_movie_row(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)

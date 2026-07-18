@@ -6,7 +6,11 @@ from django.db.models import F
 from django.utils import timezone
 
 from apps.catalog.models import Genre, SyncStatus
-from apps.catalog.localization import merge_translation_maps
+from apps.catalog.localization import (
+    PROVIDER_DEFAULT_LANGUAGES,
+    merge_translation_maps,
+    metadata_language_for_user,
+)
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.movies.models import Movie, UserMovie
@@ -16,16 +20,21 @@ def import_movie(
     provider: str,
     external_id: str,
     *,
-    language: str = "en-US",
+    language: str | None = None,
     provider_getter=get_provider,
 ) -> Movie:
-    if provider != "tmdb":
-        raise ValueError("Movies must use tmdb provider metadata.")
+    if provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {provider}")
 
+    language = language or PROVIDER_DEFAULT_LANGUAGES[provider]
     provider_client = provider_getter(provider)
 
     try:
-        detail = provider_client.fetch_detail(external_id, language=language)
+        detail = provider_client.fetch_detail(
+            external_id,
+            language=language,
+            media_type="movie",
+        )
     except ProviderError:
         Movie.objects.filter(provider=provider, external_id=external_id).update(
             sync_status=SyncStatus.ERROR,
@@ -41,7 +50,7 @@ def import_movie(
             existing_movie.translations if existing_movie else {},
             detail.translations,
         )
-        default_text = translations.get("en-US", {})
+        default_text = translations.get(PROVIDER_DEFAULT_LANGUAGES[provider], {})
         movie, _created = Movie.objects.update_or_create(
             provider=provider,
             external_id=external_id,
@@ -98,7 +107,10 @@ def track_movie(
     import_func=import_movie,
     hydrate_func=None,
 ) -> UserMovie:
-    language = user.settings.tmdb_metadata_language
+    if provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    language = metadata_language_for_user(user, provider)
     movie = import_func(provider, external_id, language=language)
     user_movie, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
     user_movie.on_watchlist = True

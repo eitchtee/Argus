@@ -15,7 +15,14 @@ from apps.catalog.localization import (
     resolve_field,
     resolve_from_map,
 )
-from apps.catalog.services import get_show_detail, get_show_episodes, get_show_seasons
+from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
+from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
+from apps.catalog.services import (
+    SUPPORTED_PROVIDERS,
+    get_show_detail,
+    get_show_episodes,
+    get_show_seasons,
+)
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
@@ -98,11 +105,18 @@ def watchlist_tab(request, section):
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
 
-    language = metadata_language_for_user(request.user, "tvdb")
     return render(
         request,
         "tv/fragments/watchlist_grid.html",
-        {"shows": [LocalizedRecord(show, language) for show in shows]},
+        {
+            "shows": [
+                LocalizedRecord(
+                    show,
+                    metadata_language_for_user(request.user, show.provider),
+                )
+                for show in shows
+            ]
+        },
     )
 
 
@@ -132,7 +146,8 @@ def up_next_episode_watched(request, episode_id):
 @htmx_login_required
 @require_http_methods(["GET"])
 def show_detail(request, external_id):
-    context = {"show": _build_show_context(request.user, external_id)}
+    provider = _provider_from_request(request)
+    context = {"show": _build_show_context(request.user, external_id, provider)}
     return render(request, "tv/pages/detail.html", context)
 
 
@@ -143,8 +158,9 @@ def show_track(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
-    track_show(request.user, external_id)
-    return _redirect_to_show_detail(external_id)
+    provider = _provider_from_request(request)
+    track_show(request.user, external_id, provider=provider)
+    return _redirect_to_show_detail(external_id, provider)
 
 
 @only_htmx
@@ -154,9 +170,10 @@ def show_drop(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
-    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
     drop_show(request.user, show)
-    return _redirect_to_show_detail(external_id)
+    return _redirect_to_show_detail(external_id, provider)
 
 
 @only_htmx
@@ -166,9 +183,10 @@ def show_pause(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
-    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
     pause_show(request.user, show)
-    return _redirect_to_show_detail(external_id)
+    return _redirect_to_show_detail(external_id, provider)
 
 
 @only_htmx
@@ -178,16 +196,18 @@ def show_delete(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
-    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
     delete_show_data(request.user, show)
-    return _redirect_to_show_detail(external_id)
+    return _redirect_to_show_detail(external_id, provider)
 
 
 @only_htmx
 @htmx_login_required
 @require_http_methods(["POST", "DELETE"])
 def show_watched(request, external_id):
-    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
 
     try:
         if request.method == "POST":
@@ -197,14 +217,15 @@ def show_watched(request, external_id):
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
 
-    return _redirect_to_show_detail(external_id)
+    return _redirect_to_show_detail(external_id, provider)
 
 
 @only_htmx
 @htmx_login_required
 @require_http_methods(["POST", "DELETE"])
 def season_watched(request, external_id, season_id):
-    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
     season = get_object_or_404(Season, id=season_id, show=show)
 
     try:
@@ -218,6 +239,7 @@ def season_watched(request, external_id, season_id):
     context = {
         "season": _build_season_context(request.user, season),
         "show_external_id": external_id,
+        "show_provider": provider,
     }
     return render(request, "tv/fragments/season_inner.html", context)
 
@@ -226,7 +248,8 @@ def season_watched(request, external_id, season_id):
 @htmx_login_required
 @require_http_methods(["POST", "DELETE"])
 def episode_watched(request, external_id, episode_id):
-    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
     episode = get_object_or_404(Episode, id=episode_id, show=show)
 
     try:
@@ -240,6 +263,7 @@ def episode_watched(request, external_id, episode_id):
     context = {
         "season": _build_season_context(request.user, episode.season),
         "show_external_id": external_id,
+        "show_provider": provider,
     }
     return render(request, "tv/fragments/season_inner.html", context)
 
@@ -247,7 +271,8 @@ def episode_watched(request, external_id, episode_id):
 @htmx_login_required
 @require_http_methods(["GET"])
 def episode_detail(request, external_id, episode_id):
-    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
     episode = get_object_or_404(Episode, id=episode_id, show=show)
     tracked = UserShow.objects.filter(
         user=request.user,
@@ -259,6 +284,7 @@ def episode_detail(request, external_id, episode_id):
     context = {
         "episode": _localize_episode(episode, request.user),
         "show": _localize_show(show, request.user),
+        "show_provider": provider,
         "tracked": tracked,
         "watched": watched,
         "previous_episode": _adjacent_episode(episode, direction="previous"),
@@ -289,7 +315,8 @@ def episode_detail_watched(request, external_id, episode_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
-    show = get_object_or_404(Show, provider="tvdb", external_id=external_id)
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
     episode = get_object_or_404(Episode, id=episode_id, show=show)
 
     try:
@@ -304,6 +331,7 @@ def episode_detail_watched(request, external_id, episode_id):
         "tracked": True,
         "watched": request.method == "POST",
         "show_external_id": external_id,
+        "show_provider": provider,
         "episode_id": episode.id,
     }
     return render(request, "tv/fragments/episode_detail_watched_button.html", context)
@@ -362,11 +390,11 @@ def home_upcoming(request):
 
 
 def _localize_show(show, user):
-    return LocalizedRecord(show, metadata_language_for_user(user, "tvdb"))
+    return LocalizedRecord(show, metadata_language_for_user(user, show.provider))
 
 
 def _localize_episode(episode, user):
-    language = metadata_language_for_user(user, "tvdb")
+    language = metadata_language_for_user(user, episode.show.provider)
     return LocalizedRecord(
         episode,
         language,
@@ -409,18 +437,21 @@ def _localize_upcoming_month(month, user):
     )
 
 
-def _redirect_to_show_detail(external_id):
+def _redirect_to_show_detail(external_id, provider="tvdb"):
     response = HttpResponse()
-    response["HX-Redirect"] = reverse("tv-detail", kwargs={"external_id": external_id})
+    location = reverse("tv-detail", kwargs={"external_id": external_id})
+    if provider != "tvdb":
+        location = f"{location}?provider={provider}"
+    response["HX-Redirect"] = location
     return response
 
 
-def _build_show_context(user, external_id):
-    language = metadata_language_for_user(user, "tvdb")
-    show = Show.objects.filter(provider="tvdb", external_id=external_id).first()
+def _build_show_context(user, external_id, provider="tvdb"):
+    language = metadata_language_for_user(user, provider)
+    show = Show.objects.filter(provider=provider, external_id=external_id).first()
 
     if show is None:
-        return _preview_show_context(external_id, language)
+        return _preview_show_context(external_id, language, provider)
 
     user_show = UserShow.objects.filter(user=user, show=show).first()
     tracked = bool(user_show and user_show.status == UserShow.Status.TRACKED)
@@ -446,6 +477,7 @@ def _build_show_context(user, external_id):
 
     return {
         "external_id": show.external_id,
+        "provider": show.provider,
         "title": resolve_field(show, "name", language),
         "overview": resolve_field(show, "overview", language),
         "status": show.status,
@@ -472,7 +504,7 @@ def _build_show_context(user, external_id):
 
 
 def _build_season_context(user, season: Season):
-    language = metadata_language_for_user(user, "tvdb")
+    language = metadata_language_for_user(user, season.show.provider)
     tracked = UserShow.objects.filter(
         user=user,
         show=season.show,
@@ -529,12 +561,26 @@ def _season_context(
     }
 
 
-def _preview_show_context(external_id, language="eng"):
-    detail = get_show_detail(external_id, language=language)
-    episodes = get_show_episodes(external_id, language=language)
+def _preview_show_context(external_id, language=None, provider="tvdb"):
+    language = language or PROVIDER_DEFAULT_LANGUAGES[provider]
+    default_language = PROVIDER_DEFAULT_LANGUAGES[provider]
+    detail = get_show_detail(
+        external_id,
+        language=language,
+        provider=provider,
+    )
+    episodes = get_show_episodes(
+        external_id,
+        language=language,
+        provider=provider,
+    )
     provider_seasons = {
         season.season_number: season
-        for season in get_show_seasons(external_id, language=language)
+        for season in get_show_seasons(
+            external_id,
+            language=language,
+            provider=provider,
+        )
     }
     today = timezone.localdate()
 
@@ -562,7 +608,7 @@ def _preview_show_context(external_id, language="eng"):
                         episode.translations,
                         "name",
                         language,
-                        "eng",
+                        default_language,
                         episode.name,
                     ),
                     "air_date": air_date,
@@ -578,7 +624,7 @@ def _preview_show_context(external_id, language="eng"):
                     provider_seasons.get(season_number).translations,
                     "name",
                     language,
-                    "eng",
+                    default_language,
                     provider_seasons.get(season_number).name,
                 )
                 if season_number in provider_seasons
@@ -593,19 +639,36 @@ def _preview_show_context(external_id, language="eng"):
 
     return {
         "external_id": detail.external_id,
-        "title": resolve_from_map(detail.translations, "title", language, "eng", detail.title),
+        "provider": provider,
+        "title": resolve_from_map(
+            detail.translations,
+            "title",
+            language,
+            default_language,
+            detail.title,
+        ),
         "overview": resolve_from_map(
-            detail.translations, "overview", language, "eng", detail.overview
+            detail.translations,
+            "overview",
+            language,
+            default_language,
+            detail.overview,
         ),
         "status": detail.status,
         "network": detail.network,
         "release_date": _parse_iso_date(detail.release_date),
         "genres": [
-            resolve_from_map(genre.translations, "name", language, "eng", genre.name)
+            resolve_from_map(
+                genre.translations,
+                "name",
+                language,
+                default_language,
+                genre.name,
+            )
             for genre in detail.genres
         ],
-        "poster_url": detail.poster_path,
-        "backdrop_url": detail.backdrop_path,
+        "poster_url": _provider_poster_url(detail.poster_path, provider),
+        "backdrop_url": _provider_backdrop_url(detail.backdrop_path, provider),
         "imdb_id": detail.imdb_id,
         "trailer_url": detail.trailer_url,
         "average_runtime": detail.average_runtime,
@@ -639,3 +702,20 @@ def _parse_iso_time(value):
         return time.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _provider_from_request(request, default="tvdb"):
+    provider = request.GET.get("provider", default).strip().lower()
+    return provider if provider in SUPPORTED_PROVIDERS else default
+
+
+def _provider_poster_url(path, provider):
+    if provider == "tmdb":
+        return build_poster_url(path)
+    return path or None
+
+
+def _provider_backdrop_url(path, provider):
+    if provider == "tmdb":
+        return build_backdrop_url(path)
+    return path or None

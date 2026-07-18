@@ -8,7 +8,7 @@
             aria-label="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
             aria-pressed="{{ watched|yesno:'true,false' }}"
             class="btn btn-lg btn-circle btn-success"
-            hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'tv-episode-detail-watched' external_id=show_external_id episode_id=episode_id %}"
+            hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'tv-episode-detail-watched' external_id=show_external_id episode_id=episode_id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
             hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this">
       <i class="fa-solid fa-{% if watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
     </button>

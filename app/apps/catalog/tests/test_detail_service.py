@@ -13,8 +13,8 @@ class FakeDetailProvider:
         self.episode_calls = []
         self.season_calls = []
 
-    def fetch_detail(self, external_id, *, language):
-        self.detail_calls.append((external_id, language))
+    def fetch_detail(self, external_id, *, language, media_type="movie"):
+        self.detail_calls.append((external_id, language, media_type))
         return DetailDTO(provider=self.name, external_id=external_id, title="Fight Club")
 
     def fetch_episodes(self, external_id, *, language):
@@ -29,7 +29,7 @@ class FakeDetailProvider:
 class FailingDetailProvider:
     name = "tmdb"
 
-    def fetch_detail(self, external_id, *, language):
+    def fetch_detail(self, external_id, *, language, media_type="movie"):
         raise NotFound("missing")
 
 
@@ -45,7 +45,7 @@ class GetMovieDetailTests(TestCase):
 
         detail = get_movie_detail("550", language="en-US", provider_getter=lambda name: provider)
 
-        self.assertEqual(provider.detail_calls, [("550", "en-US")])
+        self.assertEqual(provider.detail_calls, [("550", "en-US", "movie")])
         self.assertEqual(detail.title, "Fight Club")
 
     def test_cache_hit_avoids_provider_call(self):
@@ -54,13 +54,16 @@ class GetMovieDetailTests(TestCase):
         get_movie_detail("550", language="en-US", provider_getter=lambda name: provider)
         get_movie_detail("550", language="en-US", provider_getter=lambda name: provider)
 
-        self.assertEqual(provider.detail_calls, [("550", "en-US")])
+        self.assertEqual(provider.detail_calls, [("550", "en-US", "movie")])
 
     def test_cache_is_isolated_by_language(self):
         provider = FakeDetailProvider("tmdb")
         get_movie_detail("550", language="en-US", provider_getter=lambda name: provider)
         get_movie_detail("550", language="pt-BR", provider_getter=lambda name: provider)
-        self.assertEqual(provider.detail_calls, [("550", "en-US"), ("550", "pt-BR")])
+        self.assertEqual(
+            provider.detail_calls,
+            [("550", "en-US", "movie"), ("550", "pt-BR", "movie")],
+        )
 
     def test_provider_error_is_not_cached(self):
         with self.assertRaises(NotFound):
@@ -69,7 +72,7 @@ class GetMovieDetailTests(TestCase):
         provider = FakeDetailProvider("tmdb")
         get_movie_detail("550", language="en-US", provider_getter=lambda name: provider)
 
-        self.assertEqual(provider.detail_calls, [("550", "en-US")])
+        self.assertEqual(provider.detail_calls, [("550", "en-US", "movie")])
 
 
 class GetShowDetailTests(TestCase):
@@ -84,7 +87,7 @@ class GetShowDetailTests(TestCase):
 
         detail = get_show_detail("123", language="eng", provider_getter=lambda name: provider)
 
-        self.assertEqual(provider.detail_calls, [("123", "eng")])
+        self.assertEqual(provider.detail_calls, [("123", "eng", "tv")])
         self.assertEqual(detail.title, "Fight Club")
 
     def test_cache_hit_avoids_provider_call(self):
@@ -93,7 +96,7 @@ class GetShowDetailTests(TestCase):
         get_show_detail("123", language="eng", provider_getter=lambda name: provider)
         get_show_detail("123", language="eng", provider_getter=lambda name: provider)
 
-        self.assertEqual(provider.detail_calls, [("123", "eng")])
+        self.assertEqual(provider.detail_calls, [("123", "eng", "tv")])
 
 
 class GetShowEpisodesTests(TestCase):
@@ -126,5 +129,5 @@ class GetShowEpisodesTests(TestCase):
         get_movie_detail("123", language="en-US", provider_getter=lambda name: movie_provider)
         get_show_detail("123", language="eng", provider_getter=lambda name: show_provider)
 
-        self.assertEqual(movie_provider.detail_calls, [("123", "en-US")])
-        self.assertEqual(show_provider.detail_calls, [("123", "eng")])
+        self.assertEqual(movie_provider.detail_calls, [("123", "en-US", "movie")])
+        self.assertEqual(show_provider.detail_calls, [("123", "eng", "tv")])

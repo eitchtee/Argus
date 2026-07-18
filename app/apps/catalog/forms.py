@@ -20,3 +20,14 @@ class SearchForm(forms.Form):
         initial="movie",
         widget=forms.Select(attrs={"class": "select select-bordered"}),
     )
+    provider = forms.ChoiceField(
+        label=_("Provider"),
+        choices=[("tmdb", "TMDB"), ("tvdb", "TVDB")],
+        initial="tmdb",
+        widget=forms.Select(
+            attrs={
+                "class": "select select-bordered",
+                "aria-label": _("Search provider"),
+            }
+        ),
+    )

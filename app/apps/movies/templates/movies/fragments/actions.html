@@ -15,7 +15,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ add_to_watchlist_label }}">
     <button type="button" aria-label="{{ add_to_watchlist_label }}"
             class="btn btn-lg btn-circle btn-primary"
-            hx-post="{% url 'movie-detail-track' external_id=movie.external_id %}"
+            hx-post="{% url 'movie-detail-track' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
       <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
     </button>
@@ -30,7 +30,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ mark_unwatched_label }}">
     <button type="button" aria-label="{{ mark_unwatched_label }}"
             class="btn btn-lg btn-circle btn-success"
-            hx-delete="{% url 'movie-detail-watched' external_id=movie.external_id %}"
+            hx-delete="{% url 'movie-detail-watched' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
       <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
     </button>
@@ -38,7 +38,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ delete_movie_label }}">
     <button type="button" aria-label="{{ delete_movie_label }}"
             class="btn btn-lg btn-circle btn-error"
-            hx-post="{% url 'movie-detail-delete' external_id=movie.external_id %}"
+            hx-post="{% url 'movie-detail-delete' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-trigger="confirmed" hx-target="#movie-actions" hx-swap="outerHTML"
             hx-disabled-elt="this"
             _="on click
@@ -60,7 +60,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ mark_watched_label }}">
     <button type="button" aria-label="{{ mark_watched_label }}"
             class="btn btn-lg btn-circle btn-success"
-            hx-post="{% url 'movie-detail-watched' external_id=movie.external_id %}"
+            hx-post="{% url 'movie-detail-watched' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
       <i class="fa-solid fa-eye" aria-hidden="true"></i>
     </button>
@@ -68,7 +68,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ remove_from_watchlist_label }}">
     <button type="button" aria-label="{{ remove_from_watchlist_label }}"
             class="btn btn-lg btn-circle btn-warning btn-outline"
-            hx-delete="{% url 'movie-detail-track' external_id=movie.external_id %}"
+            hx-delete="{% url 'movie-detail-track' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
       <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
     </button>

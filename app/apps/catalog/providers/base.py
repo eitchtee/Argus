@@ -89,11 +89,24 @@ class BaseProvider(ABC):
     name: str
 
     @abstractmethod
-    def search(self, query: str, *, language: str, page: int = 1) -> list[SearchResultDTO]:
+    def search(
+        self,
+        query: str,
+        *,
+        language: str,
+        page: int = 1,
+        media_type: str = "movie",
+    ) -> list[SearchResultDTO]:
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_detail(self, external_id: str, *, language: str) -> DetailDTO:
+    def fetch_detail(
+        self,
+        external_id: str,
+        *,
+        language: str,
+        media_type: str = "movie",
+    ) -> DetailDTO:
         raise NotImplementedError
 
     def fetch_episodes(self, external_id: str, *, language: str) -> list[EpisodeDTO]:

@@ -20,7 +20,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ track_show_label }}">
     <button type="button" aria-label="{{ track_show_label }}"
             class="btn btn-lg btn-circle btn-primary"
-            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
     </button>
@@ -35,7 +35,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ pause_show_label }}">
     <button type="button" aria-label="{{ pause_show_label }}"
             class="btn btn-lg btn-circle btn-warning btn-outline"
-            hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-pause" aria-hidden="true"></i>
     </button>
@@ -43,7 +43,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ drop_show_label }}">
     <button type="button" aria-label="{{ drop_show_label }}"
             class="btn btn-lg btn-circle btn-warning btn-outline"
-            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
     </button>
@@ -51,7 +51,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
     <button type="button" aria-label="{{ delete_show_label }}"
             class="btn btn-lg btn-circle btn-error"
-            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-trigger="confirmed" hx-disabled-elt="this"
             _="on click
                 call Swal.fire({
@@ -72,7 +72,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ show_watched_label }}">
     <button type="button" aria-label="{{ show_watched_label }}"
             class="btn btn-lg btn-circle btn-success"
-            hx-{% if show.show_fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-watched' external_id=show.external_id %}"
+            hx-{% if show.show_fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-watched' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-{% if show.show_fully_watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
     </button>
@@ -82,7 +82,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ resume_show_label }}">
     <button type="button" aria-label="{{ resume_show_label }}"
             class="btn btn-lg btn-circle btn-primary"
-            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-play" aria-hidden="true"></i>
     </button>
@@ -90,7 +90,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ drop_show_label }}">
     <button type="button" aria-label="{{ drop_show_label }}"
             class="btn btn-lg btn-circle btn-warning btn-outline"
-            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
     </button>
@@ -98,7 +98,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
     <button type="button" aria-label="{{ delete_show_label }}"
             class="btn btn-lg btn-circle btn-error"
-            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-trigger="confirmed" hx-disabled-elt="this"
             _="on click
                 call Swal.fire({
@@ -119,7 +119,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ resume_show_label }}">
     <button type="button" aria-label="{{ resume_show_label }}"
             class="btn btn-lg btn-circle btn-primary"
-            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-play" aria-hidden="true"></i>
     </button>
@@ -127,7 +127,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ pause_show_label }}">
     <button type="button" aria-label="{{ pause_show_label }}"
             class="btn btn-lg btn-circle btn-warning btn-outline"
-            hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-pause" aria-hidden="true"></i>
     </button>
@@ -135,7 +135,7 @@
   <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
     <button type="button" aria-label="{{ delete_show_label }}"
             class="btn btn-lg btn-circle btn-error"
-            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}"
+            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-trigger="confirmed" hx-disabled-elt="this"
             _="on click
                 call Swal.fire({

@@ -22,7 +22,7 @@
 
   {% if results|length >= 20 %}
   <div class="flex justify-center py-4"
-       hx-get="{% url 'catalog-search-results' %}?q={{ query|urlencode }}&type={{ media_type }}&page={{ page|add:'1' }}"
+       hx-get="{% url 'catalog-search-results' %}?q={{ query|urlencode }}&type={{ media_type }}&provider={{ provider }}&page={{ page|add:'1' }}"
        hx-trigger="revealed"
        hx-target="this"
        hx-swap="outerHTML">

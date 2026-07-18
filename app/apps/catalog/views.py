@@ -7,7 +7,11 @@ from django.views.decorators.http import require_http_methods
 from apps.catalog.forms import SearchForm
 from apps.catalog.localization import metadata_language_for_user
 from apps.catalog.providers.exceptions import ProviderError
-from apps.catalog.services import search as catalog_search
+from apps.catalog.services import (
+    SEARCH_TYPE_PROVIDERS,
+    SUPPORTED_PROVIDERS,
+    search as catalog_search,
+)
 from apps.catalog.tracking import tracked_keys
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
@@ -18,9 +22,11 @@ SEARCH_RESULT_PAGE_SIZE = 20
 @htmx_login_required
 @require_http_methods(["GET"])
 def search_page(request):
-    query, media_type, page = _params(request.GET)
-    context = _search_context(request, query, media_type, page)
-    context["form"] = SearchForm(initial={"q": query, "type": media_type})
+    query, media_type, provider, page = _params(request.GET)
+    context = _search_context(request, query, media_type, provider, page)
+    context["form"] = SearchForm(
+        initial={"q": query, "type": media_type, "provider": provider}
+    )
     return render(request, "catalog/pages/search.html", context)
 
 
@@ -28,8 +34,8 @@ def search_page(request):
 @htmx_login_required
 @require_http_methods(["GET"])
 def search_results(request):
-    query, media_type, page = _params(request.GET)
-    context = _search_context(request, query, media_type, page)
+    query, media_type, provider, page = _params(request.GET)
+    context = _search_context(request, query, media_type, provider, page)
     return render(request, "catalog/fragments/results.html", context)
 
 
@@ -42,28 +48,43 @@ def track(request):
 
     query = request.POST.get("q", "").strip()
     media_type = request.POST.get("type", "movie").strip()
+    provider = request.POST.get("provider", "").strip().lower()
     external_id = request.POST.get("external_id", "").strip()
     page = _parse_page(request.POST.get("page", "1"))
 
     error = None
     if media_type not in {"movie", "tv"} or not external_id:
         error = _("Invalid request.")
-    else:
+    elif not provider:
+        provider = SEARCH_TYPE_PROVIDERS[media_type]
+    if error is None and provider not in SUPPORTED_PROVIDERS:
+        error = _("Invalid request.")
+
+    if error is None:
         try:
             if media_type == "movie":
                 from apps.movies.services import track_movie
 
-                track_movie(request.user, "tmdb", external_id)
+                track_movie(request.user, provider, external_id)
             else:
                 from apps.tv.services import track_show
 
-                track_show(request.user, external_id)
+                track_show(request.user, external_id, provider=provider)
         except (ValueError, ProviderError) as exc:
             error = str(exc) or _("Provider error.")
 
-    item = _find_tracked_item(request, query, media_type, page, external_id, error)
+    item = _find_tracked_item(
+        request,
+        query,
+        media_type,
+        provider,
+        page,
+        external_id,
+        error,
+    )
     context = {
         "media_type": media_type,
+        "provider": provider,
         "query": query,
         "page": page,
         "item": item,
@@ -72,20 +93,32 @@ def track(request):
     return render(request, "catalog/fragments/result_card.html", context)
 
 
-def _find_tracked_item(request, query, media_type, page, external_id, error):
+def _find_tracked_item(
+    request,
+    query,
+    media_type,
+    provider,
+    page,
+    external_id,
+    error,
+):
     """Re-render just the tracked card in place, instead of replacing the whole
     (potentially infinite-scrolled) results list."""
-    if media_type not in {"movie", "tv"} or not query:
+    if (
+        media_type not in {"movie", "tv"}
+        or provider not in SUPPORTED_PROVIDERS
+        or not query
+    ):
         return None
 
     try:
-        provider = "tmdb" if media_type == "movie" else "tvdb"
         language = metadata_language_for_user(request.user, provider)
         raw_results = catalog_search(
             query,
             media_type=media_type,
             language=language,
             page=page,
+            provider=provider,
         )
     except ValueError:
         return None
@@ -110,8 +143,11 @@ def _params(params):
     media_type = params.get("type", "movie").strip()
     if media_type not in {"movie", "tv"}:
         media_type = "movie"
+    provider = params.get("provider", "").strip().lower()
+    if provider not in SUPPORTED_PROVIDERS:
+        provider = SEARCH_TYPE_PROVIDERS[media_type]
     page = _parse_page(params.get("page", "1"))
-    return query, media_type, page
+    return query, media_type, provider, page
 
 
 def _parse_page(value):
@@ -122,10 +158,11 @@ def _parse_page(value):
     return page if page >= 1 else 1
 
 
-def _search_context(request, query, media_type, page):
+def _search_context(request, query, media_type, provider, page):
     context = {
         "query": query,
         "media_type": media_type,
+        "provider": provider,
         "page": page,
         "results": None,
         "error": None,
@@ -135,13 +172,13 @@ def _search_context(request, query, media_type, page):
         return context
 
     try:
-        provider = "tmdb" if media_type == "movie" else "tvdb"
         language = metadata_language_for_user(request.user, provider)
         raw_results = catalog_search(
             query,
             media_type=media_type,
             language=language,
             page=page,
+            provider=provider,
         )
     except ValueError:
         return context

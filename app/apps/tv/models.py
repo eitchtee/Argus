@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 
 from apps.catalog.models import Genre, ProviderBackedModel, Tier
+from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 
 
 class Show(ProviderBackedModel):
@@ -35,10 +36,14 @@ class Show(ProviderBackedModel):
 
     @property
     def poster_url(self) -> str | None:
+        if self.provider == "tmdb":
+            return build_poster_url(self.poster_path)
         return self.poster_path or None
 
     @property
     def backdrop_url(self) -> str | None:
+        if self.provider == "tmdb":
+            return build_backdrop_url(self.backdrop_path)
         return self.backdrop_path or None
 
     def __str__(self):

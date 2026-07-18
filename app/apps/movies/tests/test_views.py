@@ -100,6 +100,25 @@ class MovieDetailViewTests(TestCase):
         self.assertContains(response, "Keanu Reeves")
         self.assertFalse(Movie.objects.filter(external_id="603").exists())
 
+    @patch("apps.movies.views.get_movie_detail")
+    def test_preview_uses_requested_provider_and_language(self, get_movie_detail_mock):
+        get_movie_detail_mock.return_value = DetailDTO(
+            provider="tvdb",
+            external_id="42",
+            title="A Movie",
+        )
+        self.user.settings.tvdb_metadata_language = "eng"
+        self.user.settings.save()
+
+        response = self.client.get("/movies/42/?provider=tvdb")
+
+        self.assertEqual(response.status_code, 200)
+        get_movie_detail_mock.assert_called_once_with(
+            "42",
+            language="eng",
+            provider="tvdb",
+        )
+
 
 class MovieTrackViewTests(TestCase):
     def setUp(self):
@@ -122,6 +141,22 @@ class MovieTrackViewTests(TestCase):
         track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
         self.assertContains(response, 'aria-label="Movie actions"')
         self.assertContains(response, 'aria-label="Remove from watchlist"')
+
+    @patch("apps.movies.views.track_movie")
+    def test_post_tracks_movie_with_requested_provider(self, track_movie_mock):
+        movie = Movie.objects.create(provider="tvdb", external_id="42", title="A Movie")
+        track_movie_mock.return_value = UserMovie.objects.create(
+            user=self.user,
+            movie=movie,
+            on_watchlist=True,
+        )
+
+        self.client.post(
+            "/movies/42/track/?provider=tvdb",
+            HTTP_HX_REQUEST="true",
+        )
+
+        track_movie_mock.assert_called_once_with(self.user, "tvdb", "42")
 
     def test_delete_untracks_movie(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")

@@ -58,6 +58,21 @@ class MovieTaskTests(TransactionTestCase):
         import_movie.assert_called_once_with("tmdb", "550", language="en-US")
         hydrate_movie_translations.defer.assert_called_once_with(movie_id=movie.id)
 
+    @patch("apps.movies.tasks.movie_services.import_movie")
+    def test_sync_movie_uses_the_stored_provider(self, import_movie):
+        from apps.movies.tasks import sync_movie
+
+        movie = Movie.objects.create(
+            provider="tvdb",
+            external_id="42",
+            title="A Movie",
+        )
+        import_movie.return_value = movie
+
+        sync_movie.func(movie.id)
+
+        import_movie.assert_called_once_with("tvdb", "42", language="eng")
+
     @patch("apps.movies.tasks.hydrate_movie_translations")
     @patch("apps.movies.tasks.movie_services.import_movie")
     def test_sync_movie_returns_the_translation_task_id(
@@ -108,6 +123,12 @@ class MovieTaskTests(TransactionTestCase):
             title="Stale tracked",
             last_synced_at=timezone.now() - timedelta(days=15),
         )
+        alternate_provider_stale = self._create_movie(
+            provider="tvdb",
+            external_id="5",
+            title="TVDB stale",
+            last_synced_at=timezone.now() - timedelta(days=15),
+        )
         fresh_tracked = self._create_movie(
             external_id="2",
             title="Fresh tracked",
@@ -124,6 +145,11 @@ class MovieTaskTests(TransactionTestCase):
             last_synced_at=None,
         )
         UserMovie.objects.create(user=self.user, movie=stale_tracked, on_watchlist=True)
+        UserMovie.objects.create(
+            user=self.user,
+            movie=alternate_provider_stale,
+            on_watchlist=True,
+        )
         UserMovie.objects.create(user=self.user, movie=fresh_tracked, on_watchlist=True)
         UserMovie.objects.create(
             user=self.user,
@@ -131,14 +157,14 @@ class MovieTaskTests(TransactionTestCase):
             on_watchlist=True,
         )
 
-        sync_movie.defer.side_effect = [41, 42]
+        sync_movie.defer.side_effect = [41, 42, 43]
 
         enqueued_task_ids = sync_movies.func()
 
-        self.assertEqual(enqueued_task_ids, [41, 42])
+        self.assertEqual(enqueued_task_ids, [41, 42, 43])
         self.assertCountEqual(
             [call.kwargs["movie_id"] for call in sync_movie.defer.call_args_list],
-            [stale_tracked.id, never_synced_tracked.id],
+            [stale_tracked.id, alternate_provider_stale.id, never_synced_tracked.id],
         )
         self.assertNotIn(
             stale_untracked.id,
@@ -146,20 +172,25 @@ class MovieTaskTests(TransactionTestCase):
         )
 
     @patch("apps.movies.tasks.sync_movie")
-    def test_sync_movies_force_all_enqueues_every_tmdb_movie(self, sync_movie):
+    def test_sync_movies_force_all_enqueues_every_supported_provider_movie(self, sync_movie):
         from apps.movies.tasks import sync_movies
 
         first = self._create_movie(external_id="1", title="Tracked")
         second = self._create_movie(external_id="2", title="Untracked")
+        alternate = self._create_movie(
+            provider="tvdb",
+            external_id="4",
+            title="TVDB movie",
+        )
         Movie.objects.create(provider="other", external_id="3", title="Other provider")
-        sync_movie.defer.side_effect = [41, 42]
+        sync_movie.defer.side_effect = [41, 42, 43]
 
         result = sync_movies.func(force_all=True)
 
-        self.assertEqual(result, [41, 42])
+        self.assertEqual(result, [41, 42, 43])
         self.assertCountEqual(
             [call.kwargs["movie_id"] for call in sync_movie.defer.call_args_list],
-            [first.id, second.id],
+            [first.id, second.id, alternate.id],
         )
 
     @patch("apps.movies.tasks.sync_movies")

@@ -14,18 +14,34 @@
             hx-get="{% url 'catalog-search-results' %}"
             hx-target="#search-results"
             hx-swap="innerHTML"
-            hx-trigger="search, change from:[role='tab'], submit"
+            hx-trigger="search, change from:[role='tab'], change from:[name='provider'], submit"
             hx-replace-url="false"
             novalidate>
         <div role="tablist" class="tabs tabs-boxed w-fit">
           <input type="radio" name="type" role="tab" class="tab" value="movie"
-                 aria-label="{% trans 'Movies' %}" {% if media_type == "movie" %}checked{% endif %}>
+                 aria-label="{% trans 'Movies' %}" data-default-provider="tmdb"
+                 onchange="this.form.elements.provider.value = this.dataset.defaultProvider"
+                 {% if media_type == "movie" %}checked{% endif %}>
           <input type="radio" name="type" role="tab" class="tab" value="tv"
-                 aria-label="{% trans 'TV Shows' %}" {% if media_type == "tv" %}checked{% endif %}>
+                 aria-label="{% trans 'TV Shows' %}" data-default-provider="tvdb"
+                 onchange="this.form.elements.provider.value = this.dataset.defaultProvider"
+                 {% if media_type == "tv" %}checked{% endif %}>
         </div>
         <div class="flex-1">
           {% comment %} debounced 'search' event sent on keyup, caught by hx-trigger above {% endcomment %}
           <div _="on keyup debounced at 400ms send search to #search-form">{{ form.q }}</div>
+        </div>
+        <div class="w-full sm:w-auto">
+          <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-subtle">
+            {% trans "Provider" %}
+          </span>
+          <div id="provider-picker" role="tablist" class="tabs tabs-boxed w-fit"
+               aria-label="{% trans 'Search provider' %}">
+            <input type="radio" name="provider" role="tab" class="tab" value="tmdb"
+                   aria-label="TMDB" {% if provider == "tmdb" %}checked{% endif %}>
+            <input type="radio" name="provider" role="tab" class="tab" value="tvdb"
+                   aria-label="TVDB" {% if provider == "tvdb" %}checked{% endif %}>
+          </div>
         </div>
       </form>
     </div>

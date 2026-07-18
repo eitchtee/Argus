@@ -115,6 +115,105 @@ class TMDBProviderTests(SimpleTestCase):
         )
         self.assertIn("language=en-US", requested_url)
 
+    def test_search_normalizes_tv_results(self):
+        opener = FakeOpener(
+            {
+                "results": [
+                    {
+                        "id": 1399,
+                        "name": "Game of Thrones",
+                        "first_air_date": "2011-04-17",
+                        "poster_path": "/poster.jpg",
+                        "overview": "A show.",
+                    }
+                ]
+            }
+        )
+        provider = TMDBProvider(opener=opener)
+
+        results = provider.search(
+            "game of thrones",
+            language="en-US",
+            media_type="tv",
+        )
+
+        self.assertEqual(results[0].title, "Game of Thrones")
+        self.assertEqual(results[0].year, 2011)
+        self.assertIn("/search/tv", opener.requests[0][0].full_url)
+
+    def test_fetch_detail_normalizes_tv_detail(self):
+        opener = FakeOpener(
+            {
+                "id": 1399,
+                "name": "Game of Thrones",
+                "original_name": "Game of Thrones",
+                "overview": "A show.",
+                "first_air_date": "2011-04-17",
+                "episode_run_time": [57],
+                "status": "Ended",
+                "vote_average": 8.4,
+                "vote_count": 10000,
+                "poster_path": "/poster.jpg",
+                "backdrop_path": "/backdrop.jpg",
+                "networks": [{"name": "HBO"}],
+                "external_ids": {"imdb_id": "tt0944947"},
+                "genres": [{"id": 18, "name": "Drama"}],
+                "credits": {"cast": [], "crew": []},
+                "videos": {"results": []},
+            }
+        )
+        provider = TMDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("1399", language="en-US", media_type="tv")
+
+        self.assertEqual(detail.provider, "tmdb")
+        self.assertEqual(detail.title, "Game of Thrones")
+        self.assertEqual(detail.release_date, "2011-04-17")
+        self.assertEqual(detail.average_runtime, 57)
+        self.assertEqual(detail.network, "HBO")
+        self.assertEqual(detail.imdb_id, "tt0944947")
+        self.assertIn("/tv/1399", opener.requests[0][0].full_url)
+
+    def test_fetch_tv_seasons_and_episodes(self):
+        opener = SequenceOpener(
+            [
+                {
+                    "id": 1399,
+                    "seasons": [
+                        {
+                            "season_number": 1,
+                            "name": "Season 1",
+                            "overview": "First season.",
+                            "poster_path": "/season.jpg",
+                        }
+                    ],
+                },
+                {
+                    "season_number": 1,
+                    "episodes": [
+                        {
+                            "episode_number": 1,
+                            "name": "Winter Is Coming",
+                            "overview": "Pilot.",
+                            "air_date": "2011-04-17",
+                            "runtime": 57,
+                            "still_path": "/still.jpg",
+                        }
+                    ],
+                },
+            ]
+        )
+        provider = TMDBProvider(opener=opener)
+
+        seasons = provider.fetch_seasons("1399", language="en-US")
+        episodes = provider.fetch_episodes("1399", language="en-US")
+
+        self.assertEqual(seasons[0].name, "Season 1")
+        self.assertEqual(episodes[0].episode_number, 1)
+        self.assertEqual(episodes[0].air_date, "2011-04-17")
+        self.assertIn("/tv/1399", opener.requests[0][0].full_url)
+        self.assertIn("/tv/1399/season/1", opener.requests[1][0].full_url)
+
     def test_fetch_detail_normalizes_all_movie_translations(self):
         payload = load_fixture("tmdb_movie_detail.json")
         payload["translations"] = load_fixture("tmdb_movie_translations.json")

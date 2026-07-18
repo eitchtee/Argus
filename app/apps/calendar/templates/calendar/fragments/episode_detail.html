@@ -29,7 +29,7 @@
     {% if event.runtime %}<div><dt class="text-base-content/50">{% trans "Runtime" %}</dt><dd class="font-semibold">{{ event.runtime }} {% trans "min" %}</dd></div>{% endif %}
   </dl>
 
-  <a class="btn btn-primary w-full" href="{% url 'tv-episode-detail' external_id=event.external_id episode_id=event.episode_id %}">
+  <a class="btn btn-primary w-full" href="{% url 'tv-episode-detail' external_id=event.external_id episode_id=event.episode_id %}{% if event.provider != 'tvdb' %}?provider={{ event.provider }}{% endif %}">
     {% trans "Open episode" %} <i class="fa-solid fa-arrow-up-right-from-square"></i>
   </a>
 </div>
