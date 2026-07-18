@@ -13,6 +13,7 @@
             class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center"
             hx-get="{% url 'catalog-search-results' %}"
             hx-target="#search-results"
+            hx-indicator="#search-results"
             hx-swap="innerHTML"
             hx-trigger="search, change from:[role='tab'], change from:[name='provider'], submit"
             hx-replace-url="false"
@@ -28,8 +29,8 @@
                  {% if media_type == "tv" %}checked{% endif %}>
         </div>
         <div class="flex-1">
-          {% comment %} debounced 'search' event sent on keyup, caught by hx-trigger above {% endcomment %}
-          <div _="on keyup debounced at 400ms send search to #search-form">{{ form.q }}</div>
+          {% comment %} debounced 'search' event sent when the query changes {% endcomment %}
+          <div _="on input debounced at 400ms send search to #search-form">{{ form.q }}</div>
         </div>
         <div class="w-full sm:w-auto">
           <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-subtle">
@@ -47,7 +48,7 @@
     </div>
   </div>
 
-  <div id="search-results">
+  <div id="search-results" class="show-loading">
     {% include "catalog/fragments/results.html" %}
   </div>
 </div>
