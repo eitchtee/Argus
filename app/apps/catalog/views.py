@@ -17,6 +17,7 @@ from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 
 SEARCH_RESULT_PAGE_SIZE = 20
+TVDB_SEARCH_RESULT_PAGE_SIZE = 1
 
 
 @htmx_login_required
@@ -164,6 +165,11 @@ def _search_context(request, query, media_type, provider, page):
         "media_type": media_type,
         "provider": provider,
         "page": page,
+        "search_page_size": (
+            TVDB_SEARCH_RESULT_PAGE_SIZE
+            if provider == "tvdb"
+            else SEARCH_RESULT_PAGE_SIZE
+        ),
         "results": None,
         "error": None,
     }

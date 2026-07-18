@@ -20,12 +20,12 @@
   {% include "catalog/fragments/result_card.html" %}
   {% endfor %}
 
-  {% if results|length >= 20 %}
+  {% if results|length >= search_page_size %}
   <div class="flex justify-center py-4"
        hx-get="{% url 'catalog-search-results' %}?q={{ query|urlencode }}&type={{ media_type }}&provider={{ provider }}&page={{ page|add:'1' }}"
        hx-trigger="revealed"
-       hx-target="this"
-       hx-swap="outerHTML">
+       hx-swap="afterend"
+       hx-on::after-request="if (event.detail.successful) this.remove()">
     <span class="loading loading-spinner loading-md"></span>
   </div>
   {% endif %}

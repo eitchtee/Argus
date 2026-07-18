@@ -48,8 +48,9 @@ class TVDBProvider(BaseProvider):
             params={
                 "query": query,
                 "type": "series" if media_type == "tv" else "movie",
-                # TVDB's /search endpoint is 0-indexed, unlike our 1-indexed UI pages.
-                "page": page - 1,
+                # Our UI pages are 1-indexed; TVDB exposes zero-indexed offsets.
+                "offset": page - 1,
+                "limit": 1,
             },
         )
 
