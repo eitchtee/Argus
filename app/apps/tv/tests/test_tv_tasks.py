@@ -30,7 +30,11 @@ class TVTranslationTaskTests(TransactionTestCase):
 
         hydrate_show_translations_sync(show.id)
 
-        provider.fetch_detail.assert_called_once_with("123", language="eng")
+        provider.fetch_detail.assert_called_once_with(
+            "123",
+            language="eng",
+            media_type="tv",
+        )
         self.assertEqual(
             [call.kwargs["language"] for call in provider.fetch_episodes.call_args_list],
             ["eng", "por"],
@@ -66,7 +70,11 @@ class TVTranslationTaskTests(TransactionTestCase):
             [call.kwargs["language"] for call in import_show.call_args_list],
             ["eng", "por"],
         )
-        provider.fetch_detail.assert_called_once_with("123", language="eng")
+        provider.fetch_detail.assert_called_once_with(
+            "123",
+            language="eng",
+            media_type="tv",
+        )
 
     @patch(
         "apps.tv.tasks.tv_services.hydrate_show_translations_sync",
@@ -101,11 +109,34 @@ class TVTranslationTaskTests(TransactionTestCase):
 
         result = sync_show.func(show.id)
 
-        import_show.assert_called_once_with("123", language="eng")
+        import_show.assert_called_once_with(
+            "123",
+            provider="tvdb",
+            language="eng",
+        )
         hydrate_show_translations.defer.assert_called_once_with(show_id=show.id)
         self.assertEqual(
             result,
             {"item_id": show.id, "translation_task_id": 41},
+        )
+
+    @patch("apps.tv.tasks.tv_services.import_show")
+    def test_sync_show_uses_the_stored_provider(self, import_show):
+        from apps.tv.tasks import sync_show
+
+        show = Show.objects.create(
+            provider="tmdb",
+            external_id="1399",
+            name="Game of Thrones",
+        )
+        import_show.return_value = show
+
+        sync_show.func(show.id)
+
+        import_show.assert_called_once_with(
+            "1399",
+            provider="tmdb",
+            language="en-US",
         )
 
     @patch("apps.tv.tasks.tv_services.import_show")
@@ -143,6 +174,13 @@ class TVTranslationTaskTests(TransactionTestCase):
             status="Continuing",
             last_synced_at=now - timedelta(days=3),
         )
+        tmdb_stale = Show.objects.create(
+            provider="tmdb",
+            external_id="6",
+            name="TMDB stale",
+            status="Continuing",
+            last_synced_at=now - timedelta(days=3),
+        )
         ended_stale = Show.objects.create(
             external_id="2",
             name="Ended stale",
@@ -168,17 +206,18 @@ class TVTranslationTaskTests(TransactionTestCase):
             last_synced_at=now - timedelta(days=10),
         )
         UserShow.objects.create(user=user, show=continuing_stale)
+        UserShow.objects.create(user=user, show=tmdb_stale)
         UserShow.objects.create(user=user, show=ended_stale)
         UserShow.objects.create(user=user, show=continuing_fresh)
         UserShow.objects.create(user=user, show=ended_fresh)
-        sync_show.defer.side_effect = [41, 42]
+        sync_show.defer.side_effect = [41, 42, 43]
 
         result = sync_tv.func()
 
-        self.assertEqual(result, [41, 42])
+        self.assertEqual(result, [41, 42, 43])
         self.assertCountEqual(
             [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
-            [continuing_stale.id, ended_stale.id],
+            [continuing_stale.id, ended_stale.id, tmdb_stale.id],
         )
         self.assertNotIn(
             untracked_stale.id,
@@ -186,20 +225,25 @@ class TVTranslationTaskTests(TransactionTestCase):
         )
 
     @patch("apps.tv.tasks.sync_show")
-    def test_sync_tv_force_all_enqueues_every_tvdb_show(self, sync_show):
+    def test_sync_tv_force_all_enqueues_every_supported_provider_show(self, sync_show):
         from apps.tv.tasks import sync_tv
 
         first = Show.objects.create(external_id="1", name="Tracked")
         second = Show.objects.create(external_id="2", name="Untracked")
+        alternate = Show.objects.create(
+            provider="tmdb",
+            external_id="4",
+            name="TMDB show",
+        )
         Show.objects.create(provider="other", external_id="3", name="Other provider")
-        sync_show.defer.side_effect = [41, 42]
+        sync_show.defer.side_effect = [41, 42, 43]
 
         result = sync_tv.func(force_all=True)
 
-        self.assertEqual(result, [41, 42])
+        self.assertEqual(result, [41, 42, 43])
         self.assertCountEqual(
             [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
-            [first.id, second.id],
+            [first.id, second.id, alternate.id],
         )
 
     @patch("apps.tv.tasks.sync_tv")

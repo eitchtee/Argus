@@ -38,31 +38,105 @@ class TVDBProvider(BaseProvider):
         *,
         language: str,
         page: int = 1,
+        media_type: str = "tv",
     ) -> list[SearchResultDTO]:
+        if media_type not in {"movie", "tv"}:
+            raise ValueError(f"Unsupported media type: {media_type}")
+
         payload = self._get_json(
             "/search",
             params={
                 "query": query,
-                "type": "series",
-                "language": language,
+                "type": "series" if media_type == "tv" else "movie",
                 # TVDB's /search endpoint is 0-indexed, unlike our 1-indexed UI pages.
                 "page": page - 1,
             },
         )
 
-        return [
-            SearchResultDTO(
-                provider=self.name,
-                external_id=str(item.get("tvdb_id") or item.get("id")),
-                title=item.get("name") or "",
-                year=self._int_or_none(item.get("year")),
-                poster_url=item.get("image_url") or item.get("image"),
-                overview=item.get("overview") or "",
+        results = []
+        for item in payload.get("data", []):
+            item = self._localize_search_item(
+                item,
+                language=language,
+                media_type=media_type,
             )
-            for item in payload.get("data", [])
-        ]
+            results.append(
+                SearchResultDTO(
+                    provider=self.name,
+                    external_id=str(
+                        item.get("tvdb_id")
+                        or item.get("movie_id")
+                        or item.get("id")
+                    ),
+                    title=item.get("name") or "",
+                    year=self._int_or_none(item.get("year")),
+                    poster_url=item.get("image_url") or item.get("image"),
+                    overview=item.get("overview") or "",
+                )
+            )
+        return results
 
-    def fetch_detail(self, external_id: str, *, language: str) -> DetailDTO:
+    def _localize_search_item(
+        self,
+        item: dict,
+        *,
+        language: str,
+        media_type: str,
+    ) -> dict:
+        external_id = item.get("tvdb_id") or item.get("movie_id") or item.get("id")
+        if not external_id:
+            return item
+
+        entity = "series" if media_type == "tv" else "movies"
+        translated = self._search_translation(
+            entity,
+            external_id,
+            language,
+        )
+
+        if language != "eng" and (
+            not translated.get("name") or not translated.get("overview")
+        ):
+            english = self._search_translation(entity, external_id, "eng")
+            translated = {
+                **english,
+                **{key: value for key, value in translated.items() if value},
+            }
+
+        return {
+            **item,
+            "name": translated.get("name") or item.get("name"),
+            "overview": translated.get("overview") or item.get("overview"),
+        }
+
+    def _search_translation(
+        self,
+        entity: str,
+        external_id: object,
+        language: str,
+    ) -> dict:
+        try:
+            payload = self._get_json(
+                f"/{entity}/{external_id}/translations/{language}"
+            )
+        except NotFound:
+            return {}
+
+        translation = payload.get("data") or {}
+        return translation if isinstance(translation, dict) else {}
+
+    def fetch_detail(
+        self,
+        external_id: str,
+        *,
+        language: str,
+        media_type: str = "tv",
+    ) -> DetailDTO:
+        if media_type == "movie":
+            return self._fetch_movie_detail(external_id, language=language)
+        if media_type != "tv":
+            raise ValueError(f"Unsupported media type: {media_type}")
+
         payload = self._fetch_series_extended(external_id)
         data = payload.get("data", {})
         status = data.get("status") or {}
@@ -107,6 +181,56 @@ class TVDBProvider(BaseProvider):
                 GenreDTO(
                     provider=self.name,
                     external_id=str(genre["id"]),
+                    name=genre.get("name") or "",
+                    translations=(
+                        {"eng": {"name": genre["name"]}}
+                        if genre.get("name")
+                        else {}
+                    ),
+                )
+                for genre in data.get("genres", [])
+            ],
+            translations={code: values for code, values in translations.items() if values},
+        )
+
+    def _fetch_movie_detail(self, external_id: str, *, language: str) -> DetailDTO:
+        payload = self._get_json(
+            f"/movies/{external_id}/extended",
+            params={"meta": "translations"},
+        )
+        data = payload.get("data") or {}
+        status = data.get("status") or {}
+        status_name = status.get("name") if isinstance(status, dict) else status
+        translations = {
+            "eng": self._non_empty_values(
+                title=data.get("name"),
+                overview=data.get("overview"),
+                tagline=data.get("tagline"),
+            )
+        }
+
+        return DetailDTO(
+            provider=self.name,
+            external_id=str(data.get("id") or external_id),
+            title=data.get("name") or "",
+            original_title=data.get("name") or "",
+            overview=data.get("overview") or "",
+            tagline=data.get("tagline") or "",
+            poster_path=self._artwork_url(data.get("image")),
+            backdrop_path=self._backdrop_from_artworks(data),
+            release_date=data.get("releaseDate") or data.get("firstAired") or None,
+            runtime=data.get("runtime") or data.get("runtimeMinutes"),
+            status=status_name or "",
+            vote_average=data.get("score"),
+            vote_count=data.get("voteCount"),
+            imdb_id=self._imdb_id_from_remote_ids(data),
+            tmdb_id=self._tmdb_id_from_remote_ids(data),
+            trailer_url=self._trailer_from_data(data),
+            cast=self._cast_from_characters(data),
+            genres=[
+                GenreDTO(
+                    provider=self.name,
+                    external_id=str(genre.get("id")),
                     name=genre.get("name") or "",
                     translations=(
                         {"eng": {"name": genre["name"]}}

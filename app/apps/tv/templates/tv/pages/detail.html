@@ -79,7 +79,7 @@
 
   <div class="flex flex-col gap-3 mt-6">
     {% for season in show.seasons %}
-    {% include "tv/fragments/season.html" with show_external_id=show.external_id %}
+    {% include "tv/fragments/season.html" with show_external_id=show.external_id show_provider=show.provider %}
     {% endfor %}
   </div>
 </div>

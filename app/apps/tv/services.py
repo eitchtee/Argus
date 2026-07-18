@@ -8,7 +8,11 @@ from django.db.models import Count, Max, Q
 from django.utils import timezone
 
 from apps.catalog.models import Genre, SyncStatus
-from apps.catalog.localization import merge_translation_maps
+from apps.catalog.localization import (
+    PROVIDER_DEFAULT_LANGUAGES,
+    merge_translation_maps,
+    metadata_language_for_user,
+)
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
@@ -17,40 +21,61 @@ from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 def import_show(
     external_id: str,
     *,
-    language: str = "eng",
+    language: str | None = None,
+    provider: str = "tvdb",
     provider_getter=get_provider,
     base_detail=None,
     base_episodes=None,
     base_seasons=None,
 ) -> Show:
-    provider = "tvdb"
+    if provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    default_language = PROVIDER_DEFAULT_LANGUAGES[provider]
+    language = language or default_language
     provider_client = provider_getter(provider)
 
     try:
         detail = (
             base_detail
             if base_detail is not None
-            else provider_client.fetch_detail(external_id, language=language)
+            else provider_client.fetch_detail(
+                external_id,
+                language=language,
+                media_type="tv",
+            )
         )
         episodes = (
             base_episodes
             if base_episodes is not None
-            else provider_client.fetch_episodes(external_id, language="eng")
+            else provider_client.fetch_episodes(
+                external_id,
+                language=default_language,
+            )
         )
         season_details = (
             base_seasons
             if base_seasons is not None
-            else provider_client.fetch_seasons(external_id, language="eng")
+            else provider_client.fetch_seasons(
+                external_id,
+                language=default_language,
+            )
         )
         selected_episodes = (
             episodes
-            if language == "eng"
-            else provider_client.fetch_episodes(external_id, language=language)
+            if language == default_language
+            else provider_client.fetch_episodes(
+                external_id,
+                language=language,
+            )
         )
         selected_seasons = (
             season_details
-            if language == "eng"
-            else provider_client.fetch_seasons(external_id, language=language)
+            if language == default_language
+            else provider_client.fetch_seasons(
+                external_id,
+                language=language,
+            )
         )
     except ProviderError:
         Show.objects.filter(provider=provider, external_id=external_id).update(
@@ -207,19 +232,31 @@ def hydrate_show_translations_sync(show_id: int) -> Show:
     failures = []
     result = show
     try:
-        detail = provider.fetch_detail(show.external_id, language="eng")
-        base_episodes = provider.fetch_episodes(show.external_id, language="eng")
-        base_seasons = provider.fetch_seasons(show.external_id, language="eng")
+        default_language = PROVIDER_DEFAULT_LANGUAGES[show.provider]
+        detail = provider.fetch_detail(
+            show.external_id,
+            language=default_language,
+            media_type="tv",
+        )
+        base_episodes = provider.fetch_episodes(
+            show.external_id,
+            language=default_language,
+        )
+        base_seasons = provider.fetch_seasons(
+            show.external_id,
+            language=default_language,
+        )
     except ProviderError:
         Show.objects.filter(id=show.id).update(sync_status=SyncStatus.ERROR)
         raise
-    languages = dict.fromkeys(["eng", *detail.translations])
+    languages = dict.fromkeys([default_language, *detail.translations])
 
     for language in languages:
         try:
             result = import_show(
                 show.external_id,
                 language=language,
+                provider=show.provider,
                 provider_getter=lambda _name: provider,
                 base_detail=detail,
                 base_episodes=base_episodes,
@@ -240,12 +277,17 @@ def track_show(
     user,
     external_id: str,
     *,
+    provider: str = "tvdb",
     import_func=import_show,
     hydrate_func=None,
 ) -> UserShow:
+    if provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {provider}")
+
     show = import_func(
         external_id,
-        language=user.settings.tvdb_metadata_language,
+        provider=provider,
+        language=metadata_language_for_user(user, provider),
     )
     user_show, created = UserShow.objects.get_or_create(user=user, show=show)
     if not created and user_show.status == UserShow.Status.TRACKED:

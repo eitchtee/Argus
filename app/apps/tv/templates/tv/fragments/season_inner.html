@@ -10,7 +10,7 @@
     </div>
     {% if season.tracked and season.aired_count > 0 %}
     <div class="tooltip tooltip-left" data-tip="{% if season.fully_watched %}{% trans 'Mark season unwatched' %}{% else %}{% trans 'Mark season watched' %}{% endif %}" @click.stop><input type="checkbox" aria-label="{% if season.fully_watched %}{% trans 'Mark season unwatched' %}{% else %}{% trans 'Mark season watched' %}{% endif %}" class="checkbox checkbox-primary checkbox-md" {% if season.fully_watched %}checked{% endif %}
-            hx-{% if season.fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-season-watched' external_id=show_external_id season_id=season.id %}"
+            hx-{% if season.fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-season-watched' external_id=show_external_id season_id=season.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
             hx-target="#season-{{ season.id }}" hx-swap="outerHTML" hx-disabled-elt="this"
             hx-trigger="change"></div>
     {% endif %}
@@ -22,13 +22,13 @@
         {% if season.tracked %}
         <input type="checkbox" class="checkbox checkbox-sm"
                {% if episode.watched %}checked{% endif %}
-               hx-{% if episode.watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-episode-watched' external_id=show_external_id episode_id=episode.id %}"
+               hx-{% if episode.watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-episode-watched' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
                hx-trigger="change" hx-target="#season-{{ season.id }}" hx-swap="outerHTML" hx-disabled-elt="this">
         {% else %}
         <i class="fa-solid {% if episode.aired %}fa-check text-success{% else %}fa-clock text-subtle{% endif %}"></i>
         {% endif %}
         {% if episode.id %}
-        <a href="{% url 'tv-episode-detail' external_id=show_external_id episode_id=episode.id %}" class="text-sm link link-hover">{{ episode.episode_number }}. {{ episode.name }}</a>
+        <a href="{% url 'tv-episode-detail' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" class="text-sm link link-hover">{{ episode.episode_number }}. {{ episode.name }}</a>
         {% else %}
         <span class="text-sm">{{ episode.episode_number }}. {{ episode.name }}</span>
         {% endif %}

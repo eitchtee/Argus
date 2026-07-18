@@ -6,11 +6,13 @@ from django.views.decorators.http import require_http_methods
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 from apps.catalog.localization import (
     LocalizedRecord,
+    PROVIDER_DEFAULT_LANGUAGES,
     metadata_language_for_user,
     resolve_field,
     resolve_from_map,
 )
 from apps.catalog.services import get_movie_detail
+from apps.catalog.services import SUPPORTED_PROVIDERS
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.movies.models import Movie, UserMovie
@@ -30,7 +32,8 @@ from apps.movies.tasks import hydrate_movie_translations
 @htmx_login_required
 @require_http_methods(["GET"])
 def movie_detail(request, external_id):
-    context = {"movie": _build_movie_context(request.user, external_id)}
+    provider = _provider_from_request(request, "tmdb")
+    context = {"movie": _build_movie_context(request.user, external_id, provider)}
     return render(request, "movies/pages/detail.html", context)
 
 
@@ -42,7 +45,10 @@ def movie_watchlist(request):
         "movies/pages/watchlist.html",
         {
             "movies": [
-                LocalizedRecord(movie, metadata_language_for_user(request.user, "tmdb"))
+                LocalizedRecord(
+                    movie,
+                    metadata_language_for_user(request.user, movie.provider),
+                )
                 for movie in get_watchlist_movies(request.user)
             ]
         },
@@ -57,7 +63,10 @@ def movie_watched_list(request):
         "movies/pages/watched.html",
         {
             "movies": [
-                LocalizedRecord(movie, metadata_language_for_user(request.user, "tmdb"))
+                LocalizedRecord(
+                    movie,
+                    metadata_language_for_user(request.user, movie.provider),
+                )
                 for movie in get_watched_movies(request.user)
             ]
         },
@@ -71,15 +80,17 @@ def movie_track(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
+    provider = _provider_from_request(request, "tmdb")
     if request.method == "POST":
-        user_movie = track_movie(request.user, "tmdb", external_id)
+        user_movie = track_movie(request.user, provider, external_id)
         movie_state = {
             "external_id": user_movie.movie.external_id,
+            "provider": user_movie.movie.provider,
             "on_watchlist": user_movie.on_watchlist,
             "is_seen": user_movie.is_seen,
         }
     else:
-        movie = Movie.objects.filter(provider="tmdb", external_id=external_id).first()
+        movie = Movie.objects.filter(provider=provider, external_id=external_id).first()
         is_seen = False
         if movie is not None:
             user_movie = remove_from_watchlist(request.user, movie)
@@ -87,6 +98,7 @@ def movie_track(request, external_id):
                 is_seen = user_movie.is_seen
         movie_state = {
             "external_id": external_id,
+            "provider": provider,
             "on_watchlist": False,
             "is_seen": is_seen,
         }
@@ -101,10 +113,11 @@ def movie_watched(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
+    provider = _provider_from_request(request, "tmdb")
     movie = import_movie(
-        "tmdb",
+        provider,
         external_id,
-        language=metadata_language_for_user(request.user, "tmdb"),
+        language=metadata_language_for_user(request.user, provider),
     )
     hydrate_movie_translations.defer(movie_id=movie.id)
     if request.method == "POST":
@@ -114,6 +127,7 @@ def movie_watched(request, external_id):
 
     movie_state = {
         "external_id": movie.external_id,
+        "provider": movie.provider,
         "on_watchlist": user_movie.on_watchlist,
         "is_seen": user_movie.is_seen,
     }
@@ -127,7 +141,8 @@ def movie_delete(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
-    movie = Movie.objects.filter(provider="tmdb", external_id=external_id).first()
+    provider = _provider_from_request(request, "tmdb")
+    movie = Movie.objects.filter(provider=provider, external_id=external_id).first()
     if movie is not None:
         delete_movie_data(request.user, movie)
 
@@ -137,6 +152,7 @@ def movie_delete(request, external_id):
         {
             "movie": {
                 "external_id": external_id,
+                "provider": provider,
                 "on_watchlist": False,
                 "is_seen": False,
             }
@@ -144,14 +160,15 @@ def movie_delete(request, external_id):
     )
 
 
-def _build_movie_context(user, external_id):
-    language = metadata_language_for_user(user, "tmdb")
-    movie = Movie.objects.filter(provider="tmdb", external_id=external_id).first()
+def _build_movie_context(user, external_id, provider="tmdb"):
+    language = metadata_language_for_user(user, provider)
+    movie = Movie.objects.filter(provider=provider, external_id=external_id).first()
 
     if movie is not None:
         user_movie = UserMovie.objects.filter(user=user, movie=movie).first()
         return {
             "external_id": movie.external_id,
+            "provider": movie.provider,
             "title": resolve_field(movie, "title", language),
             "year": movie.release_date.year if movie.release_date else None,
             "release_date": movie.release_date,
@@ -171,10 +188,15 @@ def _build_movie_context(user, external_id):
             "is_seen": user_movie.is_seen if user_movie else False,
         }
 
-    detail = get_movie_detail(external_id, language=language)
-    default_language = "en-US"
+    detail = get_movie_detail(
+        external_id,
+        language=language,
+        provider=provider,
+    )
+    default_language = PROVIDER_DEFAULT_LANGUAGES[provider]
     return {
         "external_id": detail.external_id,
+        "provider": provider,
         "title": resolve_from_map(
             detail.translations, "title", language, default_language, detail.title
         ),
@@ -211,6 +233,11 @@ def _build_movie_context(user, external_id):
         "on_watchlist": False,
         "is_seen": False,
     }
+
+
+def _provider_from_request(request, default):
+    provider = request.GET.get("provider", default).strip().lower()
+    return provider if provider in SUPPORTED_PROVIDERS else default
 
 
 def _year_from_iso_date(value):

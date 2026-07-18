@@ -21,8 +21,8 @@ class FakeProvider:
         self.episode_calls = []
         self.season_calls = []
 
-    def fetch_detail(self, external_id, *, language):
-        self.detail_calls.append((external_id, language))
+    def fetch_detail(self, external_id, *, language, media_type="tv"):
+        self.detail_calls.append((external_id, language, media_type))
         if self.detail_error:
             raise self.detail_error
         return self.detail
@@ -140,7 +140,7 @@ class ShowImportTests(TestCase):
 
         show = import_show("121361", provider_getter=lambda provider_name: provider)
 
-        self.assertEqual(provider.detail_calls, [("121361", "eng")])
+        self.assertEqual(provider.detail_calls, [("121361", "eng", "tv")])
         self.assertEqual(provider.episode_calls, [("121361", "eng")])
         self.assertEqual(show.provider, "tvdb")
         self.assertEqual(show.external_id, "121361")
@@ -256,3 +256,27 @@ class ShowImportTests(TestCase):
         self.assertEqual(show.name, "Game of Thrones")
         self.assertEqual(show.sync_status, SyncStatus.ERROR)
         self.assertIsNone(show.last_synced_at)
+
+    def test_import_show_supports_tmdb_provider_metadata(self):
+        provider = FakeProvider(
+            detail=show_detail(
+                provider="tmdb",
+                external_id="1399",
+                poster_path="/poster.jpg",
+                genres=[GenreDTO(provider="tmdb", external_id="18", name="Drama")],
+            ),
+            episodes=[episode()],
+            seasons=[],
+        )
+
+        show = import_show(
+            "1399",
+            provider="tmdb",
+            language="en-US",
+            provider_getter=lambda provider_name: provider,
+        )
+
+        self.assertEqual(show.provider, "tmdb")
+        self.assertEqual(show.external_id, "1399")
+        self.assertEqual(provider.detail_calls, [("1399", "en-US", "tv")])
+        self.assertEqual(show.genres.get().provider, "tmdb")

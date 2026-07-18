@@ -80,6 +80,44 @@ class ShowDetailViewTests(TestCase):
         self.assertNotContains(response, "checkbox-sm")
         self.assertFalse(Show.objects.filter(external_id="123").exists())
 
+    @patch("apps.tv.views.get_show_seasons")
+    @patch("apps.tv.views.get_show_episodes")
+    @patch("apps.tv.views.get_show_detail")
+    def test_preview_uses_requested_provider_and_language(
+        self,
+        get_show_detail_mock,
+        get_show_episodes_mock,
+        get_show_seasons_mock,
+    ):
+        get_show_detail_mock.return_value = DetailDTO(
+            provider="tmdb",
+            external_id="1399",
+            title="Game of Thrones",
+        )
+        get_show_episodes_mock.return_value = []
+        get_show_seasons_mock.return_value = []
+        self.user.settings.tmdb_metadata_language = "en-US"
+        self.user.settings.save()
+
+        response = self.client.get("/tv/1399/?provider=tmdb")
+
+        self.assertEqual(response.status_code, 200)
+        get_show_detail_mock.assert_called_once_with(
+            "1399",
+            language="en-US",
+            provider="tmdb",
+        )
+        get_show_episodes_mock.assert_called_once_with(
+            "1399",
+            language="en-US",
+            provider="tmdb",
+        )
+        get_show_seasons_mock.assert_called_once_with(
+            "1399",
+            language="en-US",
+            provider="tmdb",
+        )
+
     def test_renders_from_db_when_show_already_imported_by_any_user(self):
         other_user = get_user_model().objects.create_user("other@example.com")
         show = Show.objects.create(
@@ -243,8 +281,18 @@ class ShowTrackViewTests(TestCase):
     def test_post_tracks_show_and_redirects(self, track_show_mock):
         response = self.client.post("/tv/123/track/", HTTP_HX_REQUEST="true")
 
-        track_show_mock.assert_called_once_with(self.user, "123")
+        track_show_mock.assert_called_once_with(self.user, "123", provider="tvdb")
         self.assertEqual(response["HX-Redirect"], "/tv/123/")
+
+    @patch("apps.tv.views.track_show")
+    def test_post_tracks_show_with_requested_provider(self, track_show_mock):
+        response = self.client.post(
+            "/tv/1399/track/?provider=tmdb",
+            HTTP_HX_REQUEST="true",
+        )
+
+        track_show_mock.assert_called_once_with(self.user, "1399", provider="tmdb")
+        self.assertEqual(response["HX-Redirect"], "/tv/1399/?provider=tmdb")
 
     @patch("apps.tv.views.track_show")
     def test_demo_mode_blocks_non_superusers(self, track_show_mock):

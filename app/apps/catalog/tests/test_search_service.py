@@ -7,16 +7,15 @@ from apps.catalog.services import search
 
 
 class FakeProvider:
-    name = "tmdb"
-
-    def __init__(self):
+    def __init__(self, name="tmdb"):
+        self.name = name
         self.calls = []
 
-    def search(self, query, *, language, page=1):
-        self.calls.append((query, language, page))
+    def search(self, query, *, language, page=1, media_type="movie"):
+        self.calls.append((query, language, page, media_type))
         return [
             SearchResultDTO(
-                provider="tmdb",
+                provider=self.name,
                 external_id="550",
                 title="Fight Club",
                 year=1999,
@@ -45,7 +44,7 @@ class SearchServiceTests(TestCase):
             provider_getter=lambda name: provider,
         )
 
-        self.assertEqual(provider.calls, [("Fight Club", "en-US", 2)])
+        self.assertEqual(provider.calls, [("Fight Club", "en-US", 2, "movie")])
         self.assertEqual(results[0].external_id, "550")
         self.assertEqual(Genre.objects.count(), before_count)
 
@@ -67,7 +66,7 @@ class SearchServiceTests(TestCase):
             provider_getter=lambda name: provider,
         )
 
-        self.assertEqual(provider.calls, [("Fight Club", "en-US", 1)])
+        self.assertEqual(provider.calls, [("Fight Club", "en-US", 1, "movie")])
         self.assertEqual(second_results, first_results)
 
     def test_search_cache_is_isolated_by_language(self):
@@ -78,7 +77,10 @@ class SearchServiceTests(TestCase):
 
         self.assertEqual(
             provider.calls,
-            [("Fight Club", "en-US", 1), ("Fight Club", "pt-BR", 1)],
+            [
+                ("Fight Club", "en-US", 1, "movie"),
+                ("Fight Club", "pt-BR", 1, "movie"),
+            ],
         )
 
     def test_search_maps_tv_type_to_tvdb_provider(self):
@@ -92,6 +94,62 @@ class SearchServiceTests(TestCase):
         search("Game of Thrones", media_type="tv", language="eng", provider_getter=provider_getter)
 
         self.assertEqual(seen_provider_names, ["tvdb"])
+
+    def test_search_uses_explicit_provider_for_any_media_type(self):
+        provider = FakeProvider("tvdb")
+        seen_provider_names = []
+
+        def provider_getter(name):
+            seen_provider_names.append(name)
+            return provider
+
+        results = search(
+            "Fight Club",
+            media_type="movie",
+            provider="tvdb",
+            language="eng",
+            provider_getter=provider_getter,
+        )
+
+        self.assertEqual(seen_provider_names, ["tvdb"])
+        self.assertEqual(provider.calls, [("Fight Club", "eng", 1, "movie")])
+        self.assertEqual(results[0].provider, "tvdb")
+
+    def test_search_cache_isolated_by_media_type_when_provider_is_same(self):
+        provider = FakeProvider("tmdb")
+
+        search(
+            "The Office",
+            media_type="movie",
+            provider="tmdb",
+            language="en-US",
+            provider_getter=lambda name: provider,
+        )
+        search(
+            "The Office",
+            media_type="tv",
+            provider="tmdb",
+            language="en-US",
+            provider_getter=lambda name: provider,
+        )
+
+        self.assertEqual(
+            provider.calls,
+            [
+                ("The Office", "en-US", 1, "movie"),
+                ("The Office", "en-US", 1, "tv"),
+            ],
+        )
+
+    def test_search_rejects_unknown_provider(self):
+        with self.assertRaisesMessage(ValueError, "Unsupported provider"):
+            search(
+                "Naruto",
+                media_type="tv",
+                provider="other",
+                language="eng",
+                provider_getter=lambda name: FakeProvider(),
+            )
 
     def test_search_rejects_unsupported_media_type(self):
         with self.assertRaisesMessage(ValueError, "Unsupported search type"):

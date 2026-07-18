@@ -56,8 +56,54 @@ class SearchAPITests(TestCase):
             },
         )
         catalog_search.assert_called_once_with(
-            "Fight Club", media_type="movie", language="pt-BR", page=1
+            "Fight Club",
+            media_type="movie",
+            language="pt-BR",
+            page=1,
+            provider="tmdb",
         )
+
+    @patch("apps.catalog.api.catalog_search")
+    def test_search_accepts_explicit_provider(self, catalog_search):
+        catalog_search.return_value = [
+            SearchResultDTO(
+                provider="tvdb",
+                external_id="42",
+                title="A Movie",
+                year=2020,
+                poster_url=None,
+                overview="Overview",
+            )
+        ]
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            "/api/search",
+            {"q": "A Movie", "type": "movie", "provider": "tvdb"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["results"][0]["provider"], "tvdb")
+        catalog_search.assert_called_once_with(
+            "A Movie",
+            media_type="movie",
+            language="eng",
+            page=1,
+            provider="tvdb",
+        )
+
+    @patch("apps.catalog.api.catalog_search")
+    def test_search_rejects_unknown_provider(self, catalog_search):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            "/api/search",
+            {"q": "Fight Club", "type": "movie", "provider": "other"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["provider"], ['Must be "tmdb" or "tvdb".'])
+        catalog_search.assert_not_called()
 
     def test_search_requires_query(self):
         self.client.force_authenticate(self.user)

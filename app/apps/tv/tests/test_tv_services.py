@@ -18,8 +18,8 @@ class TrackShowServiceTests(TestCase):
         import_calls = []
         hydration_calls = []
 
-        def import_func(external_id, *, language):
-            import_calls.append((external_id, language))
+        def import_func(external_id, *, language, provider="tvdb"):
+            import_calls.append((provider, external_id, language))
             return show
 
         user_show = track_show(
@@ -29,7 +29,7 @@ class TrackShowServiceTests(TestCase):
             hydrate_func=hydration_calls.append,
         )
 
-        self.assertEqual(import_calls, [("123", "por")])
+        self.assertEqual(import_calls, [("tvdb", "123", "por")])
         self.assertEqual(hydration_calls, [show.id])
         self.assertEqual(user_show.user, self.user)
         self.assertEqual(user_show.show, show)
@@ -43,7 +43,7 @@ class TrackShowServiceTests(TestCase):
         user_show = track_show(
             self.user,
             "123",
-            import_func=lambda external_id, *, language: show,
+            import_func=lambda external_id, *, language, provider="tvdb": show,
             hydrate_func=lambda _show_id: None,
         )
 
@@ -57,17 +57,37 @@ class TrackShowServiceTests(TestCase):
         track_show(
             self.user,
             "123",
-            import_func=lambda external_id, *, language: show,
+            import_func=lambda external_id, *, language, provider="tvdb": show,
             hydrate_func=hydration_calls.append,
         )
         track_show(
             self.user,
             "123",
-            import_func=lambda external_id, *, language: show,
+            import_func=lambda external_id, *, language, provider="tvdb": show,
             hydrate_func=hydration_calls.append,
         )
 
         self.assertEqual(hydration_calls, [show.id])
+
+    def test_track_show_uses_the_selected_provider_language(self):
+        show = Show.objects.create(provider="tmdb", external_id="1399", name="Foo")
+        self.user.settings.tmdb_metadata_language = "pt-BR"
+        self.user.settings.save()
+        import_calls = []
+
+        def import_func(external_id, *, language, provider="tvdb"):
+            import_calls.append((provider, external_id, language))
+            return show
+
+        track_show(
+            self.user,
+            "1399",
+            provider="tmdb",
+            import_func=import_func,
+            hydrate_func=lambda _show_id: None,
+        )
+
+        self.assertEqual(import_calls, [("tmdb", "1399", "pt-BR")])
 
 
 class DropShowServiceTests(TestCase):

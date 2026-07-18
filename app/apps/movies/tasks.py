@@ -4,6 +4,7 @@ from django.utils import timezone
 from procrastinate.contrib.django import app
 
 from apps.catalog.models import SyncStatus
+from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.movies import services as movie_services
@@ -43,7 +44,7 @@ def sync_movie(movie_id: int):
         imported_movie = movie_services.import_movie(
             movie.provider,
             movie.external_id,
-            language="en-US",
+            language=PROVIDER_DEFAULT_LANGUAGES[movie.provider],
         )
         translation_task_id = hydrate_movie_translations.defer(movie_id=imported_movie.id)
         return {
@@ -58,14 +59,19 @@ def sync_movie(movie_id: int):
 @app.task(name="sync_movies")
 def sync_movies(force_all: bool = False):
     if force_all:
-        movie_ids = Movie.objects.filter(provider="tmdb").values_list("id", flat=True)
+        movie_ids = Movie.objects.filter(
+            provider__in=PROVIDER_DEFAULT_LANGUAGES,
+        ).values_list("id", flat=True)
     else:
         cutoff = timezone.now() - timezone.timedelta(
             days=settings.CATALOG_MOVIE_SYNC_INTERVAL_DAYS,
         )
         tracked_movie_ids = UserMovie.objects.values_list("movie_id", flat=True).distinct()
         movie_ids = (
-            Movie.objects.filter(provider="tmdb", id__in=tracked_movie_ids)
+            Movie.objects.filter(
+                provider__in=PROVIDER_DEFAULT_LANGUAGES,
+                id__in=tracked_movie_ids,
+            )
             .filter(Q(last_synced_at__isnull=True) | Q(last_synced_at__lte=cutoff))
             .values_list("id", flat=True)
         )

@@ -117,7 +117,7 @@ class MovieTrackAPIView(APIView):
     @extend_schema(
         request=TrackMovieRequestSerializer,
         responses={201: MovieStateSerializer, 400: ErrorResponseSerializer},
-        description="Track a TMDB movie for the current user and add it to their watchlist.",
+        description="Track a movie from the selected provider for the current user and add it to their watchlist.",
     )
     def post(self, request):
         serializer = TrackMovieRequestSerializer(data=request.data)

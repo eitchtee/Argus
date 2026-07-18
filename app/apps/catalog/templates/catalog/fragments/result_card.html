@@ -12,7 +12,7 @@
   </figure>
   <div class="card-body gap-2 p-4">
     <h3 class="card-title text-sm leading-tight">
-      <a href="{% if media_type == 'movie' %}{% url 'movie-detail' external_id=item.external_id %}{% else %}{% url 'tv-detail' external_id=item.external_id %}{% endif %}"
+      <a href="{% if media_type == 'movie' %}{% url 'movie-detail' external_id=item.external_id %}{% else %}{% url 'tv-detail' external_id=item.external_id %}{% endif %}?provider={{ item.provider }}"
          class="link link-hover">{{ item.title }}</a>
       {% if item.year %}<span class="text-subtle text-xs font-normal">({{ item.year }})</span>{% endif %}
     </h3>
@@ -24,6 +24,7 @@
             hx-disabled-elt="this">
         <input type="hidden" name="external_id" value="{{ item.external_id }}">
         <input type="hidden" name="type" value="{{ media_type }}">
+        <input type="hidden" name="provider" value="{{ item.provider }}">
         <input type="hidden" name="q" value="{{ query }}">
         <input type="hidden" name="page" value="{{ page }}">
         {% if item.already_tracked %}

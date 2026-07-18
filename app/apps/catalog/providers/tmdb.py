@@ -9,9 +9,11 @@ from apps.catalog.providers.base import (
     BaseProvider,
     CastMemberDTO,
     DetailDTO,
+    EpisodeDTO,
     GenreDTO,
     LanguageOptionDTO,
     SearchResultDTO,
+    SeasonDTO,
 )
 from apps.catalog.providers.exceptions import AuthError, NotFound, ProviderError, RateLimited
 
@@ -35,6 +37,7 @@ class TMDBProvider(BaseProvider):
         )
         self.opener = opener
         self.timeout = timeout
+        self._tv_summary_cache: dict[tuple[str, str], dict] = {}
 
     def search(
         self,
@@ -42,9 +45,15 @@ class TMDBProvider(BaseProvider):
         *,
         language: str,
         page: int = 1,
+        media_type: str = "movie",
     ) -> list[SearchResultDTO]:
+        if media_type not in {"movie", "tv"}:
+            raise ValueError(f"Unsupported media type: {media_type}")
+
+        title_field = "title" if media_type == "movie" else "name"
+        date_field = "release_date" if media_type == "movie" else "first_air_date"
         payload = self._get_json(
-            "/search/movie",
+            f"/search/{media_type}",
             {
                 "query": query,
                 "page": page,
@@ -56,40 +65,70 @@ class TMDBProvider(BaseProvider):
             SearchResultDTO(
                 provider=self.name,
                 external_id=str(item["id"]),
-                title=item.get("title") or "",
-                year=self._year_from_date(item.get("release_date")),
+                title=item.get(title_field) or "",
+                year=self._year_from_date(item.get(date_field)),
                 poster_url=self._poster_url(item.get("poster_path")),
                 overview=item.get("overview") or "",
             )
             for item in payload.get("results", [])
         ]
 
-    def fetch_detail(self, external_id: str, *, language: str) -> DetailDTO:
+    def fetch_detail(
+        self,
+        external_id: str,
+        *,
+        language: str,
+        media_type: str = "movie",
+    ) -> DetailDTO:
+        if media_type not in {"movie", "tv"}:
+            raise ValueError(f"Unsupported media type: {media_type}")
+
         payload = self._get_json(
-            f"/movie/{external_id}",
+            f"/{media_type}/{external_id}",
             {
                 "language": language,
                 "append_to_response": "credits,external_ids,videos,translations",
             },
         )
 
+        is_tv = media_type == "tv"
+        external_ids = payload.get("external_ids") or {}
+        episode_run_times = payload.get("episode_run_time") or []
+        average_runtime = episode_run_times[0] if episode_run_times else None
+        networks = payload.get("networks") or []
+        next_episode = payload.get("next_episode_to_air") or {}
+        last_episode = payload.get("last_episode_to_air") or {}
+
         return DetailDTO(
             provider=self.name,
             external_id=str(payload["id"]),
-            title=payload.get("title") or "",
-            original_title=payload.get("original_title") or "",
+            title=payload.get("title") or payload.get("name") or "",
+            original_title=(
+                payload.get("original_title")
+                or payload.get("original_name")
+                or ""
+            ),
             overview=payload.get("overview") or "",
             tagline=payload.get("tagline") or "",
             poster_path=payload.get("poster_path"),
             backdrop_path=payload.get("backdrop_path"),
-            release_date=payload.get("release_date") or None,
-            runtime=payload.get("runtime"),
+            release_date=(
+                payload.get("release_date")
+                or payload.get("first_air_date")
+                or None
+            ),
+            runtime=payload.get("runtime") or average_runtime,
             status=payload.get("status") or "",
             vote_average=payload.get("vote_average"),
             vote_count=payload.get("vote_count"),
-            imdb_id=payload.get("imdb_id"),
-            director=self._director_from_credits(payload),
+            imdb_id=payload.get("imdb_id") or external_ids.get("imdb_id"),
+            tmdb_id=str(payload["id"]) if is_tv else None,
+            network=networks[0].get("name") if networks else None,
+            director=None if is_tv else self._director_from_credits(payload),
             trailer_url=self._trailer_from_videos(payload),
+            average_runtime=average_runtime,
+            next_air_date=next_episode.get("air_date") or None,
+            last_air_date=last_episode.get("air_date") or None,
             cast=self._cast_from_credits(payload),
             genres=[
                 GenreDTO(
@@ -106,6 +145,61 @@ class TMDBProvider(BaseProvider):
             ],
             translations=self._translations_from_payload(payload),
         )
+
+    def fetch_seasons(self, external_id: str, *, language: str) -> list[SeasonDTO]:
+        payload = self._get_tv_summary(external_id, language)
+        return [
+            SeasonDTO(
+                season_number=season.get("season_number") or 0,
+                name=season.get("name") or "",
+                overview=season.get("overview") or "",
+                poster_path=season.get("poster_path"),
+                translations={
+                    language: {
+                        field: value
+                        for field, value in {
+                            "name": season.get("name"),
+                            "overview": season.get("overview"),
+                        }.items()
+                        if value
+                    }
+                },
+            )
+            for season in payload.get("seasons", [])
+        ]
+
+    def fetch_episodes(self, external_id: str, *, language: str) -> list[EpisodeDTO]:
+        summary = self._get_tv_summary(external_id, language)
+        episodes = []
+        for season in summary.get("seasons", []):
+            season_number = season.get("season_number")
+            payload = self._get_json(
+                f"/tv/{external_id}/season/{season_number}",
+                {"language": language},
+            )
+            for episode in payload.get("episodes", []):
+                episodes.append(
+                    EpisodeDTO(
+                        season_number=episode.get("season_number") or season_number or 0,
+                        episode_number=episode.get("episode_number") or 0,
+                        name=episode.get("name") or "",
+                        overview=episode.get("overview") or "",
+                        still_path=self._image_url(episode.get("still_path"), "w300"),
+                        air_date=episode.get("air_date") or None,
+                        runtime=episode.get("runtime"),
+                        translations={
+                            language: {
+                                field: value
+                                for field, value in {
+                                    "name": episode.get("name"),
+                                    "overview": episode.get("overview"),
+                                }.items()
+                                if value
+                            }
+                        },
+                    )
+                )
+        return episodes
 
     def list_languages(self) -> list[LanguageOptionDTO]:
         primary_tags = self._get_json("/configuration/primary_translations", {})
@@ -134,10 +228,11 @@ class TMDBProvider(BaseProvider):
             code = f"{language}-{region}" if region else language
             data = item.get("data") or {}
             values = {
-                field: data.get(field)
-                for field in ("title", "overview", "tagline")
-                if data.get(field)
+                "title": data.get("title") or data.get("name"),
+                "overview": data.get("overview"),
+                "tagline": data.get("tagline"),
             }
+            values = {field: value for field, value in values.items() if value}
             if values:
                 translations[code] = values
         return translations
@@ -202,13 +297,24 @@ class TMDBProvider(BaseProvider):
         raise ProviderError(f"TMDB request failed with HTTP {exc.code}.") from exc
 
     def _poster_url(self, poster_path: str | None) -> str | None:
-        if not poster_path:
-            return None
+        return self._image_url(poster_path, self.poster_size)
 
-        return (
-            f"{self.image_base_url.rstrip('/')}/{self.poster_size}/"
-            f"{poster_path.lstrip('/')}"
-        )
+    def _image_url(self, path: str | None, size: str) -> str | None:
+        if not path:
+            return None
+        if path.startswith(("http://", "https://")):
+            return path
+
+        return f"{self.image_base_url.rstrip('/')}/{size}/{path.lstrip('/')}"
+
+    def _get_tv_summary(self, external_id: str, language: str) -> dict:
+        cache_key = (external_id, language)
+        if cache_key not in self._tv_summary_cache:
+            self._tv_summary_cache[cache_key] = self._get_json(
+                f"/tv/{external_id}",
+                {"language": language},
+            )
+        return self._tv_summary_cache[cache_key]
 
     def _year_from_date(self, value: str | None) -> int | None:
         if not value:
@@ -223,6 +329,8 @@ class TMDBProvider(BaseProvider):
 def build_poster_url(poster_path: str | None) -> str | None:
     if not poster_path:
         return None
+    if poster_path.startswith(("http://", "https://")):
+        return poster_path
 
     base_url = settings.TMDB_IMAGE_BASE_URL
     return f"{base_url.rstrip('/')}/{TMDBProvider.poster_size}/{poster_path.lstrip('/')}"
@@ -231,6 +339,8 @@ def build_poster_url(poster_path: str | None) -> str | None:
 def build_profile_url(profile_path: str | None) -> str | None:
     if not profile_path:
         return None
+    if profile_path.startswith(("http://", "https://")):
+        return profile_path
 
     base_url = settings.TMDB_IMAGE_BASE_URL
     return f"{base_url.rstrip('/')}/w185/{profile_path.lstrip('/')}"
@@ -239,6 +349,8 @@ def build_profile_url(profile_path: str | None) -> str | None:
 def build_backdrop_url(backdrop_path: str | None) -> str | None:
     if not backdrop_path:
         return None
+    if backdrop_path.startswith(("http://", "https://")):
+        return backdrop_path
 
     base_url = settings.TMDB_IMAGE_BASE_URL
     return f"{base_url.rstrip('/')}/w1280/{backdrop_path.lstrip('/')}"

@@ -13,8 +13,8 @@ class FakeProvider:
         self.error = error
         self.calls = []
 
-    def fetch_detail(self, external_id, *, language):
-        self.calls.append((external_id, language))
+    def fetch_detail(self, external_id, *, language, media_type="movie"):
+        self.calls.append((external_id, language, media_type))
         if self.error:
             raise self.error
         return self.detail
@@ -90,7 +90,7 @@ class MovieImportTests(TestCase):
             provider_getter=lambda provider_name: provider,
         )
 
-        self.assertEqual(provider.calls, [("550", "en-US")])
+        self.assertEqual(provider.calls, [("550", "en-US", "movie")])
         self.assertEqual(movie.external_id, "550")
         self.assertEqual(movie.imdb_id, "tt0137523")
         self.assertEqual(movie.title, "Fight Club")
@@ -157,6 +157,28 @@ class MovieImportTests(TestCase):
         self.assertEqual(movie.sync_status, SyncStatus.ERROR)
         self.assertIsNone(movie.last_synced_at)
 
-    def test_import_rejects_non_tmdb_provider(self):
-        with self.assertRaisesMessage(ValueError, "Movies must use tmdb"):
-            import_movie("tvdb", "550", provider_getter=lambda provider_name: FakeProvider())
+    def test_import_movie_supports_tvdb_provider_metadata(self):
+        provider = FakeProvider(
+            movie_detail(
+                provider="tvdb",
+                external_id="42",
+                title="A Movie",
+                genres=[GenreDTO(provider="tvdb", external_id="1", name="Drama")],
+            )
+        )
+
+        movie = import_movie(
+            "tvdb",
+            "42",
+            language="eng",
+            provider_getter=lambda provider_name: provider,
+        )
+
+        self.assertEqual(movie.provider, "tvdb")
+        self.assertEqual(movie.external_id, "42")
+        self.assertEqual(provider.calls, [("42", "eng", "movie")])
+        self.assertEqual(movie.genres.get().provider, "tvdb")
+
+    def test_import_rejects_unknown_provider(self):
+        with self.assertRaisesMessage(ValueError, "Unsupported provider"):
+            import_movie("other", "550", provider_getter=lambda provider_name: FakeProvider())

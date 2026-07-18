@@ -90,7 +90,7 @@
             {% for event in cell.events %}
             {% if event.kind == "movie" %}
             <a class="calendar-event calendar-event--movie"
-               href="{% url 'movie-detail' external_id=event.external_id %}"
+               href="{% url 'movie-detail' external_id=event.external_id %}{% if event.provider != 'tmdb' %}?provider={{ event.provider }}{% endif %}"
                hx-get="{% url 'calendar-movie-detail' movie_id=event.movie_id %}"
                hx-target="#calendar-event-details-body" hx-swap="innerHTML"
                data-calendar-event
@@ -102,7 +102,7 @@
             </a>
             {% else %}
             <a class="calendar-event calendar-event--{{ event.status }}"
-               href="{% url 'tv-episode-detail' external_id=event.external_id episode_id=event.episode_id %}"
+               href="{% url 'tv-episode-detail' external_id=event.external_id episode_id=event.episode_id %}{% if event.provider != 'tvdb' %}?provider={{ event.provider }}{% endif %}"
                hx-get="{% url 'calendar-episode-detail' episode_id=event.episode_id %}"
                hx-target="#calendar-event-details-body" hx-swap="innerHTML"
                data-calendar-event
