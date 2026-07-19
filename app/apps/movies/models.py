@@ -8,6 +8,8 @@ from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 class Movie(ProviderBackedModel):
     provider = models.CharField(max_length=16, default="tmdb")
     imdb_id = models.CharField(max_length=32, null=True, blank=True)
+    tmdb_id = models.CharField(max_length=32, null=True, blank=True)
+    tvdb_id = models.CharField(max_length=32, null=True, blank=True)
     title = models.CharField(max_length=255)
     original_title = models.CharField(max_length=255, blank=True)
     overview = models.TextField(blank=True)
@@ -28,9 +30,12 @@ class Movie(ProviderBackedModel):
     class Meta(ProviderBackedModel.Meta):
         ordering = ("title",)
 
-    @property
-    def tmdb_id(self):
-        return self.external_id
+    def save(self, *args, **kwargs):
+        if self.provider == "tmdb" and not self.tmdb_id:
+            self.tmdb_id = self.external_id
+        if self.provider == "tvdb" and not self.tvdb_id:
+            self.tvdb_id = self.external_id
+        super().save(*args, **kwargs)
 
     @property
     def poster_url(self) -> str | None:

@@ -25,6 +25,8 @@ def movie_detail(**overrides):
         "provider": "tmdb",
         "external_id": "550",
         "imdb_id": "tt0137523",
+        "tmdb_id": "550",
+        "tvdb_id": "42",
         "title": "Fight Club",
         "original_title": "Fight Club",
         "overview": "Overview",
@@ -93,6 +95,8 @@ class MovieImportTests(TestCase):
         self.assertEqual(provider.calls, [("550", "en-US", "movie")])
         self.assertEqual(movie.external_id, "550")
         self.assertEqual(movie.imdb_id, "tt0137523")
+        self.assertEqual(movie.tmdb_id, "550")
+        self.assertEqual(movie.tvdb_id, "42")
         self.assertEqual(movie.title, "Fight Club")
         self.assertEqual(movie.release_date.isoformat(), "1999-10-15")
         self.assertEqual(movie.runtime, 139)
@@ -178,6 +182,25 @@ class MovieImportTests(TestCase):
         self.assertEqual(movie.external_id, "42")
         self.assertEqual(provider.calls, [("42", "eng", "movie")])
         self.assertEqual(movie.genres.get().provider, "tvdb")
+
+    def test_import_movie_refreshes_cross_provider_ids(self):
+        provider = FakeProvider(movie_detail(tvdb_id="42"))
+        movie = import_movie(
+            "tmdb",
+            "550",
+            provider_getter=lambda provider_name: provider,
+        )
+
+        provider.detail = movie_detail(tmdb_id="551", tvdb_id="43")
+        refreshed = import_movie(
+            "tmdb",
+            "550",
+            provider_getter=lambda provider_name: provider,
+        )
+
+        self.assertEqual(refreshed.id, movie.id)
+        self.assertEqual(refreshed.tmdb_id, "551")
+        self.assertEqual(refreshed.tvdb_id, "43")
 
     def test_import_rejects_unknown_provider(self):
         with self.assertRaisesMessage(ValueError, "Unsupported provider"):

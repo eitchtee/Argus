@@ -1,10 +1,20 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
-from apps.tv.services import delete_show_data, drop_show, pause_show, track_show
+from apps.catalog.models import SyncStatus, Tier
+from apps.tv.services import (
+    delete_show_data,
+    drop_show,
+    pause_show,
+    refresh_show,
+    switch_show_provider,
+    track_show,
+)
 
 
 class TrackShowServiceTests(TestCase):
@@ -88,6 +98,220 @@ class TrackShowServiceTests(TestCase):
         )
 
         self.assertEqual(import_calls, [("tmdb", "1399", "pt-BR")])
+
+    def test_track_show_rejects_match_already_tracked_on_other_provider(self):
+        source = Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            tmdb_id="1399",
+            name="Game of Thrones",
+        )
+        target = Show.objects.create(
+            provider="tmdb",
+            external_id="1399",
+            tvdb_id="121361",
+            name="Game of Thrones",
+        )
+        UserShow.objects.create(user=self.user, show=source)
+
+        with self.assertRaisesMessage(ValueError, "Tracked on another provider."):
+            track_show(
+                self.user,
+                "1399",
+                provider="tmdb",
+                import_func=lambda external_id, *, language, provider="tvdb": target,
+                hydrate_func=lambda _show_id: None,
+            )
+
+        self.assertFalse(UserShow.objects.filter(user=self.user, show=target).exists())
+
+    def test_refresh_show_marks_pending_and_enqueues_sync(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.PAUSED)
+        sync_calls = []
+
+        refreshed = refresh_show(self.user, show, sync_func=sync_calls.append)
+
+        self.assertEqual(refreshed.id, show.id)
+        self.assertEqual(refreshed.sync_status, SyncStatus.PENDING)
+        self.assertEqual(sync_calls, [show.id])
+
+    def test_refresh_show_rejects_untracked_show(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+
+        with self.assertRaisesMessage(ValueError, "Show is not tracked by this user."):
+            refresh_show(self.user, show, sync_func=lambda _show_id: None)
+
+    def test_switch_show_provider_moves_state_and_matching_watched_episodes(self):
+        source = Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            tmdb_id="1399",
+            name="Game of Thrones",
+        )
+        source_season = Season.objects.create(show=source, season_number=1, name="Season 1")
+        source_episode = Episode.objects.create(
+            show=source,
+            season=source_season,
+            season_number=1,
+            episode_number=1,
+            name="Winter Is Coming",
+        )
+        removed_episode = Episode.objects.create(
+            show=source,
+            season=source_season,
+            season_number=1,
+            episode_number=2,
+            name="The Kingsroad",
+        )
+        source_season_2 = Season.objects.create(show=source, season_number=2, name="Season 2")
+        removed_episode_2 = Episode.objects.create(
+            show=source,
+            season=source_season_2,
+            season_number=2,
+            episode_number=1,
+            name="The North Remembers",
+        )
+        target = Show.objects.create(
+            provider="tmdb",
+            external_id="1399",
+            tvdb_id="121361",
+            name="Game of Thrones",
+        )
+        target_season = Season.objects.create(show=target, season_number=1, name="Season 1")
+        target_episode = Episode.objects.create(
+            show=target,
+            season=target_season,
+            season_number=1,
+            episode_number=1,
+            name="Winter Is Coming",
+        )
+        other_user = get_user_model().objects.create_user("other@example.com")
+        UserShow.objects.create(
+            user=self.user,
+            show=source,
+            status=UserShow.Status.PAUSED,
+            tier=Tier.B,
+        )
+        UserShow.objects.create(user=other_user, show=source)
+        seen_at = timezone.now() - timedelta(days=4)
+        UserEpisode.objects.create(user=self.user, episode=source_episode, seen_at=seen_at)
+        UserEpisode.objects.create(user=self.user, episode=removed_episode)
+        UserEpisode.objects.create(user=self.user, episode=removed_episode_2)
+        sync_calls = []
+
+        switched = switch_show_provider(
+            self.user,
+            source_provider="tvdb",
+            source_external_id="121361",
+            target_provider="tmdb",
+            target_external_id="1399",
+            sync_func=sync_calls.append,
+        )
+
+        self.assertEqual(switched.id, target.id)
+        self.assertEqual(switched.sync_status, SyncStatus.PENDING)
+        moved = UserShow.objects.get(user=self.user, show=target)
+        self.assertEqual(moved.status, UserShow.Status.PAUSED)
+        self.assertEqual(moved.tier, Tier.B)
+        self.assertTrue(
+            UserEpisode.objects.filter(user=self.user, episode=target_episode).exists()
+        )
+        self.assertEqual(
+            UserEpisode.objects.get(user=self.user, episode=target_episode).seen_at,
+            seen_at,
+        )
+        self.assertFalse(
+            UserEpisode.objects.filter(user=self.user, episode=removed_episode).exists()
+        )
+        self.assertFalse(
+            UserEpisode.objects.filter(user=self.user, episode=removed_episode_2).exists()
+        )
+        self.assertEqual(sync_calls, [target.id])
+        self.assertFalse(UserShow.objects.filter(user=self.user, show=source).exists())
+        self.assertTrue(UserShow.objects.filter(user=other_user, show=source).exists())
+        self.assertTrue(Show.objects.filter(id=source.id).exists())
+
+    def test_switch_show_provider_clones_new_target_catalog(self):
+        source = Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            tmdb_id="1399",
+            name="Game of Thrones",
+        )
+        source_season = Season.objects.create(show=source, season_number=1, name="Season 1")
+        source_episode = Episode.objects.create(
+            show=source,
+            season=source_season,
+            season_number=1,
+            episode_number=1,
+            name="Winter Is Coming",
+        )
+        UserShow.objects.create(user=self.user, show=source)
+        UserEpisode.objects.create(user=self.user, episode=source_episode)
+
+        switched = switch_show_provider(
+            self.user,
+            source_provider="tvdb",
+            source_external_id="121361",
+            target_provider="tmdb",
+            target_external_id="1399",
+            sync_func=lambda _show_id: None,
+        )
+
+        target_episode = Episode.objects.get(
+            show=switched,
+            season_number=1,
+            episode_number=1,
+        )
+        self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=target_episode).exists())
+        self.assertEqual(switched.seasons.count(), 1)
+        self.assertEqual(switched.episodes.count(), 1)
+
+    def test_switch_show_provider_preserves_tmdb_poster_url_until_sync(self):
+        source = Show.objects.create(
+            provider="tmdb",
+            external_id="1399",
+            tvdb_id="121361",
+            name="Game of Thrones",
+            poster_path="/tmdb-poster.jpg",
+        )
+        UserShow.objects.create(user=self.user, show=source)
+
+        with override_settings(TMDB_IMAGE_BASE_URL="https://image.tmdb.org/t/p/"):
+            switched = switch_show_provider(
+                self.user,
+                source_provider="tmdb",
+                source_external_id="1399",
+                target_provider="tvdb",
+                target_external_id="121361",
+                sync_func=lambda _show_id: None,
+            )
+
+        self.assertEqual(
+            switched.poster_url,
+            "https://image.tmdb.org/t/p/w342/tmdb-poster.jpg",
+        )
+
+    @patch("apps.tv.tasks.sync_show")
+    def test_switch_show_provider_enqueues_default_background_sync(self, sync_show_mock):
+        source = Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            tmdb_id="1399",
+            name="Game of Thrones",
+        )
+        UserShow.objects.create(user=self.user, show=source)
+
+        switched = switch_show_provider(
+            self.user,
+            source_provider="tvdb",
+            source_external_id="121361",
+            target_provider="tmdb",
+            target_external_id="1399",
+        )
+
+        sync_show_mock.defer.assert_called_once_with(show_id=switched.id)
 
 
 class DropShowServiceTests(TestCase):

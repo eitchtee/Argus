@@ -72,5 +72,5 @@ def sync_tv(force_all: bool = False):
 
 @app.periodic(cron="0 2 * * *")
 @app.task(name="daily_tv_sync")
-def daily_tv_sync(timestamp: int):
+def daily_tv_sync(timestamp: int|None = None):
     sync_tv.defer()

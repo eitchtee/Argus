@@ -13,6 +13,7 @@ from apps.catalog.localization import (
 )
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
+from apps.catalog.tracking import find_tracking_match, identity_keys
 from apps.movies.models import Movie, UserMovie
 
 
@@ -56,6 +57,8 @@ def import_movie(
             external_id=external_id,
             defaults={
                 "imdb_id": detail.imdb_id,
+                "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
+                "tvdb_id": detail.tvdb_id or (external_id if provider == "tvdb" else None),
                 "director": detail.director or "",
                 "trailer_url": detail.trailer_url,
                 "cast": [dataclasses.asdict(member) for member in detail.cast],
@@ -112,6 +115,17 @@ def track_movie(
 
     language = metadata_language_for_user(user, provider)
     movie = import_func(provider, external_id, language=language)
+    match = find_tracking_match(
+        user,
+        "movie",
+        provider=movie.provider,
+        external_id=movie.external_id,
+        tmdb_id=movie.tmdb_id,
+        tvdb_id=movie.tvdb_id,
+        imdb_id=movie.imdb_id,
+    )
+    if match is not None and not match.same_provider:
+        raise ValueError("Tracked on another provider.")
     user_movie, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
     user_movie.on_watchlist = True
     user_movie.watchlist_added_at = timezone.now()
@@ -124,6 +138,183 @@ def track_movie(
         )
     hydrate_func(movie.id)
     return user_movie
+
+
+def refresh_movie(user, movie, *, sync_func=None) -> Movie:
+    if not UserMovie.objects.filter(user=user, movie=movie).exists():
+        raise ValueError("Movie is not tracked by this user.")
+
+    movie.sync_status = SyncStatus.PENDING
+    movie.save(update_fields=["sync_status", "updated_at"])
+    if sync_func is None:
+        from apps.movies.tasks import sync_movie
+
+        sync_func = lambda movie_id: sync_movie.defer(movie_id=movie_id)
+    sync_func(movie.id)
+    return movie
+
+
+def switch_movie_provider(
+    user,
+    *,
+    source_provider: str,
+    source_external_id: str,
+    target_provider: str,
+    target_external_id: str,
+    target_imdb_id: str | None = None,
+    sync_func=None,
+) -> Movie:
+    if source_provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {source_provider}")
+    if target_provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {target_provider}")
+    if source_provider == target_provider:
+        raise ValueError("Target provider must differ from the source provider.")
+
+    with transaction.atomic():
+        source_state = (
+            UserMovie.objects.select_for_update()
+            .filter(
+                user=user,
+                movie__provider=source_provider,
+                movie__external_id=str(source_external_id),
+            )
+            .select_related("movie")
+            .first()
+        )
+        if source_state is None:
+            raise ValueError("Source movie is not tracked by this user.")
+
+        source = Movie.objects.select_for_update().get(id=source_state.movie_id)
+        target = Movie.objects.filter(
+            provider=target_provider,
+            external_id=str(target_external_id),
+        ).first()
+        if not _movie_provider_ids_match(
+            source,
+            target,
+            target_provider=target_provider,
+            target_external_id=target_external_id,
+            target_imdb_id=target_imdb_id,
+        ):
+            raise ValueError("Movies do not match across providers.")
+
+        target_created = target is None
+        if target_created:
+            target = Movie.objects.create(
+                provider=target_provider,
+                external_id=str(target_external_id),
+                **_movie_switch_defaults(source, target_provider, target_external_id),
+            )
+            target.genres.set(source.genres.all())
+        else:
+            target.imdb_id = target.imdb_id or target_imdb_id or source.imdb_id
+            target.tmdb_id = target.tmdb_id or source.tmdb_id
+            target.tvdb_id = target.tvdb_id or source.tvdb_id
+
+        target.tmdb_id = (
+            str(target_external_id)
+            if target_provider == "tmdb"
+            else target.tmdb_id
+        )
+        target.tvdb_id = (
+            str(target_external_id)
+            if target_provider == "tvdb"
+            else target.tvdb_id
+        )
+        target.sync_status = SyncStatus.PENDING
+        target.save(
+            update_fields=[
+                "imdb_id",
+                "tmdb_id",
+                "tvdb_id",
+                "sync_status",
+                "updated_at",
+            ]
+        )
+
+        target_state, _created = UserMovie.objects.get_or_create(
+            user=user,
+            movie=target,
+        )
+        target_state.on_watchlist = source_state.on_watchlist
+        target_state.watchlist_added_at = source_state.watchlist_added_at
+        target_state.is_seen = source_state.is_seen
+        target_state.seen_at = source_state.seen_at
+        target_state.tier = source_state.tier
+        target_state.save(
+            update_fields=[
+                "on_watchlist",
+                "watchlist_added_at",
+                "is_seen",
+                "seen_at",
+                "tier",
+                "updated_at",
+            ]
+        )
+        source_state.delete()
+        if not source.user_states.exists():
+            source.delete()
+
+    if sync_func is None:
+        from apps.movies.tasks import sync_movie
+
+        sync_func = lambda movie_id: sync_movie.defer(movie_id=movie_id)
+    sync_func(target.id)
+    return target
+
+
+def _movie_provider_ids_match(
+    source: Movie,
+    target: Movie | None,
+    *,
+    target_provider: str,
+    target_external_id: str,
+    target_imdb_id: str | None,
+) -> bool:
+    source_keys = identity_keys(
+        source.provider,
+        source.external_id,
+        tmdb_id=source.tmdb_id,
+        tvdb_id=source.tvdb_id,
+        imdb_id=source.imdb_id,
+    )
+    target_keys = identity_keys(
+        target_provider,
+        target_external_id,
+        tmdb_id=target.tmdb_id if target else None,
+        tvdb_id=target.tvdb_id if target else None,
+        imdb_id=(target.imdb_id if target else None) or target_imdb_id,
+    )
+    return bool(source_keys.intersection(target_keys))
+
+
+def _movie_switch_defaults(
+    source: Movie,
+    target_provider: str,
+    target_external_id: str,
+) -> dict:
+    return {
+        "imdb_id": source.imdb_id,
+        "tmdb_id": str(target_external_id) if target_provider == "tmdb" else source.tmdb_id,
+        "tvdb_id": str(target_external_id) if target_provider == "tvdb" else source.tvdb_id,
+        "title": source.title,
+        "original_title": source.original_title,
+        "overview": source.overview,
+        "tagline": source.tagline,
+        "translations": source.translations,
+        "poster_path": source.poster_path,
+        "backdrop_path": source.backdrop_path,
+        "cast": source.cast,
+        "director": source.director,
+        "trailer_url": source.trailer_url,
+        "release_date": source.release_date,
+        "runtime": source.runtime,
+        "status": source.status,
+        "vote_average": source.vote_average,
+        "vote_count": source.vote_count,
+        "sync_status": SyncStatus.PENDING,
+    }
 
 
 def remove_from_watchlist(user, movie: Movie) -> UserMovie | None:
@@ -170,7 +361,18 @@ def unmark_seen(user, movie: Movie) -> UserMovie:
     user_movie.is_seen = False
     user_movie.seen_at = None
     user_movie.tier = None
-    user_movie.save(update_fields=["is_seen", "seen_at", "tier", "updated_at"])
+    user_movie.on_watchlist = True
+    user_movie.watchlist_added_at = timezone.now()
+    user_movie.save(
+        update_fields=[
+            "is_seen",
+            "seen_at",
+            "tier",
+            "on_watchlist",
+            "watchlist_added_at",
+            "updated_at",
+        ]
+    )
     return user_movie
 
 

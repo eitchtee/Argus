@@ -174,6 +174,34 @@ class SearchResultsViewTests(TestCase):
         self.assertContains(response, "Tracking")
 
     @patch("apps.catalog.views.catalog_search")
+    def test_results_show_other_provider_tracked_state(self, catalog_search):
+        movie = Movie.objects.create(
+            provider="tmdb",
+            external_id="550",
+            tvdb_id="42",
+            title="Fight Club",
+        )
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
+        catalog_search.return_value = [
+            SearchResultDTO(
+                provider="tvdb",
+                external_id="42",
+                title="Fight Club",
+                year=1999,
+                poster_url=None,
+                overview="A great movie.",
+            )
+        ]
+
+        response = self.client.get(
+            "/search/results/?q=Fight&type=movie&provider=tvdb",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(response, "Tracked on another provider")
+        self.assertNotContains(response, ">Track<")
+
+    @patch("apps.catalog.views.catalog_search")
     def test_results_empty_query_returns_initial_state(self, catalog_search):
         response = self.client.get("/search/results/?q=&type=movie", HTTP_HX_REQUEST="true")
         self.assertEqual(response.status_code, 200)

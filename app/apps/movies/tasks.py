@@ -81,5 +81,5 @@ def sync_movies(force_all: bool = False):
 
 @app.periodic(cron="0 2 * * *")
 @app.task(name="daily_movie_sync")
-def daily_movie_sync(timestamp: int):
+def daily_movie_sync(timestamp: int|None = None):
     sync_movies.defer()

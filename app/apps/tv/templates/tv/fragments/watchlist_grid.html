@@ -3,22 +3,7 @@
 {% if shows %}
 <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
   {% for show in shows %}
-  <a href="{% url 'tv-detail' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}" hx-boost="true"
-     class="group card overflow-hidden border border-base-300 bg-base-200/60 transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
-    <figure class="aspect-[2/3] overflow-hidden bg-base-300">
-      {% if show.poster_url %}
-      <img src="{{ show.poster_url }}" alt="{{ show.name }}" loading="lazy"
-           class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
-      {% else %}
-      <div class="flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
-        <i class="fa-solid fa-tv text-4xl"></i>
-      </div>
-      {% endif %}
-    </figure>
-    <div class="card-body p-3">
-      <h2 class="truncate text-sm font-semibold" title="{{ show.name }}">{{ show.name }}</h2>
-    </div>
-  </a>
+  <c-tv.show-poster :show="show" />
   {% endfor %}
 </div>
 {% else %}
