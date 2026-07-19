@@ -5,6 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.catalog.providers.base import SearchResultDTO
+from apps.movies.models import Movie, UserMovie
 
 
 class SearchAPITests(TestCase):
@@ -51,6 +52,8 @@ class SearchAPITests(TestCase):
                         "poster_url": "https://image.tmdb.org/t/p/w342/poster.jpg",
                         "overview": "Overview",
                         "already_tracked": False,
+                        "tracked_on_other_provider": False,
+                        "tracked_provider": None,
                     }
                 ]
             },
@@ -90,6 +93,46 @@ class SearchAPITests(TestCase):
             language="eng",
             page=1,
             provider="tvdb",
+        )
+
+    @patch("apps.catalog.api.catalog_search")
+    def test_search_marks_result_tracked_on_other_provider(self, catalog_search):
+        movie = Movie.objects.create(
+            provider="tmdb",
+            external_id="550",
+            tvdb_id="42",
+            title="Fight Club",
+        )
+        UserMovie.objects.create(user=self.user, movie=movie)
+        catalog_search.return_value = [
+            SearchResultDTO(
+                provider="tvdb",
+                external_id="42",
+                title="Fight Club",
+                year=1999,
+                poster_url=None,
+                overview="Overview",
+            )
+        ]
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            "/api/search",
+            {"q": "Fight Club", "type": "movie", "provider": "tvdb"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["results"][0]["already_tracked"],
+            False,
+        )
+        self.assertEqual(
+            response.json()["results"][0]["tracked_on_other_provider"],
+            True,
+        )
+        self.assertEqual(
+            response.json()["results"][0]["tracked_provider"],
+            "tmdb",
         )
 
     @patch("apps.catalog.api.catalog_search")

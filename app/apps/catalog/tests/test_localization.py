@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import translation
 
 from apps.catalog.localization import (
@@ -52,7 +52,7 @@ class ResolveFromMapTests(TestCase):
         self.assertEqual(resolve_from_map({}, "title", "pt-BR", "en-US"), "")
 
 
-class ResolveFieldTests(TestCase):
+class ResolveFieldTests(SimpleTestCase):
     def test_movie_uses_tmdb_default_language(self):
         movie = Movie(
             title="Scalar",
@@ -74,6 +74,25 @@ class ResolveFieldTests(TestCase):
         )
 
         self.assertEqual(resolve_field(episode, "name", "por"), "Piloto")
+
+    def test_tv_numbered_names_fallback_when_provider_name_is_missing(self):
+        show = Show(external_id="1", name="Show")
+        season = Season(
+            show=show,
+            season_number=1,
+            name="Provider season name",
+            translations={"por": {"name": "Nome traduzido"}},
+        )
+        episode = Episode(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=1,
+            translations={"por": {}},
+        )
+
+        self.assertEqual(resolve_field(season, "name", "por"), "Season 1")
+        self.assertEqual(resolve_field(episode, "name", "por"), "Episode 1")
 
     def test_proxy_resolves_known_fields_and_delegates_other_attributes(self):
         movie = Movie(

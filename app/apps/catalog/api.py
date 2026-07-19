@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from apps.catalog.services import search as catalog_search
 from apps.catalog.services import SEARCH_TYPE_PROVIDERS, SUPPORTED_PROVIDERS
 from apps.catalog.localization import metadata_language_for_user
-from apps.catalog.tracking import tracked_keys
+from apps.catalog.tracking import tracking_matches
 
 
 class SearchAPIView(APIView):
@@ -46,7 +46,7 @@ class SearchAPIView(APIView):
             page=page,
             provider=provider,
         )
-        tracked = tracked_keys(request.user, media_type, results)
+        matches = tracking_matches(request.user, media_type, results)
 
         return Response(
             {
@@ -58,11 +58,20 @@ class SearchAPIView(APIView):
                         "year": result.year,
                         "poster_url": result.poster_url,
                         "overview": result.overview,
-                        "already_tracked": (
-                            result.provider,
-                            result.external_id,
-                        )
-                        in tracked,
+                        "already_tracked": bool(
+                            matches[(result.provider, result.external_id)]
+                            and matches[(result.provider, result.external_id)].same_provider
+                        ),
+                        "tracked_on_other_provider": bool(
+                            matches[(result.provider, result.external_id)]
+                            and not matches[(result.provider, result.external_id)].same_provider
+                        ),
+                        "tracked_provider": (
+                            matches[(result.provider, result.external_id)].provider
+                            if matches[(result.provider, result.external_id)]
+                            and not matches[(result.provider, result.external_id)].same_provider
+                            else None
+                        ),
                     }
                     for result in results
                 ]

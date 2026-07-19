@@ -17,6 +17,7 @@ class Show(ProviderBackedModel):
     trailer_url = models.CharField(max_length=255, null=True, blank=True)
     imdb_id = models.CharField(max_length=32, null=True, blank=True)
     tmdb_id = models.CharField(max_length=32, null=True, blank=True)
+    tvdb_id = models.CharField(max_length=32, null=True, blank=True)
     average_runtime = models.PositiveIntegerField(null=True, blank=True)
     next_air_date = models.DateField(null=True, blank=True)
     last_air_date = models.DateField(null=True, blank=True)
@@ -30,9 +31,12 @@ class Show(ProviderBackedModel):
     class Meta(ProviderBackedModel.Meta):
         ordering = ("name",)
 
-    @property
-    def tvdb_id(self):
-        return self.external_id
+    def save(self, *args, **kwargs):
+        if self.provider == "tmdb" and not self.tmdb_id:
+            self.tmdb_id = self.external_id
+        if self.provider == "tvdb" and not self.tvdb_id:
+            self.tvdb_id = self.external_id
+        super().save(*args, **kwargs)
 
     @property
     def poster_url(self) -> str | None:

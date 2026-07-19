@@ -10,11 +10,14 @@ from django.utils import timezone
 from apps.catalog.models import Genre, SyncStatus
 from apps.catalog.localization import (
     PROVIDER_DEFAULT_LANGUAGES,
+    episode_name,
     merge_translation_maps,
     metadata_language_for_user,
+    season_name,
 )
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
+from apps.catalog.tracking import find_tracking_match, identity_keys
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
@@ -117,7 +120,8 @@ def import_show(
                 "status": detail.status,
                 "network": detail.network,
                 "imdb_id": detail.imdb_id,
-                "tmdb_id": detail.tmdb_id,
+                "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
+                "tvdb_id": detail.tvdb_id or (external_id if provider == "tvdb" else None),
                 "trailer_url": detail.trailer_url,
                 "cast": [dataclasses.asdict(member) for member in detail.cast],
                 "average_runtime": detail.average_runtime,
@@ -157,36 +161,36 @@ def import_show(
             (item.season_number, item.episode_number): item
             for item in selected_episodes
         }
+        incoming_season_numbers = set(seasons_by_number)
+        incoming_season_numbers.update(item.season_number for item in episodes)
         seasons = {}
-        for item in episodes:
-            season = seasons.get(item.season_number)
-            if season is None:
-                season_detail = seasons_by_number.get(item.season_number)
-                selected_season = selected_seasons_by_number.get(item.season_number)
-                existing_season = Season.objects.filter(
-                    show=show,
-                    season_number=item.season_number,
-                ).first()
-                season = Season.objects.update_or_create(
-                    show=show,
-                    season_number=item.season_number,
-                    defaults={
-                        "name": (
-                            season_detail.name
-                            if season_detail and season_detail.name
-                            else _season_name(item.season_number)
-                        ),
-                        "overview": season_detail.overview if season_detail else "",
-                        "poster_path": season_detail.poster_path if season_detail else None,
-                        "translations": merge_translation_maps(
-                            existing_season.translations if existing_season else {},
-                            season_detail.translations if season_detail else {},
-                            selected_season.translations if selected_season else {},
-                        ),
-                    },
-                )[0]
-                seasons[item.season_number] = season
+        for season_number in sorted(incoming_season_numbers):
+            season_detail = seasons_by_number.get(season_number)
+            selected_season = selected_seasons_by_number.get(season_number)
+            existing_season = Season.objects.filter(
+                show=show,
+                season_number=season_number,
+            ).first()
+            seasons[season_number] = Season.objects.update_or_create(
+                show=show,
+                season_number=season_number,
+                defaults={
+                    "name": season_name(season_number),
+                    "overview": season_detail.overview if season_detail else "",
+                    "poster_path": season_detail.poster_path if season_detail else None,
+                    "translations": _season_translations(
+                        existing_season.translations if existing_season else {},
+                        season_detail.translations if season_detail else {},
+                        selected_season.translations if selected_season else {},
+                    ),
+                },
+            )[0]
 
+        incoming_episode_keys = {
+            (item.season_number, item.episode_number) for item in episodes
+        }
+        for item in episodes:
+            season = seasons[item.season_number]
             selected_item = selected_episodes_by_key.get(
                 (item.season_number, item.episode_number)
             )
@@ -202,7 +206,7 @@ def import_show(
                 defaults={
                     "season": season,
                     "absolute_number": item.absolute_number,
-                    "name": item.name,
+                    "name": item.name or episode_name(item.episode_number),
                     "overview": item.overview,
                     "translations": merge_translation_maps(
                         existing_episode.translations if existing_episode else {},
@@ -215,6 +219,20 @@ def import_show(
                     "finale_type": item.finale_type,
                 },
             )
+
+        for existing_episode in Episode.objects.filter(show=show).only(
+            "id", "season_number", "episode_number"
+        ):
+            episode_key = (existing_episode.season_number, existing_episode.episode_number)
+            if episode_key not in incoming_episode_keys:
+                existing_episode.delete()
+
+        if incoming_season_numbers:
+            Season.objects.filter(show=show).exclude(
+                season_number__in=incoming_season_numbers
+            ).delete()
+        else:
+            Season.objects.filter(show=show).delete()
 
         show.aired_episode_count = (
             Episode.objects.filter(show=show, season_number__gt=0)
@@ -289,6 +307,17 @@ def track_show(
         provider=provider,
         language=metadata_language_for_user(user, provider),
     )
+    match = find_tracking_match(
+        user,
+        "tv",
+        provider=show.provider,
+        external_id=show.external_id,
+        tmdb_id=show.tmdb_id,
+        tvdb_id=show.tvdb_id,
+        imdb_id=show.imdb_id,
+    )
+    if match is not None and not match.same_provider:
+        raise ValueError("Tracked on another provider.")
     user_show, created = UserShow.objects.get_or_create(user=user, show=show)
     if not created and user_show.status == UserShow.Status.TRACKED:
         return user_show
@@ -306,10 +335,243 @@ def track_show(
     return user_show
 
 
-def _season_name(season_number: int) -> str:
-    if season_number == 0:
-        return "Specials"
-    return f"Season {season_number}"
+def refresh_show(user, show, *, sync_func=None) -> Show:
+    if not UserShow.objects.filter(user=user, show=show).exists():
+        raise ValueError("Show is not tracked by this user.")
+
+    show.sync_status = SyncStatus.PENDING
+    show.save(update_fields=["sync_status", "updated_at"])
+    if sync_func is None:
+        from apps.tv.tasks import sync_show
+
+        sync_func = lambda show_id: sync_show.defer(show_id=show_id)
+    sync_func(show.id)
+    return show
+
+
+def switch_show_provider(
+    user,
+    *,
+    source_provider: str,
+    source_external_id: str,
+    target_provider: str,
+    target_external_id: str,
+    target_imdb_id: str | None = None,
+    sync_func=None,
+) -> Show:
+    if source_provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {source_provider}")
+    if target_provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {target_provider}")
+    if source_provider == target_provider:
+        raise ValueError("Target provider must differ from the source provider.")
+
+    with transaction.atomic():
+        source_state = (
+            UserShow.objects.select_for_update()
+            .filter(
+                user=user,
+                show__provider=source_provider,
+                show__external_id=str(source_external_id),
+            )
+            .select_related("show")
+            .first()
+        )
+        if source_state is None:
+            raise ValueError("Source show is not tracked by this user.")
+
+        source = Show.objects.select_for_update().get(id=source_state.show_id)
+        target = Show.objects.filter(
+            provider=target_provider,
+            external_id=str(target_external_id),
+        ).first()
+        if not _show_provider_ids_match(
+            source,
+            target,
+            target_provider=target_provider,
+            target_external_id=target_external_id,
+            target_imdb_id=target_imdb_id,
+        ):
+            raise ValueError("Shows do not match across providers.")
+
+        target_created = target is None
+        if target_created:
+            target = Show.objects.create(
+                provider=target_provider,
+                external_id=str(target_external_id),
+                **_show_switch_defaults(source, target_provider, target_external_id),
+            )
+            target.genres.set(source.genres.all())
+            _clone_show_catalog(source, target)
+        else:
+            target.imdb_id = target.imdb_id or target_imdb_id or source.imdb_id
+            target.tmdb_id = target.tmdb_id or source.tmdb_id
+            target.tvdb_id = target.tvdb_id or source.tvdb_id
+
+        target.tmdb_id = (
+            str(target_external_id)
+            if target_provider == "tmdb"
+            else target.tmdb_id
+        )
+        target.tvdb_id = (
+            str(target_external_id)
+            if target_provider == "tvdb"
+            else target.tvdb_id
+        )
+        target.sync_status = SyncStatus.PENDING
+        target.save(
+            update_fields=[
+                "imdb_id",
+                "tmdb_id",
+                "tvdb_id",
+                "sync_status",
+                "updated_at",
+            ]
+        )
+
+        target_state, _created = UserShow.objects.get_or_create(
+            user=user,
+            show=target,
+        )
+        target_state.status = source_state.status
+        target_state.tracking_started_at = source_state.tracking_started_at
+        target_state.tier = source_state.tier
+        target_state.save(update_fields=["status", "tracking_started_at", "tier", "updated_at"])
+
+        source_episodes = list(
+            UserEpisode.objects.filter(user=user, episode__show=source)
+            .select_related("episode")
+        )
+        for source_user_episode in source_episodes:
+            source_episode = source_user_episode.episode
+            target_episode = Episode.objects.filter(
+                show=target,
+                season_number=source_episode.season_number,
+                episode_number=source_episode.episode_number,
+            ).first()
+            if target_episode is not None:
+                target_user_episode, created = UserEpisode.objects.get_or_create(
+                    user=user,
+                    episode=target_episode,
+                    defaults={"seen_at": source_user_episode.seen_at},
+                )
+                if not created and (
+                    target_user_episode.seen_at is None
+                    or (
+                        source_user_episode.seen_at is not None
+                        and source_user_episode.seen_at > target_user_episode.seen_at
+                    )
+                ):
+                    target_user_episode.seen_at = source_user_episode.seen_at
+                    target_user_episode.save(update_fields=["seen_at"])
+            source_user_episode.delete()
+
+        source_state.delete()
+        if not source.user_states.exists() and not source.episodes.filter(
+            user_states__isnull=False
+        ).exists():
+            source.delete()
+
+    if sync_func is None:
+        from apps.tv.tasks import sync_show
+
+        sync_func = lambda show_id: sync_show.defer(show_id=show_id)
+    sync_func(target.id)
+    return target
+
+
+def _show_provider_ids_match(
+    source: Show,
+    target: Show | None,
+    *,
+    target_provider: str,
+    target_external_id: str,
+    target_imdb_id: str | None,
+) -> bool:
+    source_keys = identity_keys(
+        source.provider,
+        source.external_id,
+        tmdb_id=source.tmdb_id,
+        tvdb_id=source.tvdb_id,
+        imdb_id=source.imdb_id,
+    )
+    target_keys = identity_keys(
+        target_provider,
+        target_external_id,
+        tmdb_id=target.tmdb_id if target else None,
+        tvdb_id=target.tvdb_id if target else None,
+        imdb_id=(target.imdb_id if target else None) or target_imdb_id,
+    )
+    return bool(source_keys.intersection(target_keys))
+
+
+def _show_switch_defaults(
+    source: Show,
+    target_provider: str,
+    target_external_id: str,
+) -> dict:
+    return {
+        "name": source.name,
+        "overview": source.overview,
+        "translations": source.translations,
+        "poster_path": source.poster_url,
+        "backdrop_path": source.backdrop_path,
+        "cast": source.cast,
+        "trailer_url": source.trailer_url,
+        "imdb_id": source.imdb_id,
+        "tmdb_id": str(target_external_id) if target_provider == "tmdb" else source.tmdb_id,
+        "tvdb_id": str(target_external_id) if target_provider == "tvdb" else source.tvdb_id,
+        "average_runtime": source.average_runtime,
+        "next_air_date": source.next_air_date,
+        "last_air_date": source.last_air_date,
+        "airs_time": source.airs_time,
+        "first_aired": source.first_aired,
+        "status": source.status,
+        "network": source.network,
+        "aired_episode_count": source.aired_episode_count,
+        "sync_status": SyncStatus.PENDING,
+    }
+
+
+def _clone_show_catalog(source: Show, target: Show) -> None:
+    seasons = {}
+    for source_season in source.seasons.all():
+        seasons[source_season.season_number] = Season.objects.create(
+            show=target,
+            season_number=source_season.season_number,
+            name=source_season.name,
+            overview=source_season.overview,
+            translations=source_season.translations,
+            poster_path=source_season.poster_path,
+        )
+
+    for source_episode in source.episodes.all():
+        target_season = seasons[source_episode.season_number]
+        Episode.objects.create(
+            show=target,
+            season=target_season,
+            season_number=source_episode.season_number,
+            episode_number=source_episode.episode_number,
+            absolute_number=source_episode.absolute_number,
+            name=source_episode.name,
+            overview=source_episode.overview,
+            translations=source_episode.translations,
+            still_path=source_episode.still_path,
+            air_date=source_episode.air_date,
+            runtime=source_episode.runtime,
+            finale_type=source_episode.finale_type,
+        )
+
+
+def _season_translations(*translations):
+    return {
+        language: {
+            field_name: value
+            for field_name, value in values.items()
+            if field_name != "name"
+        }
+        for language, values in merge_translation_maps(*translations).items()
+    }
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -414,6 +676,58 @@ class UpNextSections:
 
 
 WATCHLIST_SECTIONS = ("all", "watching", "completed", "paused", "dropped")
+FINISHED_SHOW_STATUSES = frozenset(
+    {"canceled", "cancelled", "completed", "ended", "finished"}
+)
+
+
+def watchlist_progress_color(
+    watched_count: int,
+    total_count: int,
+    show_status: str,
+) -> str:
+    if watched_count < total_count:
+        return "warning"
+    if (show_status or "").strip().casefold() in FINISHED_SHOW_STATUSES:
+        return "success"
+    return "info"
+
+
+def _attach_watchlist_progress(user, shows: list[Show]) -> None:
+    if not shows:
+        return
+
+    show_ids = [show.id for show in shows]
+    available_episodes = Episode.objects.filter(
+        show_id__in=show_ids,
+        season_number__gt=0,
+        air_date__isnull=False,
+        air_date__lte=timezone.localdate(),
+    )
+    total_counts = {
+        row["show_id"]: row["total_count"]
+        for row in available_episodes.order_by()
+        .values("show_id")
+        .annotate(total_count=Count("id"))
+    }
+    watched_counts = {
+        row["episode__show_id"]: row["watched_count"]
+        for row in UserEpisode.objects.filter(
+            user=user,
+            episode__in=available_episodes,
+        )
+        .values("episode__show_id")
+        .annotate(watched_count=Count("id"))
+    }
+
+    for show in shows:
+        show.total_episode_count = total_counts.get(show.id, 0)
+        show.watched_episode_count = watched_counts.get(show.id, 0)
+        show.progress_color = watchlist_progress_color(
+            show.watched_episode_count,
+            show.total_episode_count,
+            show.status,
+        )
 
 
 def get_watchlist_shows(user, section: str = "all") -> list[Show]:
@@ -425,8 +739,10 @@ def get_watchlist_shows(user, section: str = "all") -> list[Show]:
         .select_related("show")
         .order_by("show__name", "show_id")
     )
+    shows = [user_show.show for user_show in user_shows]
+    _attach_watchlist_progress(user, shows)
     if section == "all":
-        return [user_show.show for user_show in user_shows]
+        return shows
 
     if section in {"paused", "dropped"}:
         status = (
@@ -434,43 +750,24 @@ def get_watchlist_shows(user, section: str = "all") -> list[Show]:
             if section == "paused"
             else UserShow.Status.DROPPED
         )
-        return [user_show.show for user_show in user_shows if user_show.status == status]
+        return [
+            show
+            for user_show, show in zip(user_shows, shows)
+            if user_show.status == status
+        ]
 
     tracked_shows = [
-        user_show.show
-        for user_show in user_shows
+        show
+        for user_show, show in zip(user_shows, shows)
         if user_show.status == UserShow.Status.TRACKED
     ]
     if not tracked_shows:
         return []
 
-    tracked_show_ids = [show.id for show in tracked_shows]
-    aired_episodes = Episode.objects.filter(
-        show_id__in=tracked_show_ids,
-        season_number__gt=0,
-        air_date__isnull=False,
-        air_date__lte=timezone.localdate(),
-    )
-    aired_counts = {
-        row["show_id"]: row["aired_count"]
-        for row in aired_episodes.order_by()
-        .values("show_id")
-        .annotate(aired_count=Count("id"))
-    }
-    watched_counts = {
-        row["episode__show_id"]: row["watched_count"]
-        for row in UserEpisode.objects.filter(
-            user=user,
-            episode__in=aired_episodes,
-        )
-        .values("episode__show_id")
-        .annotate(watched_count=Count("id"))
-    }
-
     selected = []
     for show in tracked_shows:
-        aired_count = aired_counts.get(show.id, 0)
-        watched_count = watched_counts.get(show.id, 0)
+        aired_count = show.total_episode_count
+        watched_count = show.watched_episode_count
         if section == "completed":
             include = aired_count > 0 and watched_count == aired_count
         else:

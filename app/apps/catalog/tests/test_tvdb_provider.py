@@ -208,7 +208,8 @@ class TVDBProviderTests(SimpleTestCase):
                         "image": "https://artworks.thetvdb.com/movie.jpg",
                         "genres": [{"id": 1, "name": "Drama"}],
                         "remoteIds": [
-                            {"sourceName": "IMDB", "id": "tt1234567"}
+                            {"sourceName": "IMDB", "id": "tt1234567"},
+                            {"sourceName": "TheMovieDB.com", "id": "550"},
                         ],
                     },
                 }
@@ -223,6 +224,8 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.title, "A Movie")
         self.assertEqual(detail.release_date, "2020-01-02")
         self.assertEqual(detail.imdb_id, "tt1234567")
+        self.assertEqual(detail.tvdb_id, "42")
+        self.assertEqual(detail.tmdb_id, "550")
         self.assertEqual(detail.genres[0].name, "Drama")
         self.assertIn("/movies/42/extended", opener.requests[0][0].full_url)
 
@@ -257,6 +260,7 @@ class TVDBProviderTests(SimpleTestCase):
 
         self.assertEqual(detail.provider, "tvdb")
         self.assertEqual(detail.external_id, "121361")
+        self.assertEqual(detail.tvdb_id, "121361")
         self.assertEqual(detail.title, "Game of Thrones")
         self.assertEqual(detail.overview, "Nine noble families fight for control.")
         self.assertEqual(detail.poster_path, "https://artworks.thetvdb.com/poster.jpg")
@@ -397,9 +401,10 @@ class TVDBProviderTests(SimpleTestCase):
         seasons = provider.fetch_seasons("121361", language="por")
 
         self.assertEqual(seasons[0].season_number, 1)
+        self.assertEqual(seasons[0].name, "")
         self.assertEqual(
             seasons[0].translations["por"],
-            {"name": "Temporada 1", "overview": "A primeira temporada."},
+            {"overview": "A primeira temporada."},
         )
         self.assertIn("/seasons/501/translations/por", opener.requests[1][0].full_url)
 
@@ -418,7 +423,7 @@ class TVDBProviderTests(SimpleTestCase):
         seasons = provider.fetch_seasons("121361", language="por")
 
         self.assertEqual(len(opener.requests), 2)
-        self.assertEqual(seasons[0].translations["por"]["name"], "Temporada 1")
+        self.assertNotIn("name", seasons[0].translations.get("por", {}))
 
     def test_list_languages_returns_provider_native_codes(self):
         cache.set("catalog:tvdb:token", "existing-token")

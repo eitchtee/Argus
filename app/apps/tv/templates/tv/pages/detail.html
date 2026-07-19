@@ -11,7 +11,7 @@
     <div class="absolute inset-0 bg-base-100/80"></div>
     {% endif %}
     <div class="relative flex flex-col md:flex-row gap-6 p-4 sm:p-6 md:p-8">
-      <figure class="media-poster w-full md:w-56 shrink-0">
+      <figure class="media-poster w-full md:w-56 shrink-0 h-fit">
         {% if show.poster_url %}
         <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="w-full rounded-box object-cover">
         {% endif %}

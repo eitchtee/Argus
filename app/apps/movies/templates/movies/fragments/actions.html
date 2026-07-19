@@ -9,9 +9,21 @@
 {% trans "This removes your watchlist and watched state for this movie. Continue?" as delete_movie_message %}
 {% trans "Delete" as delete_label %}
 {% trans "Cancel" as cancel_label %}
+{% trans "Switch to" as switch_to_label %}
+{% trans "Refresh metadata" as refresh_metadata_label %}
 
 <div id="movie-actions" class="fab">
-  {% if not movie.on_watchlist and not movie.is_seen %}
+  {% if movie.tracked_on_other_provider %}
+  <div class="tooltip tooltip-left" data-tip="{{ switch_to_label }} {{ movie.provider|upper }}">
+    <button type="button" aria-label="{{ switch_to_label }} {{ movie.provider|upper }}"
+            class="btn btn-lg btn-circle btn-primary"
+            hx-post="{% url 'movie-detail-switch' external_id=movie.external_id %}?provider={{ movie.provider }}&from_provider={{ movie.tracked_provider }}&from_external_id={{ movie.tracked_external_id }}{% if movie.imdb_id %}&target_imdb_id={{ movie.imdb_id }}{% endif %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-right-left" aria-hidden="true"></i>
+      <span class="sr-only">{% trans "Tracked on another provider" %}</span>
+    </button>
+  </div>
+  {% elif not movie.on_watchlist and not movie.is_seen %}
   <div class="tooltip tooltip-left" data-tip="{{ add_to_watchlist_label }}">
     <button type="button" aria-label="{{ add_to_watchlist_label }}"
             class="btn btn-lg btn-circle btn-primary"
@@ -25,6 +37,17 @@
           aria-label="{{ movie_actions_label }}" class="btn btn-lg btn-circle btn-primary">
     <i class="fa-solid fa-bars" aria-hidden="true"></i>
   </button>
+
+    {% if movie.on_watchlist or movie.is_seen %}
+  <div class="tooltip tooltip-left" data-tip="{{ refresh_metadata_label }}">
+    <button type="button" aria-label="{{ refresh_metadata_label }}"
+            class="btn btn-lg btn-circle btn-info btn-outline"
+            hx-post="{% url 'movie-detail-refresh' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
+            hx-swap="none" hx-disabled-elt="this">
+      <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+    </button>
+  </div>
+    {% endif %}
 
     {% if movie.is_seen %}
   <div class="tooltip tooltip-left" data-tip="{{ mark_unwatched_label }}">

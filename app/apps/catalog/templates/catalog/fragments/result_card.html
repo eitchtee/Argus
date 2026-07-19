@@ -18,6 +18,11 @@
     </h3>
     <p class="text-xs text-subtle line-clamp-3">{{ item.overview }}</p>
     <div class="card-actions mt-2 flex-col items-start gap-1">
+      {% if item.tracked_on_other_provider %}
+      <span class="btn btn-warning btn-sm btn-outline" aria-disabled="true">
+        {% trans "Tracked on another provider" %}
+      </span>
+      {% else %}
       <form hx-post="{% url 'catalog-track' %}"
             hx-target="closest .card"
             hx-swap="outerHTML"
@@ -31,8 +36,9 @@
         <span class="btn btn-success btn-sm" disabled>{% trans "Tracking" %}</span>
         {% else %}
         <button type="submit" class="btn btn-primary btn-sm">{% trans "Track" %}</button>
-        {% endif %}
+      {% endif %}
       </form>
+      {% endif %}
       {% if error %}
       <span class="text-error text-xs">{{ error }}</span>
       {% endif %}

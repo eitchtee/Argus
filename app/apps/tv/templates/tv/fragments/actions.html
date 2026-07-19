@@ -9,6 +9,8 @@
 {% trans "This permanently deletes your watch history for this show. Continue?" as delete_show_message %}
 {% trans "Delete" as delete_label %}
 {% trans "Cancel" as cancel_label %}
+{% trans "Switch to" as switch_to_label %}
+{% trans "Refresh metadata" as refresh_metadata_label %}
 {% if show.show_fully_watched %}
   {% trans "Mark show unwatched" as show_watched_label %}
 {% else %}
@@ -16,7 +18,17 @@
 {% endif %}
 
 <div id="show-actions" class="fab">
-  {% if not show.tracking_status %}
+  {% if show.tracked_on_other_provider %}
+  <div class="tooltip tooltip-left" data-tip="{{ switch_to_label }} {{ show.provider|upper }}">
+    <button type="button" aria-label="{{ switch_to_label }} {{ show.provider|upper }}"
+            class="btn btn-lg btn-circle btn-primary"
+            hx-post="{% url 'tv-detail-switch' external_id=show.external_id %}?provider={{ show.provider }}&from_provider={{ show.tracked_provider }}&from_external_id={{ show.tracked_external_id }}{% if show.imdb_id %}&target_imdb_id={{ show.imdb_id }}{% endif %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-right-left" aria-hidden="true"></i>
+      <span class="sr-only">{% trans "Tracked on another provider" %}</span>
+    </button>
+  </div>
+  {% elif not show.tracking_status %}
   <div class="tooltip tooltip-left" data-tip="{{ track_show_label }}">
     <button type="button" aria-label="{{ track_show_label }}"
             class="btn btn-lg btn-circle btn-primary"
@@ -30,6 +42,17 @@
           aria-label="{{ show_actions_label }}" class="btn btn-lg btn-circle btn-primary">
     <i class="fa-solid fa-bars" aria-hidden="true"></i>
   </button>
+
+    {% if show.tracking_status %}
+  <div class="tooltip tooltip-left" data-tip="{{ refresh_metadata_label }}">
+    <button type="button" aria-label="{{ refresh_metadata_label }}"
+            class="btn btn-lg btn-circle btn-info btn-outline"
+            hx-post="{% url 'tv-detail-refresh' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+            hx-swap="none" hx-disabled-elt="this">
+      <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+    </button>
+  </div>
+    {% endif %}
 
     {% if show.tracking_status == "tracked" %}
   <div class="tooltip tooltip-left" data-tip="{{ pause_show_label }}">

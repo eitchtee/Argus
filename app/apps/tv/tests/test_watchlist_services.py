@@ -1,11 +1,31 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from apps.tv import services
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+
+
+class WatchlistProgressColorTests(SimpleTestCase):
+    def test_remaining_episodes_are_yellow(self):
+        self.assertEqual(
+            services.watchlist_progress_color(1, 2, "Ended"),
+            "warning",
+        )
+
+    def test_finished_show_with_all_available_episodes_is_green(self):
+        self.assertEqual(
+            services.watchlist_progress_color(2, 2, "Ended"),
+            "success",
+        )
+
+    def test_continuing_show_with_all_available_episodes_is_blue(self):
+        self.assertEqual(
+            services.watchlist_progress_color(2, 2, "Continuing"),
+            "info",
+        )
 
 
 class WatchlistShowsServiceTests(TestCase):

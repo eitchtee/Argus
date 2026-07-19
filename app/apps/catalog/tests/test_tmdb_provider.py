@@ -80,7 +80,9 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertIn("language=pt-BR", requested_url)
 
     def test_fetch_detail_normalizes_movie_detail(self):
-        opener = FakeOpener(load_fixture("tmdb_movie_detail.json"))
+        payload = load_fixture("tmdb_movie_detail.json")
+        payload["external_ids"] = {"imdb_id": "tt0137523", "tvdb_id": "42"}
+        opener = FakeOpener(payload)
         provider = TMDBProvider(opener=opener)
 
         detail = provider.fetch_detail("550", language="en-US")
@@ -88,6 +90,8 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.provider, "tmdb")
         self.assertEqual(detail.external_id, "550")
         self.assertEqual(detail.imdb_id, "tt0137523")
+        self.assertEqual(detail.tmdb_id, "550")
+        self.assertEqual(detail.tvdb_id, "42")
         self.assertEqual(detail.title, "Fight Club")
         self.assertEqual(detail.poster_path, "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg")
         self.assertEqual(detail.release_date, "1999-10-15")
@@ -156,7 +160,10 @@ class TMDBProviderTests(SimpleTestCase):
                 "poster_path": "/poster.jpg",
                 "backdrop_path": "/backdrop.jpg",
                 "networks": [{"name": "HBO"}],
-                "external_ids": {"imdb_id": "tt0944947"},
+                "external_ids": {
+                    "imdb_id": "tt0944947",
+                    "tvdb_id": "121361",
+                },
                 "genres": [{"id": 18, "name": "Drama"}],
                 "credits": {"cast": [], "crew": []},
                 "videos": {"results": []},
@@ -172,6 +179,8 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.average_runtime, 57)
         self.assertEqual(detail.network, "HBO")
         self.assertEqual(detail.imdb_id, "tt0944947")
+        self.assertEqual(detail.tmdb_id, "1399")
+        self.assertEqual(detail.tvdb_id, "121361")
         self.assertIn("/tv/1399", opener.requests[0][0].full_url)
 
     def test_fetch_tv_seasons_and_episodes(self):
@@ -208,7 +217,11 @@ class TMDBProviderTests(SimpleTestCase):
         seasons = provider.fetch_seasons("1399", language="en-US")
         episodes = provider.fetch_episodes("1399", language="en-US")
 
-        self.assertEqual(seasons[0].name, "Season 1")
+        self.assertEqual(seasons[0].name, "")
+        self.assertEqual(
+            seasons[0].translations["en-US"],
+            {"overview": "First season."},
+        )
         self.assertEqual(episodes[0].episode_number, 1)
         self.assertEqual(episodes[0].air_date, "2011-04-17")
         self.assertIn("/tv/1399", opener.requests[0][0].full_url)
@@ -235,6 +248,25 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertEqual(
             detail.genres[0].translations,
             {"pt-BR": {"name": "Drama"}},
+        )
+
+    def test_fetch_detail_fills_missing_requested_translation_title(self):
+        payload = load_fixture("tmdb_movie_detail.json")
+        payload["title"] = "Reflexões de um Liquidificador"
+        payload["translations"] = load_fixture("tmdb_movie_translations.json")
+        pt_br = next(
+            item
+            for item in payload["translations"]["translations"]
+            if item["iso_639_1"] == "pt" and item["iso_3166_1"] == "BR"
+        )
+        pt_br["data"].pop("title")
+        provider = TMDBProvider(opener=FakeOpener(payload))
+
+        detail = provider.fetch_detail("158921", language="pt-BR")
+
+        self.assertEqual(
+            detail.translations["pt-BR"]["title"],
+            "Reflexões de um Liquidificador",
         )
 
     def test_list_languages_uses_primary_tags_and_readable_names(self):

@@ -32,6 +32,16 @@ def metadata_language_for_user(user, provider: str) -> str:
     return getattr(user.settings, f"{provider}_metadata_language", default)
 
 
+def season_name(season_number: int) -> str:
+    if season_number == 0:
+        return "Specials"
+    return f"Season {season_number}"
+
+
+def episode_name(episode_number: int) -> str:
+    return f"Episode {episode_number}"
+
+
 def resolve_from_map(
     translations: Mapping[str, Mapping[str, str]],
     field_name: str,
@@ -47,17 +57,26 @@ def resolve_from_map(
 
 
 def resolve_field(record, field_name: str, language: str) -> str:
+    record_type = type(record).__name__
+    if field_name == "name" and record_type == "Season":
+        return season_name(record.season_number)
+
     provider = getattr(record, "provider", None)
     if provider is None:
         provider = record.show.provider
 
-    return resolve_from_map(
+    value = resolve_from_map(
         record.translations,
         field_name,
         language,
         PROVIDER_DEFAULT_LANGUAGES[provider],
         getattr(record, field_name, ""),
     )
+    if value:
+        return value
+    if field_name == "name" and record_type == "Episode":
+        return episode_name(record.episode_number)
+    return ""
 
 
 @dataclass(frozen=True)
