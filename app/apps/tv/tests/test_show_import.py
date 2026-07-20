@@ -1,12 +1,13 @@
 from datetime import time
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.catalog.models import Genre, SyncStatus
 from apps.catalog.providers.base import CastMemberDTO, DetailDTO, EpisodeDTO, GenreDTO, SeasonDTO
 from apps.catalog.providers.exceptions import ProviderError
-from apps.tv.models import Episode, Season, Show
+from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 from apps.tv.services import import_show
 
 
@@ -52,6 +53,7 @@ def show_detail(**overrides):
         "network": "HBO",
         "imdb_id": "tt0944947",
         "tmdb_id": "1399",
+        "tvdb_id": "121361",
         "trailer_url": "https://www.youtube.com/watch?v=abc123",
         "cast": [
             CastMemberDTO(
@@ -89,6 +91,83 @@ def episode(**overrides):
 
 
 class ShowImportTests(TestCase):
+    def test_import_show_keeps_original_scalar_when_selected_language_is_translated(self):
+        provider = FakeProvider(
+            detail=show_detail(
+                title="A Série",
+                original_title="The Series",
+                translations={"por": {"title": "A Série"}},
+            )
+        )
+
+        show = import_show(
+            "121361",
+            language="por",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(show.name, "The Series")
+        self.assertEqual(show.translations["eng"]["name"], "The Series")
+
+    def test_import_show_reconciles_stale_episodes_and_seasons_preserving_watched_state(self):
+        provider = FakeProvider(
+            detail=show_detail(),
+            episodes=[
+                episode(),
+                episode(episode_number=2, name="The Kingsroad"),
+                episode(season_number=2, name="The North Remembers"),
+            ],
+            seasons=[
+                SeasonDTO(season_number=1, name="Season 1"),
+                SeasonDTO(season_number=2, name="Season 2"),
+            ],
+        )
+        show = import_show("121361", provider_getter=lambda _: provider)
+        user = get_user_model().objects.create_user(
+            email="watcher@example.com",
+        )
+        UserShow.objects.create(user=user, show=show)
+        watched_episode = show.episodes.get(season_number=1, episode_number=1)
+        stale_episode = show.episodes.get(season_number=1, episode_number=2)
+        seen_at = timezone.now() - timezone.timedelta(days=3)
+        UserEpisode.objects.create(user=user, episode=watched_episode, seen_at=seen_at)
+        UserEpisode.objects.create(user=user, episode=stale_episode)
+
+        provider.episodes = [episode()]
+        provider.seasons = [SeasonDTO(season_number=1, name="Season 1")]
+
+        refreshed = import_show("121361", provider_getter=lambda _: provider)
+
+        self.assertEqual(refreshed.id, show.id)
+        self.assertEqual(
+            list(refreshed.seasons.values_list("season_number", flat=True)),
+            [1],
+        )
+        self.assertEqual(
+            list(refreshed.episodes.values_list("season_number", "episode_number")),
+            [(1, 1)],
+        )
+        preserved = UserEpisode.objects.get(user=user, episode=watched_episode)
+        self.assertEqual(preserved.seen_at, seen_at)
+        self.assertFalse(UserEpisode.objects.filter(user=user, episode=stale_episode).exists())
+
+    def test_import_show_creates_seasons_without_episodes(self):
+        provider = FakeProvider(
+            detail=show_detail(),
+            episodes=[episode()],
+            seasons=[
+                SeasonDTO(season_number=1, name="Season 1"),
+                SeasonDTO(season_number=2, name="Season 2"),
+            ],
+        )
+
+        show = import_show("121361", provider_getter=lambda _: provider)
+
+        self.assertEqual(
+            list(show.seasons.values_list("season_number", flat=True)),
+            [1, 2],
+        )
+
     def test_import_show_saves_selected_translations_with_english_scalars(self):
         provider = FakeProvider(
             detail=show_detail(
@@ -112,8 +191,27 @@ class ShowImportTests(TestCase):
 
         self.assertEqual(show.name, "Game of Thrones")
         self.assertEqual(show.translations["por"]["name"], "A Guerra dos Tronos")
-        self.assertEqual(show.seasons.get().translations["por"]["name"], "Temporada 1")
+        self.assertEqual(show.seasons.get().name, "Season 1")
+        self.assertNotIn("name", show.seasons.get().translations.get("por", {}))
         self.assertEqual(show.episodes.get().translations["por"]["name"], "O Inverno Está Chegando")
+
+    def test_import_show_uses_numbered_names_when_provider_names_are_empty(self):
+        provider = FakeProvider(
+            detail=show_detail(),
+            episodes=[episode(name="")],
+            seasons=[
+                SeasonDTO(
+                    season_number=1,
+                    name="Provider season name",
+                    translations={"eng": {"name": "Provider season name"}},
+                )
+            ],
+        )
+
+        show = import_show("121361", provider_getter=lambda _: provider)
+
+        self.assertEqual(show.seasons.get().name, "Season 1")
+        self.assertEqual(show.episodes.get().name, "Episode 1")
     def test_import_show_persists_airing_time_as_a_time(self):
         provider = FakeProvider(detail=show_detail(airs_time="21:00"), episodes=[])
 
@@ -155,6 +253,7 @@ class ShowImportTests(TestCase):
         self.assertEqual(show.aired_episode_count, 1)
         self.assertEqual(show.imdb_id, "tt0944947")
         self.assertEqual(show.tmdb_id, "1399")
+        self.assertEqual(show.tvdb_id, "121361")
         self.assertEqual(show.trailer_url, "https://www.youtube.com/watch?v=abc123")
         self.assertEqual(show.average_runtime, 57)
         self.assertIsNone(show.next_air_date)
@@ -280,3 +379,14 @@ class ShowImportTests(TestCase):
         self.assertEqual(show.external_id, "1399")
         self.assertEqual(provider.detail_calls, [("1399", "en-US", "tv")])
         self.assertEqual(show.genres.get().provider, "tmdb")
+
+    def test_import_show_refreshes_cross_provider_ids(self):
+        provider = FakeProvider(detail=show_detail(), episodes=[])
+        show = import_show("121361", provider_getter=lambda _: provider)
+
+        provider.detail = show_detail(tmdb_id="1400", tvdb_id="121362")
+        refreshed = import_show("121361", provider_getter=lambda _: provider)
+
+        self.assertEqual(refreshed.id, show.id)
+        self.assertEqual(refreshed.tmdb_id, "1400")
+        self.assertEqual(refreshed.tvdb_id, "121362")

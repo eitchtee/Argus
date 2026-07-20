@@ -89,7 +89,10 @@ class WatchlistViewTests(TestCase):
                 content,
             )
         self.assertEqual(content.count('hx-target="#tv-watchlist-panel"'), 5)
-        self.assertEqual(content.count('hx-swap="innerHTML"'), 5)
+        tablist_start = content.index('<div role="tablist"')
+        tablist_end = content.index('</div>', tablist_start)
+        tablist = content[tablist_start:tablist_end]
+        self.assertEqual(tablist.count('hx-swap="innerHTML"'), 5)
         self.assertIn('role="tablist"', content)
         self.assertIn('aria-label="All"', content)
         all_label = content.index('aria-label="All"')
@@ -108,8 +111,32 @@ class WatchlistViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "My Show")
         self.assertContains(response, "https://example.com/poster.jpg")
+        self.assertContains(response, "0/1")
+        self.assertContains(response, "progress-warning")
         self.assertContains(response, f'href="{reverse("tv-detail", kwargs={"external_id": "1"})}"')
         self.assertNotContains(response, "<html")
+
+    def test_completed_progress_uses_show_status_color(self):
+        ended_show, ended_season = self.make_show("Ended Show", "2")
+        ended_show.status = "Ended"
+        ended_show.save(update_fields=["status"])
+        ended_episode = self.make_episode(ended_show, ended_season, 1)
+        UserEpisode.objects.create(user=self.user, episode=ended_episode)
+
+        continuing_show, continuing_season = self.make_show("Continuing Show", "3")
+        continuing_show.status = "Continuing"
+        continuing_show.save(update_fields=["status"])
+        continuing_episode = self.make_episode(continuing_show, continuing_season, 1)
+        UserEpisode.objects.create(user=self.user, episode=continuing_episode)
+
+        response = self.client.get(
+            self.tab_url("all"),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(response, "1/1")
+        self.assertContains(response, "progress-success")
+        self.assertContains(response, "progress-info")
 
     def test_watching_fragment_excludes_completed_show(self):
         completed, completed_season = self.make_show("Completed Show", "2")

@@ -48,8 +48,9 @@ class TVDBProvider(BaseProvider):
             params={
                 "query": query,
                 "type": "series" if media_type == "tv" else "movie",
-                # TVDB's /search endpoint is 0-indexed, unlike our 1-indexed UI pages.
-                "page": page - 1,
+                # Our UI pages are 1-indexed; TVDB exposes zero-indexed offsets.
+                "offset": page - 1,
+                "limit": 1,
             },
         )
 
@@ -170,6 +171,7 @@ class TVDBProvider(BaseProvider):
             status=status.get("name") or "",
             network=network.get("name"),
             imdb_id=self._imdb_id_from_remote_ids(data),
+            tvdb_id=str(data["id"]),
             tmdb_id=self._tmdb_id_from_remote_ids(data),
             trailer_url=self._trailer_from_data(data),
             cast=self._cast_from_characters(data),
@@ -224,6 +226,7 @@ class TVDBProvider(BaseProvider):
             vote_average=data.get("score"),
             vote_count=data.get("voteCount"),
             imdb_id=self._imdb_id_from_remote_ids(data),
+            tvdb_id=str(data.get("id") or external_id),
             tmdb_id=self._tmdb_id_from_remote_ids(data),
             trailer_url=self._trailer_from_data(data),
             cast=self._cast_from_characters(data),
@@ -337,7 +340,6 @@ class TVDBProvider(BaseProvider):
         for season in (payload.get("data") or {}).get("seasons", []):
             translations = {
                 "eng": self._non_empty_values(
-                    name=season.get("name"),
                     overview=season.get("overview"),
                 )
             }
@@ -351,7 +353,6 @@ class TVDBProvider(BaseProvider):
                 else:
                     translated = translated_payload.get("data") or {}
                     values = self._non_empty_values(
-                        name=translated.get("name"),
                         overview=translated.get("overview"),
                     )
                     if values:
@@ -359,7 +360,7 @@ class TVDBProvider(BaseProvider):
             seasons.append(
                 SeasonDTO(
                     season_number=season.get("number") or 0,
-                    name=season.get("name") or "",
+                    name="",
                     overview=season.get("overview") or "",
                     poster_path=season.get("image"),
                     translations={

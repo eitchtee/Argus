@@ -12,11 +12,12 @@ from apps.catalog.services import (
     SUPPORTED_PROVIDERS,
     search as catalog_search,
 )
-from apps.catalog.tracking import tracked_keys
+from apps.catalog.tracking import tracking_matches
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 
 SEARCH_RESULT_PAGE_SIZE = 20
+TVDB_SEARCH_RESULT_PAGE_SIZE = 1
 
 
 @htmx_login_required
@@ -123,9 +124,10 @@ def _find_tracked_item(
     except ValueError:
         return None
 
-    tracked = tracked_keys(request.user, media_type, raw_results)
+    matches = tracking_matches(request.user, media_type, raw_results)
     for result in raw_results:
         if result.external_id == external_id:
+            match = matches[(result.provider, result.external_id)]
             return {
                 "provider": result.provider,
                 "external_id": result.external_id,
@@ -133,7 +135,11 @@ def _find_tracked_item(
                 "year": result.year,
                 "poster_url": result.poster_url,
                 "overview": result.overview,
-                "already_tracked": error is None or (result.provider, result.external_id) in tracked,
+                "already_tracked": error is None or bool(match and match.same_provider),
+                "tracked_on_other_provider": bool(match and not match.same_provider),
+                "tracked_provider": (
+                    match.provider if match and not match.same_provider else None
+                ),
             }
     return None
 
@@ -164,6 +170,11 @@ def _search_context(request, query, media_type, provider, page):
         "media_type": media_type,
         "provider": provider,
         "page": page,
+        "search_page_size": (
+            TVDB_SEARCH_RESULT_PAGE_SIZE
+            if provider == "tvdb"
+            else SEARCH_RESULT_PAGE_SIZE
+        ),
         "results": None,
         "error": None,
     }
@@ -183,17 +194,30 @@ def _search_context(request, query, media_type, provider, page):
     except ValueError:
         return context
 
-    tracked = tracked_keys(request.user, media_type, raw_results)
+    matches = tracking_matches(request.user, media_type, raw_results)
     context["results"] = [
         {
-            "provider": r.provider,
-            "external_id": r.external_id,
-            "title": r.title,
-            "year": r.year,
-            "poster_url": r.poster_url,
-            "overview": r.overview,
-            "already_tracked": (r.provider, r.external_id) in tracked,
-        }
+                "provider": r.provider,
+                "external_id": r.external_id,
+                "title": r.title,
+                "year": r.year,
+                "poster_url": r.poster_url,
+                "overview": r.overview,
+                "already_tracked": bool(
+                    matches[(r.provider, r.external_id)]
+                    and matches[(r.provider, r.external_id)].same_provider
+                ),
+                "tracked_on_other_provider": bool(
+                    matches[(r.provider, r.external_id)]
+                    and not matches[(r.provider, r.external_id)].same_provider
+                ),
+                "tracked_provider": (
+                    matches[(r.provider, r.external_id)].provider
+                    if matches[(r.provider, r.external_id)]
+                    and not matches[(r.provider, r.external_id)].same_provider
+                    else None
+                ),
+            }
         for r in raw_results
     ]
     return context

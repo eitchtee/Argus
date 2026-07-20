@@ -9,4 +9,4 @@ from django.views.decorators.http import require_http_methods
 @htmx_login_required
 @require_http_methods(["GET"])
 def toasts(request):
-    return render(request, "common/fragments/toasts.html")
+    return render(request, "common/fragments/toast_messages.html")

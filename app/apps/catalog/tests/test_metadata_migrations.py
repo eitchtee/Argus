@@ -13,8 +13,8 @@ class MetadataLanguageMigrationTests(TransactionTestCase):
     migrate_to = [
         ("users", "0003_usersettings_metadata_languages"),
         ("catalog", "0002_genre_translations"),
-        ("movies", "0003_movie_translations"),
-        ("tv", "0008_normalize_episode_still_urls"),
+        ("movies", "0004_movie_provider_ids"),
+        ("tv", "0009_show_tvdb_id"),
     ]
 
     def setUp(self):
@@ -79,6 +79,11 @@ class MetadataLanguageMigrationTests(TransactionTestCase):
         executor = MigrationExecutor(connection)
         executor.migrate(self.migrate_to)
         self.apps = executor.loader.project_state(self.migrate_to).apps
+
+    def tearDown(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        super().tearDown()
 
     def test_existing_settings_receive_provider_defaults(self):
         settings = self.apps.get_model("users", "UserSettings").objects.get(

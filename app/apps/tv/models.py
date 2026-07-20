@@ -8,6 +8,7 @@ from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 
 class Show(ProviderBackedModel):
     provider = models.CharField(max_length=16, default="tvdb")
+    trakt_id = models.CharField(max_length=32, null=True, blank=True, unique=True)
     name = models.CharField(max_length=255)
     overview = models.TextField(blank=True)
     translations = models.JSONField(default=dict, blank=True)
@@ -17,6 +18,7 @@ class Show(ProviderBackedModel):
     trailer_url = models.CharField(max_length=255, null=True, blank=True)
     imdb_id = models.CharField(max_length=32, null=True, blank=True)
     tmdb_id = models.CharField(max_length=32, null=True, blank=True)
+    tvdb_id = models.CharField(max_length=32, null=True, blank=True)
     average_runtime = models.PositiveIntegerField(null=True, blank=True)
     next_air_date = models.DateField(null=True, blank=True)
     last_air_date = models.DateField(null=True, blank=True)
@@ -30,9 +32,12 @@ class Show(ProviderBackedModel):
     class Meta(ProviderBackedModel.Meta):
         ordering = ("name",)
 
-    @property
-    def tvdb_id(self):
-        return self.external_id
+    def save(self, *args, **kwargs):
+        if self.provider == "tmdb" and not self.tmdb_id:
+            self.tmdb_id = self.external_id
+        if self.provider == "tvdb" and not self.tvdb_id:
+            self.tvdb_id = self.external_id
+        super().save(*args, **kwargs)
 
     @property
     def poster_url(self) -> str | None:
@@ -88,6 +93,7 @@ class Episode(models.Model):
     )
     season_number = models.PositiveIntegerField()
     episode_number = models.PositiveIntegerField()
+    trakt_id = models.CharField(max_length=32, null=True, blank=True, unique=True)
     absolute_number = models.PositiveIntegerField(null=True, blank=True)
     name = models.CharField(max_length=255, blank=True)
     overview = models.TextField(blank=True)
@@ -141,6 +147,7 @@ class UserShow(models.Model):
         choices=Status.choices,
         default=Status.TRACKED,
     )
+    on_watchlist = models.BooleanField(default=False)
     tracking_started_at = models.DateTimeField(default=timezone.now)
     tier = models.CharField(
         max_length=1,

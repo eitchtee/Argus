@@ -37,14 +37,12 @@ class ShowDetailViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
-    @patch("apps.tv.views.get_show_seasons")
     @patch("apps.tv.views.get_show_episodes")
     @patch("apps.tv.views.get_show_detail")
     def test_renders_preview_from_provider_cache_when_not_imported(
         self,
         get_show_detail_mock,
         get_show_episodes_mock,
-        get_show_seasons_mock,
     ):
         get_show_detail_mock.return_value = DetailDTO(
             provider="tvdb",
@@ -67,8 +65,6 @@ class ShowDetailViewTests(TestCase):
         get_show_episodes_mock.return_value = [
             EpisodeDTO(season_number=1, episode_number=1, name="Pilot", air_date="2020-01-01"),
         ]
-        get_show_seasons_mock.return_value = []
-
         response = self.client.get("/tv/123/")
 
         self.assertEqual(response.status_code, 200)
@@ -77,17 +73,16 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "https://artworks.thetvdb.com/fanart.jpg")
         self.assertContains(response, "Emilia Clarke")
         self.assertContains(response, 'aria-label="Track show"')
+        self.assertNotContains(response, 'aria-label="Refresh metadata"')
         self.assertNotContains(response, "checkbox-sm")
         self.assertFalse(Show.objects.filter(external_id="123").exists())
 
-    @patch("apps.tv.views.get_show_seasons")
     @patch("apps.tv.views.get_show_episodes")
     @patch("apps.tv.views.get_show_detail")
     def test_preview_uses_requested_provider_and_language(
         self,
         get_show_detail_mock,
         get_show_episodes_mock,
-        get_show_seasons_mock,
     ):
         get_show_detail_mock.return_value = DetailDTO(
             provider="tmdb",
@@ -95,7 +90,6 @@ class ShowDetailViewTests(TestCase):
             title="Game of Thrones",
         )
         get_show_episodes_mock.return_value = []
-        get_show_seasons_mock.return_value = []
         self.user.settings.tmdb_metadata_language = "en-US"
         self.user.settings.save()
 
@@ -112,11 +106,30 @@ class ShowDetailViewTests(TestCase):
             language="en-US",
             provider="tmdb",
         )
-        get_show_seasons_mock.assert_called_once_with(
-            "1399",
-            language="en-US",
-            provider="tmdb",
+
+    @patch("apps.tv.views.get_show_episodes")
+    @patch("apps.tv.views.get_show_detail")
+    def test_preview_uses_numbered_names_when_provider_names_are_empty(
+        self,
+        get_show_detail_mock,
+        get_show_episodes_mock,
+    ):
+        get_show_detail_mock.return_value = DetailDTO(
+            provider="tvdb",
+            external_id="123",
+            title="Sweetpea",
         )
+        get_show_episodes_mock.return_value = [
+            EpisodeDTO(season_number=1, episode_number=1, name="")
+        ]
+        self.user.settings.tvdb_metadata_language = "por"
+        self.user.settings.save()
+
+        response = self.client.get("/tv/123/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Season 1")
+        self.assertContains(response, "Episode 1")
 
     def test_renders_from_db_when_show_already_imported_by_any_user(self):
         other_user = get_user_model().objects.create_user("other@example.com")
@@ -247,6 +260,81 @@ class ShowDetailViewTests(TestCase):
 
         self.assertContains(response, 'aria-label="Track show"')
 
+    def test_shows_switch_action_when_tracked_on_another_provider(self):
+        source = Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            tmdb_id="1399",
+            name="Game of Thrones",
+        )
+        Show.objects.create(
+            provider="tmdb",
+            external_id="1399",
+            tvdb_id="121361",
+            name="Game of Thrones",
+        )
+        UserShow.objects.create(user=self.user, show=source, status=UserShow.Status.TRACKED)
+
+        response = self.client.get("/tv/1399/?provider=tmdb")
+
+        self.assertContains(response, "Tracked on another provider")
+        self.assertContains(response, 'aria-label="Switch to TMDB"')
+        self.assertContains(response, "/tv/1399/switch/")
+        self.assertNotContains(response, 'aria-label="Track show"')
+        self.assertRegex(
+            response.content.decode(),
+            r'<div id="show-actions" class="fab">\s*<div class="tooltip',
+        )
+
+    def test_switch_action_uses_reverse_provider(self):
+        source = Show.objects.create(
+            provider="tmdb",
+            external_id="1399",
+            tvdb_id="121361",
+            name="Game of Thrones",
+        )
+        Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            tmdb_id="1399",
+            name="Game of Thrones",
+        )
+        UserShow.objects.create(user=self.user, show=source, status=UserShow.Status.TRACKED)
+
+        response = self.client.get("/tv/121361/?provider=tvdb")
+
+        self.assertContains(response, 'aria-label="Switch to TVDB"')
+
+    @patch("apps.tv.views.get_show_detail")
+    def test_refreshes_missing_provider_ids_before_checking_switch_state(
+        self,
+        get_show_detail_mock,
+    ):
+        source = Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            imdb_id="tt0944947",
+            name="Game of Thrones",
+        )
+        Show.objects.create(provider="tmdb", external_id="1399", name="Game of Thrones")
+        UserShow.objects.create(user=self.user, show=source, status=UserShow.Status.TRACKED)
+        get_show_detail_mock.return_value = DetailDTO(
+            provider="tmdb",
+            external_id="1399",
+            title="Game of Thrones",
+            imdb_id="tt0944947",
+            tmdb_id="1399",
+        )
+
+        response = self.client.get("/tv/1399/?provider=tmdb")
+
+        self.assertContains(response, 'aria-label="Switch to TMDB"')
+        get_show_detail_mock.assert_called_once_with(
+            "1399",
+            language="en-US",
+            provider="tmdb",
+        )
+
     def test_shows_delete_button_after_drop_but_not_before_any_tracking(self):
         show = Show.objects.create(external_id="123", name="Foo")
 
@@ -256,6 +344,16 @@ class ShowDetailViewTests(TestCase):
         UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.DROPPED)
         response_dropped = self.client.get("/tv/123/")
         self.assertContains(response_dropped, 'aria-label="Delete show"')
+
+    def test_tracked_show_renders_refresh_action(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        response = self.client.get("/tv/123/")
+
+        self.assertContains(response, 'aria-label="Refresh metadata"')
+        self.assertContains(response, "/tv/123/refresh/")
+        self.assertContains(response, 'hx-swap="none"')
 
     def test_paused_show_can_be_tracked_or_deleted_but_not_paused_again(self):
         show = Show.objects.create(external_id="123", name="Foo")
@@ -301,6 +399,87 @@ class ShowTrackViewTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         track_show_mock.assert_not_called()
+
+
+class ShowRefreshViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("user@example.com", password="password")
+        self.client.login(username="user@example.com", password="password")
+
+    def test_requires_htmx_header(self):
+        response = self.client.post("/tv/123/refresh/")
+
+        self.assertEqual(response.status_code, 403)
+
+    @patch("apps.tv.views.refresh_show")
+    def test_post_refreshes_tracked_show(self, refresh_show_mock):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        response = self.client.post(
+            "/tv/123/refresh/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 204)
+        refresh_show_mock.assert_called_once_with(self.user, show)
+
+    @patch("apps.tv.views.refresh_show")
+    def test_demo_mode_blocks_refresh(self, refresh_show_mock):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        with self.settings(DEMO=True):
+            response = self.client.post(
+                "/tv/123/refresh/",
+                HTTP_HX_REQUEST="true",
+            )
+
+        self.assertEqual(response.status_code, 403)
+        refresh_show_mock.assert_not_called()
+
+
+class ShowSwitchViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("user@example.com", password="password")
+        self.client.login(username="user@example.com", password="password")
+
+    @patch("apps.tv.views.switch_show_provider")
+    def test_post_switches_show_provider_and_redirects(self, switch_show_provider_mock):
+        response = self.client.post(
+            "/tv/1399/switch/?provider=tmdb&from_provider=tvdb&from_external_id=121361",
+            HTTP_HX_REQUEST="true",
+        )
+
+        switch_show_provider_mock.assert_called_once_with(
+            self.user,
+            source_provider="tvdb",
+            source_external_id="121361",
+            target_provider="tmdb",
+            target_external_id="1399",
+        )
+        self.assertEqual(response["HX-Redirect"], "/tv/1399/?provider=tmdb")
+
+    @patch("apps.tv.views.switch_show_provider")
+    def test_switch_requires_source_state_parameters(self, switch_show_provider_mock):
+        response = self.client.post(
+            "/tv/1399/switch/?provider=tmdb",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        switch_show_provider_mock.assert_not_called()
+
+    @patch("apps.tv.views.switch_show_provider")
+    def test_demo_mode_blocks_switch(self, switch_show_provider_mock):
+        with self.settings(DEMO=True):
+            response = self.client.post(
+                "/tv/1399/switch/?provider=tmdb&from_provider=tvdb&from_external_id=121361",
+                HTTP_HX_REQUEST="true",
+            )
+
+        self.assertEqual(response.status_code, 403)
+        switch_show_provider_mock.assert_not_called()
 
 
 class ShowDropViewTests(TestCase):

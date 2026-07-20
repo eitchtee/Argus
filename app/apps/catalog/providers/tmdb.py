@@ -98,6 +98,19 @@ class TMDBProvider(BaseProvider):
         networks = payload.get("networks") or []
         next_episode = payload.get("next_episode_to_air") or {}
         last_episode = payload.get("last_episode_to_air") or {}
+        translations = self._translations_from_payload(payload)
+        localized_values = {
+            "title": payload.get("title") or payload.get("name"),
+            "overview": payload.get("overview"),
+            "tagline": payload.get("tagline"),
+        }
+        localized_values = {
+            field: value for field, value in localized_values.items() if value
+        }
+        if localized_values:
+            requested_translation = translations.setdefault(language, {})
+            for field, value in localized_values.items():
+                requested_translation.setdefault(field, value)
 
         return DetailDTO(
             provider=self.name,
@@ -122,7 +135,12 @@ class TMDBProvider(BaseProvider):
             vote_average=payload.get("vote_average"),
             vote_count=payload.get("vote_count"),
             imdb_id=payload.get("imdb_id") or external_ids.get("imdb_id"),
-            tmdb_id=str(payload["id"]) if is_tv else None,
+            tmdb_id=str(payload["id"]),
+            tvdb_id=(
+                str(external_ids["tvdb_id"])
+                if external_ids.get("tvdb_id")
+                else None
+            ),
             network=networks[0].get("name") if networks else None,
             director=None if is_tv else self._director_from_credits(payload),
             trailer_url=self._trailer_from_videos(payload),
@@ -143,7 +161,7 @@ class TMDBProvider(BaseProvider):
                 )
                 for genre in payload.get("genres", [])
             ],
-            translations=self._translations_from_payload(payload),
+            translations=translations,
         )
 
     def fetch_seasons(self, external_id: str, *, language: str) -> list[SeasonDTO]:
@@ -151,16 +169,13 @@ class TMDBProvider(BaseProvider):
         return [
             SeasonDTO(
                 season_number=season.get("season_number") or 0,
-                name=season.get("name") or "",
+                name="",
                 overview=season.get("overview") or "",
                 poster_path=season.get("poster_path"),
                 translations={
                     language: {
                         field: value
-                        for field, value in {
-                            "name": season.get("name"),
-                            "overview": season.get("overview"),
-                        }.items()
+                        for field, value in {"overview": season.get("overview")}.items()
                         if value
                     }
                 },

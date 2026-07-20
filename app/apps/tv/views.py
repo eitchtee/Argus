@@ -2,26 +2,31 @@ from dataclasses import replace
 from datetime import date, time
 
 from django.conf import settings
+from django.contrib import messages
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
 from apps.catalog.localization import (
     LocalizedRecord,
+    episode_name,
     metadata_language_for_user,
     resolve_field,
     resolve_from_map,
+    season_name,
 )
 from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
+from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
+from apps.catalog.tracking import find_tracking_match
 from apps.catalog.services import (
     SUPPORTED_PROVIDERS,
     get_show_detail,
     get_show_episodes,
-    get_show_seasons,
 )
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
@@ -39,6 +44,8 @@ from apps.tv.services import (
     mark_season_watched,
     mark_show_watched,
     pause_show,
+    refresh_show,
+    switch_show_provider,
     track_show,
     unmark_episode_watched,
     unmark_season_watched,
@@ -161,6 +168,61 @@ def show_track(request, external_id):
     provider = _provider_from_request(request)
     track_show(request.user, external_id, provider=provider)
     return _redirect_to_show_detail(external_id, provider)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST"])
+def show_refresh(request, external_id):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
+    try:
+        refresh_show(request.user, show)
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+    messages.success(request, _("Metadata refresh queued."))
+    return HttpResponse(status=204)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST"])
+def show_switch(request, external_id):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    target_provider = request.GET.get("provider", "").strip().lower()
+    source_provider = request.GET.get("from_provider", "").strip().lower()
+    source_external_id = request.GET.get("from_external_id", "").strip()
+    target_imdb_id = request.GET.get("target_imdb_id", "").strip() or None
+    if (
+        target_provider not in SUPPORTED_PROVIDERS
+        or source_provider not in SUPPORTED_PROVIDERS
+        or not source_external_id
+        or target_provider == source_provider
+    ):
+        return HttpResponseBadRequest("Invalid provider switch request.")
+
+    try:
+        switch_kwargs = {
+            "source_provider": source_provider,
+            "source_external_id": source_external_id,
+            "target_provider": target_provider,
+            "target_external_id": external_id,
+        }
+        if target_imdb_id:
+            switch_kwargs["target_imdb_id"] = target_imdb_id
+        switch_show_provider(
+            request.user,
+            **switch_kwargs,
+        )
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+
+    return _redirect_to_show_detail(external_id, target_provider)
 
 
 @only_htmx
@@ -398,7 +460,10 @@ def _localize_episode(episode, user):
     return LocalizedRecord(
         episode,
         language,
-        overrides={"show": LocalizedRecord(episode.show, language)},
+        overrides={
+            "name": resolve_field(episode, "name", language),
+            "show": LocalizedRecord(episode.show, language),
+        },
     )
 
 
@@ -451,8 +516,9 @@ def _build_show_context(user, external_id, provider="tvdb"):
     show = Show.objects.filter(provider=provider, external_id=external_id).first()
 
     if show is None:
-        return _preview_show_context(external_id, language, provider)
+        return _preview_show_context(user, external_id, language, provider)
 
+    tracking_state = _refresh_show_identity(user, show, language)
     user_show = UserShow.objects.filter(user=user, show=show).first()
     tracked = bool(user_show and user_show.status == UserShow.Status.TRACKED)
     watched_ids = set()
@@ -500,6 +566,7 @@ def _build_show_context(user, external_id, provider="tvdb"):
         "show_fully_watched": (
             tracked and bool(numbered_seasons) and all(s["fully_watched"] for s in numbered_seasons)
         ),
+        **tracking_state,
     }
 
 
@@ -542,7 +609,9 @@ def _season_context(
             {
                 "id": episode.id,
                 "episode_number": episode.episode_number,
-                "name": resolve_field(episode, "name", language),
+                "name": resolve_field(episode, "name", language) or episode_name(
+                    episode.episode_number
+                ),
                 "air_date": episode.air_date,
                 "aired": aired,
                 "watched": watched,
@@ -552,7 +621,13 @@ def _season_context(
     return {
         "id": season.id,
         "season_number": season.season_number,
-        "name": resolve_field(season, "name", language),
+        "name": resolve_from_map(
+            season.translations,
+            "name",
+            language,
+            PROVIDER_DEFAULT_LANGUAGES[season.show.provider],
+            season_name(season.season_number),
+        ),
         "episodes": episode_rows,
         "aired_count": aired_count,
         "aired_watched_count": aired_watched_count,
@@ -561,7 +636,7 @@ def _season_context(
     }
 
 
-def _preview_show_context(external_id, language=None, provider="tvdb"):
+def _preview_show_context(user, external_id, language=None, provider="tvdb"):
     language = language or PROVIDER_DEFAULT_LANGUAGES[provider]
     default_language = PROVIDER_DEFAULT_LANGUAGES[provider]
     detail = get_show_detail(
@@ -574,14 +649,6 @@ def _preview_show_context(external_id, language=None, provider="tvdb"):
         language=language,
         provider=provider,
     )
-    provider_seasons = {
-        season.season_number: season
-        for season in get_show_seasons(
-            external_id,
-            language=language,
-            provider=provider,
-        )
-    }
     today = timezone.localdate()
 
     episodes_by_season: dict[int, list] = {}
@@ -610,7 +677,7 @@ def _preview_show_context(external_id, language=None, provider="tvdb"):
                         language,
                         default_language,
                         episode.name,
-                    ),
+                    ) or episode_name(episode.episode_number),
                     "air_date": air_date,
                     "aired": aired,
                     "watched": False,
@@ -620,15 +687,7 @@ def _preview_show_context(external_id, language=None, provider="tvdb"):
             {
                 "id": None,
                 "season_number": season_number,
-                "name": resolve_from_map(
-                    provider_seasons.get(season_number).translations,
-                    "name",
-                    language,
-                    default_language,
-                    provider_seasons.get(season_number).name,
-                )
-                if season_number in provider_seasons
-                else ("Specials" if season_number == 0 else f"Season {season_number}"),
+                "name": season_name(season_number),
                 "episodes": episode_rows,
                 "aired_count": aired_count,
                 "aired_watched_count": 0,
@@ -684,6 +743,97 @@ def _preview_show_context(external_id, language=None, provider="tvdb"):
         "can_delete": False,
         "seasons": seasons,
         "show_fully_watched": False,
+        **_tracking_state_from_ids(
+            user,
+            "tv",
+            provider=detail.provider,
+            external_id=detail.external_id,
+            tmdb_id=detail.tmdb_id,
+            tvdb_id=detail.tvdb_id,
+            imdb_id=detail.imdb_id,
+        ),
+    }
+
+
+def _show_tracking_state(user, show):
+    return _tracking_state_from_ids(
+        user,
+        "tv",
+        provider=show.provider,
+        external_id=show.external_id,
+        tmdb_id=show.tmdb_id,
+        tvdb_id=show.tvdb_id,
+        imdb_id=show.imdb_id,
+    )
+
+
+def _refresh_show_identity(user, show, language):
+    state = _show_tracking_state(user, show)
+    if state["tracked_on_other_provider"]:
+        return state
+    if not Show.objects.filter(user_states__user=user).exclude(
+        provider=show.provider
+    ).exists():
+        return state
+    if not _show_identity_is_incomplete(show):
+        return state
+
+    try:
+        detail = get_show_detail(
+            show.external_id,
+            language=language,
+            provider=show.provider,
+        )
+    except ProviderError:
+        return state
+
+    fields = {}
+    for field in ("imdb_id", "tmdb_id", "tvdb_id"):
+        value = getattr(detail, field, None)
+        if value and not getattr(show, field):
+            fields[field] = value
+
+    if fields:
+        for field, value in fields.items():
+            setattr(show, field, value)
+        show.save(update_fields=list(fields))
+        state = _show_tracking_state(user, show)
+
+    return state
+
+
+def _show_identity_is_incomplete(show):
+    return not show.imdb_id or (
+        show.provider == "tmdb" and not show.tvdb_id
+    ) or (
+        show.provider == "tvdb" and not show.tmdb_id
+    )
+
+
+def _tracking_state_from_ids(
+    user,
+    media_type,
+    *,
+    provider,
+    external_id,
+    tmdb_id=None,
+    tvdb_id=None,
+    imdb_id=None,
+):
+    match = find_tracking_match(
+        user,
+        media_type,
+        provider=provider,
+        external_id=external_id,
+        tmdb_id=tmdb_id,
+        tvdb_id=tvdb_id,
+        imdb_id=imdb_id,
+    )
+    other_provider = bool(match and not match.same_provider)
+    return {
+        "tracked_on_other_provider": other_provider,
+        "tracked_provider": match.provider if other_provider else None,
+        "tracked_external_id": match.external_id if other_provider else None,
     }
 
 

@@ -1,0 +1,10 @@
+{% load i18n %}
+{% if messages %}
+  <div class="toast-container flex flex-col gap-2">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} shadow-lg">
+        <span>{{ message }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
