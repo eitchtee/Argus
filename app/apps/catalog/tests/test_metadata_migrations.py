@@ -80,6 +80,11 @@ class MetadataLanguageMigrationTests(TransactionTestCase):
         executor.migrate(self.migrate_to)
         self.apps = executor.loader.project_state(self.migrate_to).apps
 
+    def tearDown(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
     def test_existing_settings_receive_provider_defaults(self):
         settings = self.apps.get_model("users", "UserSettings").objects.get(
             user_id=self.user_id

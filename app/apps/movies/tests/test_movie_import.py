@@ -53,6 +53,25 @@ def movie_detail(**overrides):
 
 
 class MovieImportTests(TestCase):
+    def test_import_movie_keeps_original_scalar_when_selected_language_is_translated(self):
+        provider = FakeProvider(
+            movie_detail(
+                title="Clube da Luta",
+                original_title="Fight Club",
+                translations={"pt-BR": {"title": "Clube da Luta"}},
+            )
+        )
+
+        movie = import_movie(
+            "tmdb",
+            "550",
+            language="pt-BR",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(movie.title, "Fight Club")
+        self.assertEqual(movie.translations["en-US"]["title"], "Fight Club")
+
     def test_import_movie_merges_movie_and_genre_translations(self):
         provider = FakeProvider(
             movie_detail(

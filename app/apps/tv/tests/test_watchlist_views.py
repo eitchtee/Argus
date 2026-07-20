@@ -89,7 +89,10 @@ class WatchlistViewTests(TestCase):
                 content,
             )
         self.assertEqual(content.count('hx-target="#tv-watchlist-panel"'), 5)
-        self.assertEqual(content.count('hx-swap="innerHTML"'), 5)
+        tablist_start = content.index('<div role="tablist"')
+        tablist_end = content.index('</div>', tablist_start)
+        tablist = content[tablist_start:tablist_end]
+        self.assertEqual(tablist.count('hx-swap="innerHTML"'), 5)
         self.assertIn('role="tablist"', content)
         self.assertIn('aria-label="All"', content)
         all_label = content.index('aria-label="All"')

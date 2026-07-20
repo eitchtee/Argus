@@ -7,6 +7,7 @@ from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 
 class Movie(ProviderBackedModel):
     provider = models.CharField(max_length=16, default="tmdb")
+    trakt_id = models.CharField(max_length=32, null=True, blank=True, unique=True)
     imdb_id = models.CharField(max_length=32, null=True, blank=True)
     tmdb_id = models.CharField(max_length=32, null=True, blank=True)
     tvdb_id = models.CharField(max_length=32, null=True, blank=True)

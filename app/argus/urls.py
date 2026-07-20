@@ -31,4 +31,5 @@ urlpatterns = [
     path("", include("apps.movies.urls")),
     path("", include("apps.tv.urls")),
     path("", include("apps.calendar.urls")),
+    path("", include("apps.trakt.urls")),
 ]

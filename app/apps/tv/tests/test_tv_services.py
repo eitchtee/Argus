@@ -147,6 +147,7 @@ class TrackShowServiceTests(TestCase):
             provider="tvdb",
             external_id="121361",
             tmdb_id="1399",
+            trakt_id="9000",
             name="Game of Thrones",
         )
         source_season = Season.objects.create(show=source, season_number=1, name="Season 1")
@@ -155,6 +156,7 @@ class TrackShowServiceTests(TestCase):
             season=source_season,
             season_number=1,
             episode_number=1,
+            trakt_id="9001",
             name="Winter Is Coming",
         )
         removed_episode = Episode.objects.create(
@@ -231,12 +233,16 @@ class TrackShowServiceTests(TestCase):
         self.assertFalse(UserShow.objects.filter(user=self.user, show=source).exists())
         self.assertTrue(UserShow.objects.filter(user=other_user, show=source).exists())
         self.assertTrue(Show.objects.filter(id=source.id).exists())
+        self.assertIsNone(switched.trakt_id)
+        self.assertEqual(Show.objects.get(id=source.id).trakt_id, "9000")
+        self.assertEqual(Episode.objects.get(id=source_episode.id).trakt_id, "9001")
 
     def test_switch_show_provider_clones_new_target_catalog(self):
         source = Show.objects.create(
             provider="tvdb",
             external_id="121361",
             tmdb_id="1399",
+            trakt_id="9000",
             name="Game of Thrones",
         )
         source_season = Season.objects.create(show=source, season_number=1, name="Season 1")
@@ -245,6 +251,7 @@ class TrackShowServiceTests(TestCase):
             season=source_season,
             season_number=1,
             episode_number=1,
+            trakt_id="9001",
             name="Winter Is Coming",
         )
         UserShow.objects.create(user=self.user, show=source)
@@ -267,6 +274,8 @@ class TrackShowServiceTests(TestCase):
         self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=target_episode).exists())
         self.assertEqual(switched.seasons.count(), 1)
         self.assertEqual(switched.episodes.count(), 1)
+        self.assertEqual(switched.trakt_id, "9000")
+        self.assertEqual(target_episode.trakt_id, "9001")
 
     def test_switch_show_provider_preserves_tmdb_poster_url_until_sync(self):
         source = Show.objects.create(

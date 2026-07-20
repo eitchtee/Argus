@@ -91,6 +91,24 @@ def episode(**overrides):
 
 
 class ShowImportTests(TestCase):
+    def test_import_show_keeps_original_scalar_when_selected_language_is_translated(self):
+        provider = FakeProvider(
+            detail=show_detail(
+                title="A Série",
+                original_title="The Series",
+                translations={"por": {"title": "A Série"}},
+            )
+        )
+
+        show = import_show(
+            "121361",
+            language="por",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(show.name, "The Series")
+        self.assertEqual(show.translations["eng"]["name"], "The Series")
+
     def test_import_show_reconciles_stale_episodes_and_seasons_preserving_watched_state(self):
         provider = FakeProvider(
             detail=show_detail(),
