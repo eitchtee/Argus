@@ -6,6 +6,34 @@
     <form hx-post="{% url 'user_settings' %}" hx-target="#generic-offcanvas" novalidate>
       {% crispy form %}
     </form>
+    <section class="mt-6 border-t border-base-300 pt-4">
+      <h4 class="font-semibold">Trakt.tv</h4>
+      {% if trakt_account %}
+        <p class="mt-2 text-sm text-base-content/70">
+          Connected as <span class="font-medium">{{ trakt_account.trakt_username|default:"Trakt user" }}</span>.
+        </p>
+        {% if trakt_account.last_synced_at %}
+          <p class="text-sm text-base-content/70">Last sync: {{ trakt_account.last_synced_at }}</p>
+        {% endif %}
+        {% if trakt_account.last_error %}
+          <p class="text-sm text-error">{{ trakt_account.last_error }}</p>
+        {% endif %}
+        <div class="mt-3 flex flex-wrap gap-2">
+          <form method="post" action="{% url 'trakt_sync' %}" hx-post="{% url 'trakt_sync' %}" hx-swap="none">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm">Sync now</button>
+          </form>
+          <a href="{% url 'trakt_connect' %}" class="btn btn-secondary btn-sm">Reconnect</a>
+          <form method="post" action="{% url 'trakt_disconnect' %}" hx-post="{% url 'trakt_disconnect' %}" hx-swap="none" hx-confirm="Disconnect Trakt.tv?">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost btn-sm">Disconnect</button>
+          </form>
+        </div>
+      {% else %}
+        <p class="mt-2 text-sm text-base-content/70">Connect your Trakt.tv account to synchronize your library.</p>
+        <a href="{% url 'trakt_connect' %}" class="btn btn-primary btn-sm mt-3">Connect Trakt.tv</a>
+      {% endif %}
+    </section>
     <div class="modal-action">
       <form method="dialog">
         <button class="btn">{% trans "Close" %}</button>

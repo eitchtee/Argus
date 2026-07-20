@@ -227,6 +227,7 @@ class MovieServiceTests(TestCase):
             provider="tmdb",
             external_id="550",
             tvdb_id="42",
+            trakt_id="9000",
             title="Fight Club",
         )
         seen_at = timezone.now() - timedelta(days=2)
@@ -254,6 +255,7 @@ class MovieServiceTests(TestCase):
         self.assertEqual(target.provider, "tvdb")
         self.assertEqual(target.external_id, "42")
         self.assertEqual(target.tmdb_id, "550")
+        self.assertEqual(target.trakt_id, "9000")
         self.assertEqual(target.sync_status, SyncStatus.PENDING)
         moved = UserMovie.objects.get(user=self.user, movie=target)
         self.assertTrue(moved.on_watchlist)
@@ -291,6 +293,37 @@ class MovieServiceTests(TestCase):
 
         self.assertEqual(switched.id, target.id)
         self.assertEqual(Movie.objects.filter(provider="tvdb", external_id="42").count(), 1)
+
+    def test_switch_movie_provider_keeps_unique_trakt_id_on_shared_source(self):
+        source = Movie.objects.create(
+            provider="tmdb",
+            external_id="550",
+            tvdb_id="42",
+            trakt_id="9000",
+            title="Fight Club",
+        )
+        target = Movie.objects.create(
+            provider="tvdb",
+            external_id="42",
+            tmdb_id="550",
+            title="Fight Club (TVDB)",
+        )
+        other_user = get_user_model().objects.create_user("other@example.com")
+        UserMovie.objects.create(user=self.user, movie=source, on_watchlist=True)
+        UserMovie.objects.create(user=other_user, movie=source, on_watchlist=True)
+
+        switched = switch_movie_provider(
+            self.user,
+            source_provider="tmdb",
+            source_external_id="550",
+            target_provider="tvdb",
+            target_external_id="42",
+            sync_func=lambda _movie_id: None,
+        )
+
+        self.assertEqual(switched.id, target.id)
+        self.assertIsNone(switched.trakt_id)
+        self.assertEqual(Movie.objects.get(id=source.id).trakt_id, "9000")
 
     @patch("apps.movies.tasks.sync_movie")
     def test_switch_movie_provider_enqueues_default_background_sync(self, sync_movie_mock):

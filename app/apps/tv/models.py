@@ -8,6 +8,7 @@ from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 
 class Show(ProviderBackedModel):
     provider = models.CharField(max_length=16, default="tvdb")
+    trakt_id = models.CharField(max_length=32, null=True, blank=True, unique=True)
     name = models.CharField(max_length=255)
     overview = models.TextField(blank=True)
     translations = models.JSONField(default=dict, blank=True)
@@ -92,6 +93,7 @@ class Episode(models.Model):
     )
     season_number = models.PositiveIntegerField()
     episode_number = models.PositiveIntegerField()
+    trakt_id = models.CharField(max_length=32, null=True, blank=True, unique=True)
     absolute_number = models.PositiveIntegerField(null=True, blank=True)
     name = models.CharField(max_length=255, blank=True)
     overview = models.TextField(blank=True)
@@ -145,6 +147,7 @@ class UserShow(models.Model):
         choices=Status.choices,
         default=Status.TRACKED,
     )
+    on_watchlist = models.BooleanField(default=False)
     tracking_started_at = models.DateTimeField(default=timezone.now)
     tier = models.CharField(
         max_length=1,

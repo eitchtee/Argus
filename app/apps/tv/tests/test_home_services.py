@@ -92,6 +92,16 @@ class GetWatchlistServiceTests(TestCase):
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0].next_episode, episode)
 
+    def test_watchlist_entries_can_access_episode_shows_without_n_plus_one_queries(self):
+        first_show = self._make_show("First", "1")
+        second_show = self._make_show("Second", "2")
+        self._make_episode(first_show, 1, 1, self.today - timedelta(days=2))
+        self._make_episode(second_show, 1, 1, self.today - timedelta(days=1))
+
+        with self.assertNumQueries(4):
+            entries = get_watchlist(self.user)
+            [entry.next_episode.show.name for entry in entries]
+
 
 class GetUpNextServiceTests(TestCase):
     def setUp(self):

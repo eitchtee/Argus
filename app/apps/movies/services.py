@@ -15,6 +15,9 @@ from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.catalog.tracking import find_tracking_match, identity_keys
 from apps.movies.models import Movie, UserMovie
+from apps.trakt.changes import record_intent
+from apps.trakt.identities import movie_payload
+from apps.trakt.models import TraktSyncIntent
 
 
 def import_movie(
@@ -52,6 +55,17 @@ def import_movie(
             detail.translations,
         )
         default_text = translations.get(PROVIDER_DEFAULT_LANGUAGES[provider], {})
+        base_title = default_text.get("title") or (
+            detail.title
+            if language == PROVIDER_DEFAULT_LANGUAGES[provider]
+            else detail.original_title or detail.title
+        )
+        if base_title and not default_text.get("title"):
+            translations = merge_translation_maps(
+                translations,
+                {PROVIDER_DEFAULT_LANGUAGES[provider]: {"title": base_title}},
+            )
+            default_text = translations[PROVIDER_DEFAULT_LANGUAGES[provider]]
         movie, _created = Movie.objects.update_or_create(
             provider=provider,
             external_id=external_id,
@@ -62,7 +76,7 @@ def import_movie(
                 "director": detail.director or "",
                 "trailer_url": detail.trailer_url,
                 "cast": [dataclasses.asdict(member) for member in detail.cast],
-                "title": default_text.get("title", detail.title),
+                "title": base_title,
                 "original_title": detail.original_title,
                 "overview": default_text.get("overview", detail.overview),
                 "tagline": default_text.get("tagline", detail.tagline),
@@ -130,6 +144,11 @@ def track_movie(
     user_movie.on_watchlist = True
     user_movie.watchlist_added_at = timezone.now()
     user_movie.save(update_fields=["on_watchlist", "watchlist_added_at", "updated_at"])
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        movie_payload(movie),
+    )
     if hydrate_func is None:
         from apps.movies.tasks import hydrate_movie_translations
 
@@ -186,6 +205,7 @@ def switch_movie_provider(
             raise ValueError("Source movie is not tracked by this user.")
 
         source = Movie.objects.select_for_update().get(id=source_state.movie_id)
+        source_trakt_id = source.trakt_id
         target = Movie.objects.filter(
             provider=target_provider,
             external_id=str(target_external_id),
@@ -228,6 +248,7 @@ def switch_movie_provider(
                 "imdb_id",
                 "tmdb_id",
                 "tvdb_id",
+                "trakt_id",
                 "sync_status",
                 "updated_at",
             ]
@@ -253,8 +274,25 @@ def switch_movie_provider(
             ]
         )
         source_state.delete()
-        if not source.user_states.exists():
+        source_removed = not source.user_states.exists()
+        if source_removed:
             source.delete()
+            if source_trakt_id and not target.trakt_id:
+                target.trakt_id = source_trakt_id
+                target.save(update_fields=["trakt_id", "updated_at"])
+
+    if target_state.is_seen:
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.MOVIE_HISTORY,
+            movie_payload(target, watched_at=target_state.seen_at),
+        )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        movie_payload(target),
+        desired=target_state.on_watchlist,
+    )
 
     if sync_func is None:
         from apps.movies.tasks import sync_movie
@@ -318,6 +356,12 @@ def _movie_switch_defaults(
 
 
 def remove_from_watchlist(user, movie: Movie) -> UserMovie | None:
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        movie_payload(movie),
+        desired=False,
+    )
     try:
         user_movie = UserMovie.objects.get(user=user, movie=movie)
     except UserMovie.DoesNotExist:
@@ -335,6 +379,12 @@ def remove_from_watchlist(user, movie: Movie) -> UserMovie | None:
 
 
 def delete_movie_data(user, movie: Movie) -> None:
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        movie_payload(movie),
+        desired=False,
+    )
     UserMovie.objects.filter(user=user, movie=movie).delete()
 
 
@@ -352,6 +402,17 @@ def mark_seen(user, movie: Movie) -> UserMovie:
             "watchlist_added_at",
             "updated_at",
         ]
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_HISTORY,
+        movie_payload(movie, watched_at=user_movie.seen_at),
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        movie_payload(movie),
+        desired=False,
     )
     return user_movie
 
@@ -372,6 +433,11 @@ def unmark_seen(user, movie: Movie) -> UserMovie:
             "watchlist_added_at",
             "updated_at",
         ]
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        movie_payload(movie),
     )
     return user_movie
 

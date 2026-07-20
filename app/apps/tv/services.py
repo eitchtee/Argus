@@ -18,6 +18,9 @@ from apps.catalog.localization import (
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.catalog.tracking import find_tracking_match, identity_keys
+from apps.trakt.changes import record_intent
+from apps.trakt.identities import episode_payload, show_payload
+from apps.trakt.models import TraktSyncIntent
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
@@ -104,16 +107,34 @@ def import_show(
             }
             for code, values in detail.translations.items()
         }
+        show_translations = merge_translation_maps(
+            existing_show.translations if existing_show else {},
+            incoming_show_translations,
+        )
+        default_text = show_translations.get(default_language, {})
+        base_name = default_text.get("name") or (
+            detail.title
+            if language == default_language
+            else detail.original_title or detail.title
+        )
+        base_overview = default_text.get("overview") or detail.overview
+        if base_name and not default_text.get("name"):
+            show_translations = merge_translation_maps(
+                show_translations,
+                {default_language: {"name": base_name}},
+            )
+        if base_overview and not default_text.get("overview"):
+            show_translations = merge_translation_maps(
+                show_translations,
+                {default_language: {"overview": base_overview}},
+            )
         show, _created = Show.objects.update_or_create(
             provider=provider,
             external_id=detail.external_id,
             defaults={
-                "name": detail.title,
-                "overview": detail.overview,
-                "translations": merge_translation_maps(
-                    existing_show.translations if existing_show else {},
-                    incoming_show_translations,
-                ),
+                "name": base_name,
+                "overview": base_overview,
+                "translations": show_translations,
                 "poster_path": detail.poster_path,
                 "backdrop_path": detail.backdrop_path,
                 "first_aired": _parse_date(detail.release_date),
@@ -320,11 +341,33 @@ def track_show(
         raise ValueError("Tracked on another provider.")
     user_show, created = UserShow.objects.get_or_create(user=user, show=show)
     if not created and user_show.status == UserShow.Status.TRACKED:
+        if not user_show.on_watchlist:
+            user_show.on_watchlist = True
+            user_show.save(update_fields=["on_watchlist", "updated_at"])
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.SHOW_WATCHLIST,
+            show_payload(show),
+        )
         return user_show
 
     user_show.status = UserShow.Status.TRACKED
+    user_show.on_watchlist = True
     user_show.tracking_started_at = timezone.now()
-    user_show.save(update_fields=["status", "tracking_started_at", "updated_at"])
+    user_show.save(
+        update_fields=["status", "on_watchlist", "tracking_started_at", "updated_at"]
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        show_payload(show),
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_DROPPED,
+        show_payload(show),
+        desired=False,
+    )
     if hydrate_func is None:
         from apps.tv.tasks import hydrate_show_translations
 
@@ -381,6 +424,15 @@ def switch_show_provider(
             raise ValueError("Source show is not tracked by this user.")
 
         source = Show.objects.select_for_update().get(id=source_state.show_id)
+        source_trakt_id = source.trakt_id
+        source_episode_trakt_ids = {
+            (season_number, episode_number): trakt_id
+            for season_number, episode_number, trakt_id in source.episodes.values_list(
+                "season_number",
+                "episode_number",
+                "trakt_id",
+            )
+        }
         target = Show.objects.filter(
             provider=target_provider,
             external_id=str(target_external_id),
@@ -424,6 +476,7 @@ def switch_show_provider(
                 "imdb_id",
                 "tmdb_id",
                 "tvdb_id",
+                "trakt_id",
                 "sync_status",
                 "updated_at",
             ]
@@ -434,9 +487,18 @@ def switch_show_provider(
             show=target,
         )
         target_state.status = source_state.status
+        target_state.on_watchlist = source_state.on_watchlist
         target_state.tracking_started_at = source_state.tracking_started_at
         target_state.tier = source_state.tier
-        target_state.save(update_fields=["status", "tracking_started_at", "tier", "updated_at"])
+        target_state.save(
+            update_fields=[
+                "status",
+                "on_watchlist",
+                "tracking_started_at",
+                "tier",
+                "updated_at",
+            ]
+        )
 
         source_episodes = list(
             UserEpisode.objects.filter(user=user, episode__show=source)
@@ -467,10 +529,49 @@ def switch_show_provider(
             source_user_episode.delete()
 
         source_state.delete()
-        if not source.user_states.exists() and not source.episodes.filter(
+        source_removed = not source.user_states.exists() and not source.episodes.filter(
             user_states__isnull=False
-        ).exists():
+        ).exists()
+        if source_removed:
             source.delete()
+            if source_trakt_id and not target.trakt_id:
+                target.trakt_id = source_trakt_id
+                target.save(update_fields=["trakt_id", "updated_at"])
+            for (season_number, episode_number), trakt_id in source_episode_trakt_ids.items():
+                if not trakt_id:
+                    continue
+                target_episode = target.episodes.filter(
+                    season_number=season_number,
+                    episode_number=episode_number,
+                ).first()
+                if target_episode is not None and not target_episode.trakt_id:
+                    target_episode.trakt_id = trakt_id
+                    target_episode.save(update_fields=["trakt_id"])
+
+    if target_state.status == UserShow.Status.DROPPED:
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.SHOW_DROPPED,
+            show_payload(target),
+        )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        show_payload(target),
+        desired=target_state.on_watchlist,
+    )
+    for target_user_episode in UserEpisode.objects.filter(
+        user=user,
+        episode__show=target,
+    ).select_related("episode"):
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.EPISODE_HISTORY,
+            episode_payload(
+                target_user_episode.episode,
+                watched_at=target_user_episode.seen_at,
+            ),
+        )
 
     if sync_func is None:
         from apps.tv.tasks import sync_show
@@ -594,7 +695,19 @@ def _parse_time(value: str | None) -> time | None:
 def drop_show(user, show: Show) -> UserShow:
     user_show, _created = UserShow.objects.get_or_create(user=user, show=show)
     user_show.status = UserShow.Status.DROPPED
-    user_show.save(update_fields=["status", "updated_at"])
+    user_show.on_watchlist = False
+    user_show.save(update_fields=["status", "on_watchlist", "updated_at"])
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_DROPPED,
+        show_payload(show),
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        show_payload(show),
+        desired=False,
+    )
     return user_show
 
 
@@ -606,6 +719,18 @@ def pause_show(user, show: Show) -> UserShow:
 
 
 def delete_show_data(user, show: Show) -> None:
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        show_payload(show),
+        desired=False,
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_DROPPED,
+        show_payload(show),
+        desired=False,
+    )
     UserEpisode.objects.filter(user=user, episode__show=show).delete()
     UserShow.objects.filter(user=user, show=show).delete()
 
@@ -619,7 +744,30 @@ def _require_tracking(user, show: Show) -> UserShow:
 
 def mark_episode_watched(user, episode: Episode) -> UserEpisode:
     _require_tracking(user, episode.show)
-    user_episode, _created = UserEpisode.objects.get_or_create(user=user, episode=episode)
+    watched_at = timezone.now()
+    user_episode, _created = UserEpisode.objects.get_or_create(
+        user=user,
+        episode=episode,
+        defaults={"seen_at": watched_at},
+    )
+    if user_episode.seen_at is None or watched_at > user_episode.seen_at:
+        user_episode.seen_at = watched_at
+        user_episode.save(update_fields=["seen_at"])
+    UserShow.objects.filter(user=user, show=episode.show).update(
+        on_watchlist=False,
+        updated_at=timezone.now(),
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        show_payload(episode.show),
+        desired=False,
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.EPISODE_HISTORY,
+        episode_payload(episode, watched_at=user_episode.seen_at),
+    )
     return user_episode
 
 
@@ -633,7 +781,7 @@ def mark_season_watched(user, season: Season) -> None:
     today = timezone.localdate()
     aired_episodes = season.episodes.filter(air_date__isnull=False, air_date__lte=today)
     for episode in aired_episodes:
-        UserEpisode.objects.get_or_create(user=user, episode=episode)
+        mark_episode_watched(user, episode)
 
 
 def unmark_season_watched(user, season: Season) -> None:
@@ -651,7 +799,7 @@ def mark_show_watched(user, show: Show) -> None:
         air_date__lte=today,
     )
     for episode in aired_episodes:
-        UserEpisode.objects.get_or_create(user=user, episode=episode)
+        mark_episode_watched(user, episode)
 
 
 def unmark_show_watched(user, show: Show) -> None:
@@ -792,7 +940,7 @@ def get_watchlist(user) -> list[WatchlistEntry]:
         season_number__gt=0,
         air_date__isnull=False,
         air_date__lte=today,
-    ).order_by("show_id", "air_date", "episode_number")
+    ).prefetch_related("show").order_by("show_id", "air_date", "episode_number")
 
     watched_ids = set(
         UserEpisode.objects.filter(user=user, episode__show__in=tracked_shows).values_list(
