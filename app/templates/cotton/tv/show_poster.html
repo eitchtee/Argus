@@ -1,6 +1,7 @@
 {% load i18n %}
 
 <a href="{% url 'tv-detail' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}" hx-boost="true"
+   data-name="{{ show.name }}"
    class="group card overflow-hidden border border-base-300 bg-base-200/60 transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
   <figure class="aspect-[2/3] overflow-hidden bg-base-300">
     {% if show.poster_url %}

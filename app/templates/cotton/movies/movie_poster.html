@@ -1,4 +1,5 @@
 <a href="{% url 'movie-detail' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}" hx-boost="true"
+   data-name="{{ movie.title }}"
    class="group card overflow-hidden border border-base-300 bg-base-200/60 transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
   <figure class="aspect-[2/3] overflow-hidden bg-base-300">
     {% if movie.poster_url %}

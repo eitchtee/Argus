@@ -12,6 +12,15 @@
     </div>
   </div>
 
+  <label class="input w-full">
+    <i class="fa-solid fa-magnifying-glass opacity-50" aria-hidden="true"></i>
+    <input type="search" placeholder="{% trans 'Search your watchlist' %}"
+           aria-label="{% trans 'Search your watchlist' %}" autocomplete="off"
+           _="on input or htmx:afterSwap from #tv-watchlist-panel
+                show <a/> in #tv-watchlist-panel
+                when its dataset.name.toLowerCase() contains my value.toLowerCase()" />
+  </label>
+
   <div role="tablist" class="tabs tabs-border w-fit" aria-label="{% trans 'TV watchlist filters' %}">
     <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'All' %}"
            checked
