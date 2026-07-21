@@ -470,7 +470,11 @@ def _parse_date(value: str | None) -> date | None:
 def get_watch_something(user, count: int = 10) -> list[Movie]:
     return list(
         Movie.objects.filter(
-            user_states__user=user, user_states__on_watchlist=True, user_states__is_seen=False
+            user_states__user=user,
+            user_states__on_watchlist=True,
+            user_states__is_seen=False,
+            release_date__isnull=False,
+            release_date__lte=timezone.localdate(),
         ).order_by("?")[:count]
     )
 
