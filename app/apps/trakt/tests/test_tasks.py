@@ -39,6 +39,22 @@ class TraktTaskSchedulingTests(SimpleTestCase):
             schedule_in={"seconds": 23},
         )
 
+    @patch("apps.trakt.tasks._recover_stalled_account_sync", return_value=43)
+    @patch("apps.trakt.tasks.sync_account_task")
+    def test_enqueue_recovers_stalled_job_when_queueing_lock_is_taken(
+        self, task, recover
+    ):
+        from procrastinate.exceptions import AlreadyEnqueued
+
+        task.configure.return_value.defer.side_effect = AlreadyEnqueued()
+
+        from apps.trakt.tasks import enqueue_account_sync
+
+        result = enqueue_account_sync(7)
+
+        self.assertEqual(result, 43)
+        recover.assert_called_once_with(7)
+
 
 class TraktTaskTests(TransactionTestCase):
     def setUp(self):
@@ -110,3 +126,47 @@ class TraktTaskTests(TransactionTestCase):
             [call.args[0] for call in enqueue.call_args_list],
             [self.account.id, second.id],
         )
+
+    @override_settings(PROCRASTINATE_READONLY_MODELS=False)
+    @patch("apps.trakt.tasks._finish_stalled_job")
+    @patch("apps.trakt.tasks.app.job_manager.retry_job_by_id")
+    def test_stalled_sync_keeps_waiting_job_and_releases_dead_worker_lock(
+        self, retry_job, finish_job
+    ):
+        from procrastinate.contrib.django.models import ProcrastinateJob
+
+        lock = f"trakt-account:{self.account.id}"
+        stalled = ProcrastinateJob.objects.create(
+            queue_name="default",
+            task_name="sync_trakt_account",
+            priority=0,
+            lock=lock,
+            args={"account_id": self.account.id},
+            status="doing",
+            scheduled_at=None,
+            attempts=0,
+            queueing_lock=lock,
+            abort_requested=False,
+            worker=None,
+        )
+        waiting = ProcrastinateJob.objects.create(
+            queue_name="default",
+            task_name="sync_trakt_account",
+            priority=0,
+            lock=lock,
+            args={"account_id": self.account.id},
+            status="todo",
+            scheduled_at=None,
+            attempts=0,
+            queueing_lock=lock,
+            abort_requested=False,
+            worker=None,
+        )
+
+        from apps.trakt.tasks import _recover_stalled_account_sync
+
+        result = _recover_stalled_account_sync(self.account.id)
+
+        self.assertEqual(result, waiting.id)
+        finish_job.assert_called_once_with(stalled.id)
+        retry_job.assert_not_called()

@@ -2,9 +2,13 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Q
 from django.utils import timezone
+from procrastinate import jobs
 from procrastinate.contrib.django import app
+from procrastinate.contrib.django.models import ProcrastinateJob
 from procrastinate.exceptions import AlreadyEnqueued
+from procrastinate.utils import async_to_sync
 
 from apps.trakt.client import (
     TraktAuthenticationError,
@@ -18,6 +22,10 @@ from apps.trakt.sync import sync_account
 
 class TraktConfigurationError(TraktError):
     pass
+
+
+_SYNC_TASK_NAME = "sync_trakt_account"
+_STALLED_WORKER_TIMEOUT = timedelta(seconds=30)
 
 
 def build_client(account) -> TraktClient:
@@ -76,6 +84,57 @@ def build_client(account) -> TraktClient:
     return client
 
 
+def _finish_stalled_job(job_id: int) -> None:
+    async_to_sync(
+        app.job_manager.finish_job_by_id_async,
+        job_id=job_id,
+        status=jobs.Status.ABORTED,
+        delete_job=True,
+    )
+
+
+def _recover_stalled_account_sync(account_id: int) -> int | None:
+    """Release a dead worker's account lock and keep the newest queued sync."""
+    lock = f"trakt-account:{account_id}"
+    stalled_before = timezone.now() - _STALLED_WORKER_TIMEOUT
+    stalled_jobs = list(
+        ProcrastinateJob.objects.filter(
+            task_name=_SYNC_TASK_NAME,
+            lock=lock,
+            status=jobs.Status.DOING.value,
+        )
+        .filter(
+            Q(worker__isnull=True)
+            | Q(worker__last_heartbeat__lt=stalled_before)
+        )
+        .order_by("id")
+    )
+    if not stalled_jobs:
+        return None
+
+    waiting_job = (
+        ProcrastinateJob.objects.filter(
+            task_name=_SYNC_TASK_NAME,
+            queueing_lock=lock,
+            status=jobs.Status.TODO.value,
+        )
+        .order_by("id")
+        .first()
+    )
+    if waiting_job is not None:
+        for stalled_job in stalled_jobs:
+            _finish_stalled_job(stalled_job.id)
+        return waiting_job.id
+
+    for stalled_job in stalled_jobs[1:]:
+        _finish_stalled_job(stalled_job.id)
+    app.job_manager.retry_job_by_id(
+        stalled_jobs[0].id,
+        retry_at=timezone.now(),
+    )
+    return stalled_jobs[0].id
+
+
 def enqueue_account_sync(account_id: int, *, schedule_in: dict | None = None) -> int | None:
     lock = f"trakt-account:{account_id}"
     options = {"lock": lock, "queueing_lock": lock}
@@ -84,7 +143,7 @@ def enqueue_account_sync(account_id: int, *, schedule_in: dict | None = None) ->
     try:
         return sync_account_task.configure(**options).defer(account_id=account_id)
     except AlreadyEnqueued:
-        return None
+        return _recover_stalled_account_sync(account_id)
 
 
 @app.task(name="sync_trakt_account")
