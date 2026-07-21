@@ -5,8 +5,9 @@
                 set @data-loaded to 'true'
                 fetch '{% url 'tv-upcoming' %}?after={{ month.month_start|date:'Y-m' }}' as HTML with headers:{'HX-Request':'true'}
                 put it after me
+                send input to #upcoming-search
               end"{% endif %}>
-  <div class="section-heading">
+  <div class="section-heading" data-search-label>
     <h2 class="text-2xl font-bold tracking-tight">{{ month.month_start|date:"F Y" }}</h2>
   </div>
   <div class="flex flex-col gap-2">

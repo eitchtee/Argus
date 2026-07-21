@@ -13,6 +13,18 @@
       </div>
     </div>
 
+    {% if month %}
+    <label class="input w-full mb-6">
+      <i class="fa-solid fa-magnifying-glass opacity-50" aria-hidden="true"></i>
+      <input type="search" id="upcoming-search" placeholder="{% trans 'Search upcoming episodes' %}"
+             aria-label="{% trans 'Search upcoming episodes' %}" autocomplete="off"
+             _="on input
+                  show <.media-card/> in #upcoming-content
+                    when its dataset.search.toLowerCase() contains my value.toLowerCase()
+                  show <[data-search-label]/> in #upcoming-content when my value is empty" />
+    </label>
+    {% endif %}
+
     <div class="space-y-10" id="upcoming-content">
       {% if month %}
         {% include "tv/fragments/upcoming_month.html" %}

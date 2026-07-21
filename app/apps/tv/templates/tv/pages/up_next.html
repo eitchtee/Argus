@@ -4,7 +4,18 @@
 {% block title %}{% trans "Up next" %}{% endblock %}
 
 {% block content %}
-<div id="up-next-content">
-  {% include "tv/fragments/up_next_content.html" %}
+<div class="space-y-6">
+  <label class="input w-full">
+    <i class="fa-solid fa-magnifying-glass opacity-50" aria-hidden="true"></i>
+    <input type="search" placeholder="{% trans 'Search up next' %}"
+           aria-label="{% trans 'Search up next' %}" autocomplete="off"
+           _="on input or htmx:afterSwap from #up-next-content
+                show <.media-card/> in #up-next-content
+                  when its dataset.search.toLowerCase() contains my value.toLowerCase()
+                show <[data-search-label]/> in #up-next-content when my value is empty" />
+  </label>
+  <div id="up-next-content">
+    {% include "tv/fragments/up_next_content.html" %}
+  </div>
 </div>
 {% endblock %}

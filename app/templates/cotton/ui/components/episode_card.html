@@ -1,5 +1,5 @@
 {% load i18n %}
-<div id="{{ id }}" class="media-card card card-side overflow-hidden min-h-28 rounded-box">
+<div id="{{ id }}" data-search="{{ show_name }} {{ episode_title }} {{ season_episode_label }}" class="media-card card card-side overflow-hidden min-h-28 rounded-box">
   {% if checkbox_position == "left" and toggle_url %}
   <input type="checkbox" class="checkbox checkbox-lg shrink-0 self-center ms-3"
          {% if checked %}checked{% endif %}
