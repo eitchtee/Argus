@@ -62,6 +62,7 @@ def calendar_page(request):
                     "date": cell_date,
                     "is_current_month": cell_date.month == month.month,
                     "is_today": cell_date == today,
+                    "is_past": cell_date < today,
                     "events": events_by_date.get(cell_date, []),
                 }
                 for cell_date in week

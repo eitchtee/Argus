@@ -146,7 +146,7 @@
   color: var(--color-base-content);
   text-decoration: none;
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease,
-    transform 160ms ease;
+    opacity 160ms ease, transform 160ms ease;
 }
 
 .calendar-event--paused {
@@ -159,6 +159,15 @@
 
 .calendar-event--movie {
   --calendar-event-accent: var(--color-info);
+}
+
+.calendar-day.is-past .calendar-event {
+  opacity: 0.55;
+}
+
+.calendar-day.is-past .calendar-event:hover,
+.calendar-day.is-past .calendar-event:focus-visible {
+  opacity: 1;
 }
 
 .calendar-event:hover,

@@ -1,8 +1,9 @@
 import uuid
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.calendar.events import get_calendar_feed
 from apps.catalog.models import Genre
@@ -203,6 +204,20 @@ class CalendarViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "calendar-page")
+
+    def test_days_before_today_are_flagged_as_past(self):
+        today = timezone.localdate()
+
+        response = self.client.get(f"/calendar/?month={today:%Y-%m}")
+
+        cells = {
+            cell["date"]: cell
+            for week in response.context["weeks"]
+            for cell in week
+        }
+        self.assertTrue(cells[today - timedelta(days=1)]["is_past"])
+        self.assertFalse(cells[today]["is_past"])
+        self.assertFalse(cells[today + timedelta(days=1)]["is_past"])
 
     def test_timed_release_is_placed_on_local_display_date(self):
         self.make_episode("Late UTC", UserShow.Status.TRACKED, date(2026, 7, 10))

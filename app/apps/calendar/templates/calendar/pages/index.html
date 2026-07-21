@@ -81,7 +81,7 @@
 
       {% for week in weeks %}
         {% for cell in week %}
-        <div class="calendar-day{% if not cell.is_current_month %} is-adjacent{% endif %}{% if cell.is_today %} is-today{% endif %}"
+        <div class="calendar-day{% if not cell.is_current_month %} is-adjacent{% endif %}{% if cell.is_today %} is-today{% endif %}{% if cell.is_past %} is-past{% endif %}"
              role="gridcell" data-date="{{ cell.date|date:'Y-m-d' }}">
           <time class="calendar-day-number{% if cell.is_today %} is-today{% endif %}" datetime="{{ cell.date|date:'Y-m-d' }}">
             {{ cell.date|date:"j" }}
