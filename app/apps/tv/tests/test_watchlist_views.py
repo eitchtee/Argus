@@ -46,11 +46,13 @@ class WatchlistViewTests(TestCase):
         external_id,
         status=UserShow.Status.TRACKED,
         poster_path=None,
+        normalized_status=None,
     ):
         show = Show.objects.create(
             name=name,
             external_id=external_id,
             poster_path=poster_path,
+            normalized_status=normalized_status,
         )
         season = Season.objects.create(show=show, season_number=1, name="Season 1")
         UserShow.objects.create(user=self.user, show=show, status=status)
@@ -77,30 +79,139 @@ class WatchlistViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
-    def test_full_page_renders_lazy_daisyui_tabs(self):
+    def test_full_page_renders_filter_form_with_watching_selected(self):
         response = self.client.get(reverse("tv-watchlist"))
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
+        self.assertTemplateUsed(response, "tv/pages/watchlist.html")
         self.assertContains(response, "Watchlist")
-        for section in ("all", "watching", "completed", "paused", "dropped"):
-            self.assertIn(
-                self.tab_url(section),
-                content,
-            )
-        self.assertEqual(content.count('hx-target="#tv-watchlist-panel"'), 5)
-        tablist_start = content.index('<div role="tablist"')
-        tablist_end = content.index('</div>', tablist_start)
-        tablist = content[tablist_start:tablist_end]
-        self.assertEqual(tablist.count('hx-swap="innerHTML"'), 5)
-        self.assertIn('role="tablist"', content)
-        self.assertIn('aria-label="All"', content)
-        all_label = content.index('aria-label="All"')
-        all_input_start = content.rfind("<input", 0, all_label)
-        all_input_end = content.index(">", all_label)
-        self.assertIn("checked", content[all_input_start:all_input_end])
-        self.assertIn('hx-trigger="load, change"', content)
-        self.assertNotIn("My Show", content)
+        self.assertNotContains(response, "My Show")
+        self.assertContains(response, 'name="condition"')
+        self.assertContains(response, 'data-filter-value="watching"')
+        self.assertContains(
+            response,
+            'class="btn btn-primary btn-outline btn-sm rounded-full btn-active"',
+        )
+        self.assertContains(response, 'hx-get="/tv/watchlist/"')
+        self.assertContains(response, 'hx-target="#tv-watchlist-panel"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertContains(response, 'hx-push-url="true"')
+        self.assertContains(response, 'name="normalized_status"')
+        self.assertContains(response, 'id="tv-watchlist-normalized-status-Continuing"')
+        self.assertContains(response, "Loading watchlist")
+        self.assertNotContains(response, 'data-filter-value="all"')
+        self.assertNotIn('role="tablist"', content)
+        self.assertNotIn('tv-watchlist-tab', content)
+        self.assertRegex(
+            content,
+            r'name="normalized_status"[^>]*disabled',
+        )
+
+    def test_query_params_restore_selected_filters(self):
+        paused, paused_season = self.make_show(
+            "Paused Ended Show",
+            "2",
+            status=UserShow.Status.PAUSED,
+            normalized_status=Show.NormalizedStatus.ENDED,
+        )
+        self.make_episode(paused, paused_season, 1)
+
+        response = self.client.get(
+            reverse("tv-watchlist") + "?condition=paused&normalized_status=Ended"
+        )
+        content = response.content.decode()
+
+        self.assertContains(
+            response,
+            'hx-get="/tv/watchlist/?condition=paused&amp;normalized_status=Ended"',
+        )
+        self.assertRegex(
+            content,
+            r'class="btn btn-primary btn-outline btn-sm rounded-full btn-active"\s+data-filter-value="paused"',
+        )
+        self.assertRegex(
+            content,
+            r'class="btn btn-primary btn-outline btn-sm rounded-full btn-active"\s+data-filter-value="Ended"',
+        )
+        self.assertNotRegex(
+            content,
+            r'id="tv-watchlist-normalized-status-Ended"[^>]*disabled',
+        )
+
+        fragment_response = self.client.get(
+            reverse("tv-watchlist") + "?condition=paused&normalized_status=Ended",
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertContains(fragment_response, "Paused Ended Show")
+        self.assertNotContains(fragment_response, "My Show")
+
+    def test_multiple_condition_query_params_render_all_selected_conditions(self):
+        completed, completed_season = self.make_show("Completed Show", "2")
+        completed_episode = self.make_episode(completed, completed_season, 1)
+        UserEpisode.objects.create(user=self.user, episode=completed_episode)
+
+        response = self.client.get(
+            reverse("tv-watchlist") + "?condition=watching&condition=completed"
+        )
+        content = response.content.decode()
+
+        self.assertEqual(
+            content.count('class="btn btn-primary btn-outline btn-sm rounded-full btn-active"'),
+            2,
+        )
+
+        fragment_response = self.client.get(
+            reverse("tv-watchlist") + "?condition=watching&condition=completed",
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertContains(fragment_response, "My Show")
+        self.assertContains(fragment_response, "Completed Show")
+
+    def test_htmx_request_returns_only_the_filtered_grid(self):
+        completed, completed_season = self.make_show(
+            "Completed Show",
+            "2",
+            normalized_status=Show.NormalizedStatus.ENDED,
+        )
+        completed_episode = self.make_episode(completed, completed_season, 1)
+        UserEpisode.objects.create(user=self.user, episode=completed_episode)
+
+        response = self.client.get(
+            reverse("tv-watchlist") + "?condition=completed&normalized_status=Ended",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "tv/fragments/watchlist_grid.html")
+        self.assertContains(response, "Completed Show")
+        self.assertNotContains(response, "My Show")
+        self.assertNotContains(response, "<html")
+
+    def test_hx_boosted_request_returns_page_shell_with_lazy_grid(self):
+        response = self.client.get(
+            reverse("tv-watchlist"),
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_BOOSTED="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "tv/pages/watchlist.html")
+        self.assertContains(response, "<html")
+        self.assertContains(response, 'id="tv-watchlist-panel"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertContains(response, 'hx-get="/tv/watchlist/"')
+        self.assertNotContains(response, "My Show")
+
+    def test_watchlist_poster_boost_targets_the_page_body(self):
+        response = self.client.get(
+            reverse("tv-watchlist"),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(response, "My Show")
+        self.assertContains(response, 'hx-boost="true" hx-target="body"')
+        self.assertContains(response, 'hx-swap="innerHTML"')
 
     def test_all_fragment_renders_poster_card_and_detail_link(self):
         response = self.client.get(
@@ -112,20 +223,22 @@ class WatchlistViewTests(TestCase):
         self.assertContains(response, "My Show")
         self.assertContains(response, "https://example.com/poster.jpg")
         self.assertContains(response, "0/1")
-        self.assertContains(response, "progress-warning")
+        self.assertContains(response, "progress-info")
         self.assertContains(response, f'href="{reverse("tv-detail", kwargs={"external_id": "1"})}"')
         self.assertNotContains(response, "<html")
 
     def test_completed_progress_uses_show_status_color(self):
         ended_show, ended_season = self.make_show("Ended Show", "2")
         ended_show.status = "Ended"
-        ended_show.save(update_fields=["status"])
+        ended_show.normalized_status = Show.NormalizedStatus.ENDED
+        ended_show.save(update_fields=["status", "normalized_status"])
         ended_episode = self.make_episode(ended_show, ended_season, 1)
         UserEpisode.objects.create(user=self.user, episode=ended_episode)
 
         continuing_show, continuing_season = self.make_show("Continuing Show", "3")
         continuing_show.status = "Continuing"
-        continuing_show.save(update_fields=["status"])
+        continuing_show.normalized_status = Show.NormalizedStatus.CONTINUING
+        continuing_show.save(update_fields=["status", "normalized_status"])
         continuing_episode = self.make_episode(continuing_show, continuing_season, 1)
         UserEpisode.objects.create(user=self.user, episode=continuing_episode)
 

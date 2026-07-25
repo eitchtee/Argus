@@ -48,8 +48,15 @@
     </div>
   </div>
 
-  <div id="search-results" class="show-loading">
-    {% include "catalog/fragments/results.html" %}
+  <div id="search-results" class="show-loading"
+       hx-get="{% url 'catalog-search-results' %}?{{ request.GET.urlencode }}"
+       hx-trigger="load"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+    </div>
   </div>
 </div>
 {% endblock %}

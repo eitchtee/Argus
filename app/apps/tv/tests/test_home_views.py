@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -240,7 +241,7 @@ class UpNextViewTests(TestCase):
             seen_at=now - timedelta(days=31),
         )
 
-        response = self.client.get("/tv/up-next/")
+        response = self.client.get("/tv/up-next/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
@@ -256,13 +257,23 @@ class UpNextViewTests(TestCase):
         self.assertIn("Stale pending", content)
         self.assertIn("New pending", content)
 
+    @patch("apps.tv.views.get_up_next")
+    def test_page_shell_defers_up_next_content(self, get_up_next_mock):
+        response = self.client.get("/tv/up-next/")
+
+        get_up_next_mock.assert_not_called()
+        self.assertContains(response, 'id="up-next-content"')
+        self.assertContains(response, 'hx-get="/tv/up-next/"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertNotContains(response, 'id="up-next-active-list"')
+
     def test_omits_empty_secondary_sections(self):
         show, season = self._make_show("New Show", "new")
         self._make_episode(
             show, season, 1, self.today - timedelta(days=1), "New pending"
         )
 
-        response = self.client.get("/tv/up-next/")
+        response = self.client.get("/tv/up-next/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Not started")
@@ -368,7 +379,7 @@ class UpcomingViewTests(TestCase):
         self._make_episode(2, self.today + timedelta(days=1), "Another current episode")
         self._make_episode(3, next_month, "Next month episode")
 
-        response = self.client.get("/tv/upcoming/")
+        response = self.client.get("/tv/upcoming/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
@@ -378,7 +389,38 @@ class UpcomingViewTests(TestCase):
         self.assertNotIn("Next month episode", content)
         self.assertIn("on intersection", content)
         self.assertIn(f"after={current_month:%Y-%m}", content)
-        self.assertIn('class="sidebar-item menu-active"', content)
+
+    @patch("apps.tv.views.get_upcoming_month")
+    def test_page_shell_defers_upcoming_content(self, get_upcoming_month_mock):
+        response = self.client.get("/tv/upcoming/")
+
+        get_upcoming_month_mock.assert_not_called()
+        self.assertContains(response, 'id="upcoming-content"')
+        self.assertContains(response, 'hx-get="/tv/upcoming/"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertNotContains(response, "My Show")
+
+    def test_groups_same_day_episodes_behind_expandable_lip(self):
+        first = self._make_episode(1, self.today, "First episode")
+        second = self._make_episode(2, self.today, "Second episode")
+        third = self._make_episode(3, self.today, "Third episode")
+
+        response = self.client.get("/tv/upcoming/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "+ 2 episodes")
+        self.assertContains(response, 'aria-expanded="false"')
+        self.assertContains(response, 'x-show="expanded"')
+        content = response.content.decode()
+        self.assertLess(
+            content.index(f'id="upcoming-group-{first.id}-additional"'),
+            content.index('class="upcoming-episode-group-lip'),
+        )
+        self.assertContains(response, "upcoming-episode-group-additional-item")
+        self.assertContains(response, "rounded-b-none")
+        self.assertContains(response, "Second episode")
+        self.assertContains(response, "Third episode")
+        self.assertNotContains(response, f'id="upcoming-episode-{second.id}"')
+        self.assertNotContains(response, f'id="upcoming-episode-{third.id}"')
 
     def test_cursor_returns_only_next_month_fragment(self):
         current_month = self.today.replace(day=1)
@@ -404,7 +446,7 @@ class UpcomingViewTests(TestCase):
     def test_final_month_has_no_intersection_loader(self):
         self._make_episode(1, self.today, "Only episode")
 
-        response = self.client.get("/tv/upcoming/")
+        response = self.client.get("/tv/upcoming/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Only episode")
@@ -451,6 +493,55 @@ class HomeUpcomingViewTests(TestCase):
         self.assertNotContains(response, "checkbox-lg")
         episode = Episode.objects.get(name="Pilot")
         self.assertContains(response, f"/tv/1/episodes/{episode.id}/\"")
+
+    def test_groups_same_day_episodes_behind_expandable_lip(self):
+        first = self._make_episode(1, self.today, "First episode")
+        second = self._make_episode(2, self.today, "Second episode")
+
+        response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "+ 1 episode")
+        self.assertContains(response, 'aria-expanded="false"')
+        content = response.content.decode()
+        self.assertLess(
+            content.index(f'id="upcoming-group-{first.id}-additional"'),
+            content.index('class="upcoming-episode-group-lip'),
+        )
+        self.assertContains(response, "upcoming-episode-group-additional-item")
+        self.assertContains(response, "rounded-b-none")
+        self.assertContains(response, "Second episode")
+        self.assertNotContains(response, f'id="upcoming-episode-{second.id}"')
+
+    def test_localizes_primary_and_expanded_episode_names(self):
+        self.user.settings.tvdb_metadata_language = "por"
+        self.user.settings.save(update_fields=["tvdb_metadata_language"])
+        self.show.translations = {"por": {"name": "Meu Show"}}
+        self.show.save(update_fields=["translations"])
+        Episode.objects.create(
+            show=self.show,
+            season=self.season,
+            season_number=1,
+            episode_number=1,
+            name="First episode",
+            translations={"por": {"name": "Primeiro episódio"}},
+            air_date=self.today,
+        )
+        Episode.objects.create(
+            show=self.show,
+            season=self.season,
+            season_number=1,
+            episode_number=2,
+            name="Second episode",
+            translations={"por": {"name": "Segundo episódio"}},
+            air_date=self.today,
+        )
+
+        response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Meu Show")
+        self.assertContains(response, "Primeiro episódio")
+        self.assertContains(response, "Segundo episódio")
+        self.assertNotContains(response, "Second episode")
 
     def test_caps_at_ten_episodes(self):
         for i in range(15):

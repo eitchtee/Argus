@@ -10,6 +10,12 @@ class BaseTemplateTests(SimpleTestCase):
 
         self.assertIn('{% include "common/fragments/toasts.html" %}', source)
 
+    def test_toasts_listen_for_an_explicit_toast_event(self):
+        source = get_template("common/fragments/toasts.html").template.source
+
+        self.assertIn('hx-trigger="toast from:body"', source)
+        self.assertNotIn("htmx:afterRequest from:body", source)
+
 
 class ToastEndpointTests(TestCase):
     def setUp(self):
@@ -28,3 +34,4 @@ class ToastEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'id="toasts"')
         self.assertNotContains(response, "hx-get=")
+        self.assertNotIn("HX-Trigger", response)

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from cachalot.api import cachalot_disabled
 from django.db.models import Prefetch
@@ -7,7 +8,7 @@ from django.utils import timezone as django_timezone
 
 from apps.catalog.localization import metadata_language_for_user, resolve_field
 from apps.movies.models import Movie
-from apps.tv.models import Episode, UserShow
+from apps.tv.models import Episode, Show, UserShow
 
 from .models import CalendarFeed
 
@@ -239,7 +240,11 @@ def _episode_event(
 
     starts_at = None
     if episode.show.airs_time is not None:
-        starts_at = datetime.combine(episode.air_date, episode.show.airs_time, tzinfo=UTC)
+        starts_at = datetime.combine(
+            episode.air_date,
+            episode.show.airs_time,
+            tzinfo=_show_air_timezone(episode.show),
+        )
 
     ends_at = None
     if starts_at is not None and episode.runtime is not None:
@@ -265,6 +270,15 @@ def _episode_event(
         season_number=episode.season_number,
         episode_number=episode.episode_number,
     )
+
+
+def _show_air_timezone(show: Show):
+    if show.airs_timezone:
+        try:
+            return ZoneInfo(show.airs_timezone)
+        except ZoneInfoNotFoundError:
+            pass
+    return UTC
 
 
 def _movie_event(movie: Movie, language: str = "en-US") -> CalendarEvent:

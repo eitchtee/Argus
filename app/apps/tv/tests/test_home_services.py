@@ -304,6 +304,21 @@ class UpcomingMonthServiceTests(TestCase):
         self.assertTrue(month.entries[0].watched)
         self.assertFalse(month.entries[1].watched)
 
+    def test_groups_same_show_same_day_but_not_other_shows(self):
+        show, season = self._make_show("My Show", "my-show")
+        first = self._make_episode(show, season, 1, self.today, "First")
+        second = self._make_episode(show, season, 2, self.today, "Second")
+        other_show, other_season = self._make_show("Other Show", "other-show")
+        other = self._make_episode(other_show, other_season, 1, self.today, "Other")
+
+        month = self._get_upcoming_month()
+
+        self.assertEqual([entry.episode for entry in month.entries], [first, other])
+        self.assertEqual(
+            [item.episode for item in month.entries[0].additional_episodes],
+            [second],
+        )
+
     def test_uses_the_shared_yesterday_onward_window(self):
         show, season = self._make_show("My Show", "my-show")
         self._make_episode(show, season, 1, self.today - timedelta(days=2), "Too old")
@@ -449,7 +464,25 @@ class GetUpcomingEpisodesServiceTests(TestCase):
         unwatched = self._make_episode(2, self.today, name="Unwatched")
         UserEpisode.objects.create(user=self.user, episode=watched)
 
-        entries = {entry.episode: entry.watched for entry in get_upcoming_episodes(self.user)}
+        entries = get_upcoming_episodes(self.user)
 
-        self.assertTrue(entries[watched])
-        self.assertFalse(entries[unwatched])
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].episode, watched)
+        self.assertTrue(entries[0].watched)
+        self.assertEqual(entries[0].additional_episodes[0].episode, unwatched)
+        self.assertFalse(entries[0].additional_episodes[0].watched)
+
+    def test_applies_count_to_grouped_cards_and_keeps_full_group(self):
+        episodes = [
+            self._make_episode(number, self.today, name=f"Episode {number}")
+            for number in range(1, 13)
+        ]
+
+        entries = get_upcoming_episodes(self.user, count=1)
+
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].episode, episodes[0])
+        self.assertEqual(
+            [item.episode for item in entries[0].additional_episodes],
+            episodes[1:],
+        )

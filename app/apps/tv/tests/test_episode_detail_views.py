@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -47,6 +48,22 @@ class EpisodeDetailViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
+    @patch("apps.tv.views.get_object_or_404")
+    def test_page_shell_defers_episode_context(self, get_object_or_404_mock):
+        get_object_or_404_mock.side_effect = [self.show, self.episode]
+
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/",
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_BOOSTED="true",
+        )
+
+        get_object_or_404_mock.assert_not_called()
+        self.assertContains(response, 'id="tv-episode-content"')
+        self.assertContains(response, f'hx-get="/tv/123/episodes/{self.episode.id}/"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertNotContains(response, "Pilot")
+
     def test_404_when_episode_does_not_belong_to_show(self):
         other_show = Show.objects.create(external_id="456", name="Bar")
         other_season = Season.objects.create(show=other_show, season_number=1, name="Season 1")
@@ -54,12 +71,16 @@ class EpisodeDetailViewTests(TestCase):
             show=other_show, season=other_season, season_number=1, episode_number=1, name="Other"
         )
 
-        response = self.client.get(f"/tv/123/episodes/{other_episode.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{other_episode.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertEqual(response.status_code, 404)
 
     def test_renders_read_only_when_not_tracking(self):
-        response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Pilot")
@@ -69,7 +90,9 @@ class EpisodeDetailViewTests(TestCase):
     def test_renders_watched_fab_when_tracking(self):
         UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
-        response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, "Mark watched")
         self.assertContains(response, 'class="fab"')
@@ -79,7 +102,9 @@ class EpisodeDetailViewTests(TestCase):
         UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=self.episode)
 
-        response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, "Mark unwatched")
         self.assertContains(response, 'class="fab"')
@@ -89,12 +114,16 @@ class EpisodeDetailViewTests(TestCase):
         self.episode.finale_type = "series"
         self.episode.save(update_fields=["finale_type"])
 
-        response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, "Series Finale")
 
     def test_no_finale_badge_when_not_set(self):
-        response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertNotContains(response, "Finale")
 
@@ -107,17 +136,23 @@ class EpisodeDetailViewTests(TestCase):
             show=self.show, season=season_two, season_number=2, episode_number=1, name="Third"
         )
 
-        response = self.client.get(f"/tv/123/episodes/{episode_two.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{episode_two.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, f"/tv/123/episodes/{self.episode.id}/\"")
         self.assertContains(response, f"/tv/123/episodes/{episode_three.id}/\"")
 
     def test_no_previous_link_on_series_first_episode(self):
-        response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertNotContains(response, "fa-chevron-left")
 
     def test_no_next_link_on_series_last_episode(self):
-        response = self.client.get(f"/tv/123/episodes/{self.episode.id}/")
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/", HTTP_HX_REQUEST="true"
+        )
 
         self.assertNotContains(response, "fa-chevron-right")

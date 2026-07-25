@@ -199,6 +199,22 @@ class CalendarEventServiceTests(TestCase):
         self.assertEqual(event.starts_at, datetime(2026, 7, 10, 21, 0, tzinfo=timezone.utc))
         self.assertEqual(event.ends_at, datetime(2026, 7, 10, 22, 0, tzinfo=timezone.utc))
 
+    def test_combines_air_time_in_the_show_timezone(self):
+        show = self.make_show("New York Timed", UserShow.Status.TRACKED, airs_time=time(21, 0))
+        show.airs_timezone = "America/New_York"
+        show.save(update_fields=["airs_timezone"])
+        self.make_episode(show, date(2026, 7, 10), runtime=60)
+
+        event = get_calendar_events(
+            self.user,
+            date(2026, 7, 10),
+            date(2026, 7, 10),
+            filters=CalendarFilters(),
+        )[0]
+
+        self.assertEqual(event.starts_at, datetime(2026, 7, 11, 1, 0, tzinfo=timezone.utc))
+        self.assertEqual(event.ends_at, datetime(2026, 7, 11, 2, 0, tzinfo=timezone.utc))
+
     def test_missing_air_time_is_all_day_and_missing_date_is_excluded(self):
         no_time = self.make_show("Date Only", UserShow.Status.TRACKED, airs_time=None)
         missing_date = self.make_show("No Date", UserShow.Status.TRACKED)

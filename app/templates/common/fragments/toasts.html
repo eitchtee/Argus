@@ -3,5 +3,5 @@
   <div id="toast-messages">
     {% include "common/fragments/toast_messages.html" %}
   </div>
-  <div hx-get="{% url 'toasts' %}" hx-trigger="htmx:afterRequest from:body" hx-target="#toast-messages" hx-swap="innerHTML" hx-disabled-elt="this"></div>
+  <div hx-get="{% url 'toasts' %}" hx-trigger="toast from:body" hx-target="#toast-messages" hx-swap="innerHTML" hx-disabled-elt="this"></div>
 </div>

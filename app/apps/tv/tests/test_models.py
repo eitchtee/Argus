@@ -8,6 +8,15 @@ from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
 class TvModelTests(TestCase):
+    def test_show_has_tvdb_compatible_normalized_status_choices(self):
+        field = Show._meta.get_field("normalized_status")
+
+        self.assertEqual(
+            [choice[0] for choice in field.choices],
+            ["Upcoming", "Continuing", "Ended"],
+        )
+        self.assertTrue(field.null)
+
     def test_tv_metadata_translations_default_to_empty_dict(self):
         show = Show.objects.create(external_id="series-1", name="The Expanse")
         season = Season.objects.create(show=show, season_number=1, name="Season 1")

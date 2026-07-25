@@ -19,6 +19,96 @@ from apps.catalog.providers.base import (
 from apps.catalog.providers.exceptions import AuthError, NotFound, ProviderError, RateLimited
 
 
+# TVDB does not include the timezone in its series response. Its documented
+# convention is US Eastern for US series and the capital/most populous city
+# timezone for other countries, so keep the source timezone as an IANA zone.
+_AIR_TIMEZONES_BY_COUNTRY = {
+    "usa": "America/New_York",
+    "can": "America/Toronto",
+    "mex": "America/Mexico_City",
+    "bra": "America/Sao_Paulo",
+    "arg": "America/Argentina/Buenos_Aires",
+    "chl": "America/Santiago",
+    "col": "America/Bogota",
+    "per": "America/Lima",
+    "ven": "America/Caracas",
+    "ecu": "America/Guayaquil",
+    "bol": "America/La_Paz",
+    "pry": "America/Asuncion",
+    "ury": "America/Montevideo",
+    "cri": "America/Costa_Rica",
+    "pan": "America/Panama",
+    "dom": "America/Santo_Domingo",
+    "gbr": "Europe/London",
+    "irl": "Europe/Dublin",
+    "prt": "Europe/Lisbon",
+    "esp": "Europe/Madrid",
+    "fra": "Europe/Paris",
+    "deu": "Europe/Berlin",
+    "ita": "Europe/Rome",
+    "nld": "Europe/Amsterdam",
+    "bel": "Europe/Brussels",
+    "lux": "Europe/Luxembourg",
+    "che": "Europe/Zurich",
+    "aut": "Europe/Vienna",
+    "dnk": "Europe/Copenhagen",
+    "swe": "Europe/Stockholm",
+    "nor": "Europe/Oslo",
+    "fin": "Europe/Helsinki",
+    "isl": "Atlantic/Reykjavik",
+    "pol": "Europe/Warsaw",
+    "cze": "Europe/Prague",
+    "svk": "Europe/Bratislava",
+    "hun": "Europe/Budapest",
+    "rou": "Europe/Bucharest",
+    "bgr": "Europe/Sofia",
+    "grc": "Europe/Athens",
+    "hrv": "Europe/Zagreb",
+    "srb": "Europe/Belgrade",
+    "svn": "Europe/Ljubljana",
+    "ltu": "Europe/Vilnius",
+    "lva": "Europe/Riga",
+    "est": "Europe/Tallinn",
+    "ukr": "Europe/Kyiv",
+    "blr": "Europe/Minsk",
+    "rus": "Europe/Moscow",
+    "tur": "Europe/Istanbul",
+    "jpn": "Asia/Tokyo",
+    "kor": "Asia/Seoul",
+    "chn": "Asia/Shanghai",
+    "hkg": "Asia/Hong_Kong",
+    "twn": "Asia/Taipei",
+    "tha": "Asia/Bangkok",
+    "vnm": "Asia/Ho_Chi_Minh",
+    "phl": "Asia/Manila",
+    "idn": "Asia/Jakarta",
+    "mys": "Asia/Kuala_Lumpur",
+    "sgp": "Asia/Singapore",
+    "ind": "Asia/Kolkata",
+    "pak": "Asia/Karachi",
+    "bgd": "Asia/Dhaka",
+    "npl": "Asia/Kathmandu",
+    "lka": "Asia/Colombo",
+    "isr": "Asia/Jerusalem",
+    "sau": "Asia/Riyadh",
+    "are": "Asia/Dubai",
+    "irn": "Asia/Tehran",
+    "kaz": "Asia/Almaty",
+    "uzb": "Asia/Tashkent",
+    "geo": "Asia/Tbilisi",
+    "arm": "Asia/Yerevan",
+    "aze": "Asia/Baku",
+    "aus": "Australia/Sydney",
+    "nzl": "Pacific/Auckland",
+    "zaf": "Africa/Johannesburg",
+    "egy": "Africa/Cairo",
+    "mar": "Africa/Casablanca",
+    "dza": "Africa/Algiers",
+    "nga": "Africa/Lagos",
+    "ken": "Africa/Nairobi",
+}
+
+
 class TVDBProvider(BaseProvider):
     name = "tvdb"
     api_base_url = "https://api4.thetvdb.com/v4"
@@ -179,6 +269,7 @@ class TVDBProvider(BaseProvider):
             next_air_date=data.get("nextAired") or None,
             last_air_date=data.get("lastAired") or None,
             airs_time=data.get("airsTime") or None,
+            airs_timezone=self._airs_timezone_from_data(data),
             genres=[
                 GenreDTO(
                     provider=self.name,
@@ -194,6 +285,15 @@ class TVDBProvider(BaseProvider):
             ],
             translations={code: values for code, values in translations.items() if values},
         )
+
+    def _airs_timezone_from_data(self, data: dict) -> str | None:
+        if not data.get("airsTime"):
+            return None
+
+        country = data.get("originalCountry") or data.get("country")
+        if isinstance(country, dict):
+            country = country.get("id") or country.get("shortCode")
+        return _AIR_TIMEZONES_BY_COUNTRY.get(str(country or "").strip().lower())
 
     def _fetch_movie_detail(self, external_id: str, *, language: str) -> DetailDTO:
         payload = self._get_json(

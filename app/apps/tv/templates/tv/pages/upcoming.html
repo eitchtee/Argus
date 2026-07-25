@@ -4,34 +4,33 @@
 {% block title %}{% trans "Upcoming" %}{% endblock %}
 
 {% block content %}
-<div class="space-y-10">
-  <section>
-    <div class="section-heading">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "TV Shows" %}</p>
-        <h1 class="text-3xl font-bold tracking-tight">{% trans "Upcoming" %}</h1>
-      </div>
+<div class="space-y-6">
+  <div class="section-heading">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "TV Shows" %}</p>
+      <h1 class="text-3xl font-bold tracking-tight">{% trans "Upcoming" %}</h1>
     </div>
+  </div>
 
-    {% if month %}
-    <label class="input w-full mb-6">
-      <i class="fa-solid fa-magnifying-glass opacity-50" aria-hidden="true"></i>
-      <input type="search" id="upcoming-search" placeholder="{% trans 'Search upcoming episodes' %}"
-             aria-label="{% trans 'Search upcoming episodes' %}" autocomplete="off"
-             _="on input
-                  show <.media-card/> in #upcoming-content
-                    when its dataset.search.toLowerCase() contains my value.toLowerCase()
-                  show <[data-search-label]/> in #upcoming-content when my value is empty" />
-    </label>
-    {% endif %}
+  <label class="input input-bordered h-10 min-h-10 w-full mb-6">
+    <i class="fa-solid fa-magnifying-glass opacity-50" aria-hidden="true"></i>
+    <input type="search" id="upcoming-search" placeholder="{% trans 'Search upcoming episodes' %}"
+           aria-label="{% trans 'Search upcoming episodes' %}" autocomplete="off"
+           _="on input
+                show <.upcoming-episode-group/> in #upcoming-content
+                  when its dataset.search.toLowerCase() contains my value.toLowerCase()
+                show <[data-search-label]/> in #upcoming-content when my value is empty" />
+  </label>
 
-    <div class="space-y-10" id="upcoming-content">
-      {% if month %}
-        {% include "tv/fragments/upcoming_month.html" %}
-      {% else %}
-        <div class="text-subtle py-12 text-center">{% trans "No upcoming episodes." %}</div>
-      {% endif %}
+  <div class="space-y-10" id="upcoming-content"
+       hx-get="{{ request.get_full_path }}"
+       hx-trigger="load"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
     </div>
-  </section>
+  </div>
 </div>
 {% endblock %}

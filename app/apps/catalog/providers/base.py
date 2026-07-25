@@ -60,6 +60,7 @@ class DetailDTO:
     next_air_date: str | None = None
     last_air_date: str | None = None
     airs_time: str | None = None
+    airs_timezone: str | None = None
     translations: dict[str, dict[str, str]] = field(default_factory=dict)
 
 

@@ -276,6 +276,7 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertIsNone(detail.next_air_date)
         self.assertEqual(detail.last_air_date, "2019-05-19")
         self.assertEqual(detail.airs_time, "21:00")
+        self.assertEqual(detail.airs_timezone, "America/New_York")
         self.assertEqual(len(detail.cast), 1)
         self.assertEqual(detail.cast[0].name, "Emilia Clarke")
         self.assertEqual(detail.cast[0].character, "Daenerys Targaryen")
@@ -519,6 +520,16 @@ class TVDBAirsTimeTests(SimpleTestCase):
         )
 
         self.assertEqual(detail.airs_time, "00:00")
+
+    def test_maps_non_us_original_country_to_the_expected_timezone(self):
+        detail = self._fetch_with_data_overrides(originalCountry="jpn")
+
+        self.assertEqual(detail.airs_timezone, "Asia/Tokyo")
+
+    def test_unknown_original_country_has_no_inferred_timezone(self):
+        detail = self._fetch_with_data_overrides(originalCountry="unknown")
+
+        self.assertIsNone(detail.airs_timezone)
 
     def test_no_trailers_returns_none(self):
         detail = self._fetch_with_data_overrides(trailers=[])

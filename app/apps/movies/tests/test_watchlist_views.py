@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -37,6 +39,16 @@ class MovieWatchlistViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
+    @patch("apps.movies.views.get_watchlist_movies")
+    def test_page_shell_defers_watchlist_movies(self, get_watchlist_movies_mock):
+        response = self.client.get(reverse("movies-watchlist-page"))
+
+        get_watchlist_movies_mock.assert_not_called()
+        self.assertContains(response, 'id="movies-watchlist-content"')
+        self.assertContains(response, 'hx-get="/movies/watchlist/"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertNotContains(response, "Fight Club")
+
     def test_renders_poster_cards_for_unwatched_watchlist_movies(self):
         movie = Movie.objects.create(
             external_id="550",
@@ -52,7 +64,9 @@ class MovieWatchlistViewTests(TestCase):
         )
 
         with self.settings(TMDB_IMAGE_BASE_URL="https://image.tmdb.org/t/p/"):
-            response = self.client.get(reverse("movies-watchlist-page"))
+            response = self.client.get(
+                reverse("movies-watchlist-page"), HTTP_HX_REQUEST="true"
+            )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fight Club")
@@ -62,6 +76,7 @@ class MovieWatchlistViewTests(TestCase):
             f'href="{reverse("movie-detail", kwargs={"external_id": "550"})}"',
         )
         self.assertContains(response, 'class="group card overflow-hidden')
+        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
         self.assertNotContains(response, "Seen")
         self.assertNotContains(response, "<c-movies.movie-poster")
 
@@ -69,13 +84,17 @@ class MovieWatchlistViewTests(TestCase):
         movie = Movie.objects.create(external_id="1", title="No Poster")
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
 
-        response = self.client.get(reverse("movies-watchlist-page"))
+        response = self.client.get(
+            reverse("movies-watchlist-page"), HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, "No Poster")
         self.assertContains(response, "fa-film")
         self.assertNotContains(response, 'src=""')
 
     def test_empty_watchlist_renders_empty_state(self):
-        response = self.client.get(reverse("movies-watchlist-page"))
+        response = self.client.get(
+            reverse("movies-watchlist-page"), HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, "No movies in your watchlist.")

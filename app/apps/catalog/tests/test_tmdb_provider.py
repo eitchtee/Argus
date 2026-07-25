@@ -181,6 +181,8 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.imdb_id, "tt0944947")
         self.assertEqual(detail.tmdb_id, "1399")
         self.assertEqual(detail.tvdb_id, "121361")
+        self.assertIsNone(detail.airs_time)
+        self.assertIsNone(detail.airs_timezone)
         self.assertIn("/tv/1399", opener.requests[0][0].full_url)
 
     def test_fetch_tv_seasons_and_episodes(self):

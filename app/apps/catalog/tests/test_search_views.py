@@ -67,7 +67,7 @@ class SearchPageViewTests(TestCase):
         response = self.client.get("/search/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "search-form")
-        self.assertContains(response, "Search for movies or TV shows")
+        self.assertContains(response, 'id="search-results"')
         self.assertContains(response, 'name="provider"')
         self.assertContains(response, "Provider")
         self.assertContains(response, 'id="provider-picker"')
@@ -79,6 +79,16 @@ class SearchPageViewTests(TestCase):
         self.assertContains(response, 'data-default-provider="tvdb"')
         self.assertContains(response, "TMDB")
         self.assertContains(response, "TVDB")
+
+    @patch("apps.catalog.views.catalog_search")
+    def test_page_shell_defers_search_results(self, catalog_search):
+        response = self.client.get("/search/?q=Fight&type=movie&provider=tmdb")
+
+        catalog_search.assert_not_called()
+        self.assertContains(response, 'id="search-results"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertContains(response, "/search/results/?q=Fight&amp;type=movie&amp;provider=tmdb")
+        self.assertNotContains(response, "Fight Club")
 
 
 class SearchResultsViewTests(TestCase):

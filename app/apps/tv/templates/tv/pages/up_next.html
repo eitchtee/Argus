@@ -5,7 +5,14 @@
 
 {% block content %}
 <div class="space-y-6">
-  <label class="input w-full">
+  <div class="section-heading">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "TV Shows" %}</p>
+      <h1 class="text-3xl font-bold tracking-tight">{% trans "Up next" %}</h1>
+    </div>
+  </div>
+
+  <label class="input input-bordered h-10 min-h-10 w-full">
     <i class="fa-solid fa-magnifying-glass opacity-50" aria-hidden="true"></i>
     <input type="search" placeholder="{% trans 'Search up next' %}"
            aria-label="{% trans 'Search up next' %}" autocomplete="off"
@@ -14,8 +21,15 @@
                   when its dataset.search.toLowerCase() contains my value.toLowerCase()
                 show <[data-search-label]/> in #up-next-content when my value is empty" />
   </label>
-  <div id="up-next-content">
-    {% include "tv/fragments/up_next_content.html" %}
+  <div id="up-next-content"
+       hx-get="{{ request.get_full_path }}"
+       hx-trigger="load"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+    </div>
   </div>
 </div>
 {% endblock %}

@@ -7,6 +7,11 @@ from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 
 
 class Show(ProviderBackedModel):
+    class NormalizedStatus(models.TextChoices):
+        UPCOMING = "Upcoming", "Upcoming"
+        CONTINUING = "Continuing", "Continuing"
+        ENDED = "Ended", "Ended"
+
     provider = models.CharField(max_length=16, default="tvdb")
     trakt_id = models.CharField(max_length=32, null=True, blank=True, unique=True)
     name = models.CharField(max_length=255)
@@ -23,8 +28,20 @@ class Show(ProviderBackedModel):
     next_air_date = models.DateField(null=True, blank=True)
     last_air_date = models.DateField(null=True, blank=True)
     airs_time = models.TimeField(null=True, blank=True)
+    airs_timezone = models.CharField(
+        max_length=64,
+        default="UTC",
+        null=True,
+        blank=True,
+    )
     first_aired = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=64, blank=True)
+    normalized_status = models.CharField(
+        max_length=10,
+        choices=NormalizedStatus.choices,
+        null=True,
+        blank=True,
+    )
     network = models.CharField(max_length=255, null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True, related_name="shows")
     aired_episode_count = models.PositiveIntegerField(default=0)

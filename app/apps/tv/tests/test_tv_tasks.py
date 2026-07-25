@@ -172,6 +172,7 @@ class TVTranslationTaskTests(TransactionTestCase):
             external_id="1",
             name="Continuing stale",
             status="Continuing",
+            normalized_status=Show.NormalizedStatus.CONTINUING,
             last_synced_at=now - timedelta(days=3),
         )
         tmdb_stale = Show.objects.create(
@@ -179,30 +180,35 @@ class TVTranslationTaskTests(TransactionTestCase):
             external_id="6",
             name="TMDB stale",
             status="Continuing",
+            normalized_status=Show.NormalizedStatus.CONTINUING,
             last_synced_at=now - timedelta(days=3),
         )
         ended_stale = Show.objects.create(
             external_id="2",
             name="Ended stale",
             status="Ended",
+            normalized_status=Show.NormalizedStatus.ENDED,
             last_synced_at=now - timedelta(days=31),
         )
         continuing_fresh = Show.objects.create(
             external_id="3",
             name="Continuing fresh",
             status="Continuing",
+            normalized_status=Show.NormalizedStatus.CONTINUING,
             last_synced_at=now - timedelta(days=1),
         )
         ended_fresh = Show.objects.create(
             external_id="4",
             name="Ended fresh",
             status="Ended",
+            normalized_status=Show.NormalizedStatus.ENDED,
             last_synced_at=now - timedelta(days=10),
         )
         untracked_stale = Show.objects.create(
             external_id="5",
             name="Untracked stale",
             status="Continuing",
+            normalized_status=Show.NormalizedStatus.CONTINUING,
             last_synced_at=now - timedelta(days=10),
         )
         UserShow.objects.create(user=user, show=continuing_stale)
@@ -223,6 +229,37 @@ class TVTranslationTaskTests(TransactionTestCase):
             untracked_stale.id,
             [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
         )
+
+    @override_settings(
+        CATALOG_SHOW_SYNC_INTERVAL_DAYS=2,
+        CATALOG_ENDED_SHOW_SYNC_INTERVAL_DAYS=30,
+    )
+    @patch("apps.tv.tasks.sync_show")
+    def test_sync_tv_uses_normalized_status_for_ended_interval(self, sync_show):
+        from apps.tv.tasks import sync_tv
+
+        user = get_user_model().objects.create_user("user@example.com")
+        now = timezone.now()
+        canceled = Show.objects.create(
+            provider="tmdb",
+            external_id="canceled",
+            name="Canceled",
+            status="Canceled",
+            normalized_status=Show.NormalizedStatus.ENDED,
+            last_synced_at=now - timedelta(days=10),
+        )
+        raw_status_mismatch = Show.objects.create(
+            external_id="mismatch",
+            name="Raw Status Mismatch",
+            status="Continuing",
+            normalized_status=Show.NormalizedStatus.ENDED,
+            last_synced_at=now - timedelta(days=10),
+        )
+        UserShow.objects.create(user=user, show=canceled)
+        UserShow.objects.create(user=user, show=raw_status_mismatch)
+
+        self.assertEqual(sync_tv.func(), [])
+        sync_show.defer.assert_not_called()
 
     @patch("apps.tv.tasks.sync_show")
     def test_sync_tv_force_all_enqueues_every_supported_provider_show(self, sync_show):

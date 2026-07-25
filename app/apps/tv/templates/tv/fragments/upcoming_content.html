@@ -1,0 +1,6 @@
+{% load i18n %}
+{% if month %}
+  {% include "tv/fragments/upcoming_month.html" %}
+{% else %}
+  <div class="text-subtle py-12 text-center">{% trans "No upcoming episodes." %}</div>
+{% endif %}

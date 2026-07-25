@@ -50,6 +50,7 @@ def sync_tv(force_all: bool = False):
         ended_cutoff = now - timezone.timedelta(
             days=settings.CATALOG_ENDED_SHOW_SYNC_INTERVAL_DAYS,
         )
+        ended_status = Show.NormalizedStatus.ENDED
         tracked_show_ids = UserShow.objects.values_list("show_id", flat=True).distinct()
         show_ids = (
             Show.objects.filter(
@@ -58,9 +59,15 @@ def sync_tv(force_all: bool = False):
             )
             .filter(
                 Q(last_synced_at__isnull=True)
-                | Q(status__iexact="Ended", last_synced_at__lte=ended_cutoff)
+                | Q(
+                    normalized_status__iexact=ended_status,
+                    last_synced_at__lte=ended_cutoff,
+                )
                 | (
-                    (Q(status__isnull=True) | ~Q(status__iexact="Ended"))
+                    (
+                        Q(normalized_status__isnull=True)
+                        | ~Q(normalized_status__iexact=ended_status)
+                    )
                     & Q(last_synced_at__lte=cutoff)
                 )
             )

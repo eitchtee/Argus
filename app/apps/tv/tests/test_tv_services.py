@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -244,6 +244,9 @@ class TrackShowServiceTests(TestCase):
             tmdb_id="1399",
             trakt_id="9000",
             name="Game of Thrones",
+            normalized_status=Show.NormalizedStatus.ENDED,
+            airs_time=time(21, 0),
+            airs_timezone="America/New_York",
         )
         source_season = Season.objects.create(show=source, season_number=1, name="Season 1")
         source_episode = Episode.objects.create(
@@ -275,6 +278,12 @@ class TrackShowServiceTests(TestCase):
         self.assertEqual(switched.seasons.count(), 1)
         self.assertEqual(switched.episodes.count(), 1)
         self.assertEqual(switched.trakt_id, "9000")
+        self.assertEqual(
+            switched.normalized_status,
+            Show.NormalizedStatus.ENDED,
+        )
+        self.assertEqual(switched.airs_time, time(21, 0))
+        self.assertEqual(switched.airs_timezone, "America/New_York")
         self.assertEqual(target_episode.trakt_id, "9001")
 
     def test_switch_show_provider_preserves_tmdb_poster_url_until_sync(self):

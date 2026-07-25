@@ -1,0 +1,15 @@
+{% load i18n %}
+<c-ui.components.episode-card
+    id="upcoming-episode-{{ episode.id }}"
+    :image_url="episode.show.poster_url"
+    show_url="{% url 'tv-detail' external_id=episode.show.external_id %}{% if episode.show.provider and episode.show.provider != 'tvdb' %}?provider={{ episode.show.provider }}{% endif %}"
+    show_name="{{ episode.show.name }}"
+    season_episode_label="S{{ episode.season_number|stringformat:'02d' }} | E{{ episode.episode_number|stringformat:'02d' }}"
+    episode_title="{{ episode.name }}"
+    extra_class="{% if group_main %}upcoming-episode-group-main{% if group_has_additional %} rounded-b-none{% endif %}{% endif %}"
+    title_url="{% url 'tv-episode-detail' external_id=episode.show.external_id episode_id=episode.id %}{% if episode.show.provider and episode.show.provider != 'tvdb' %}?provider={{ episode.show.provider }}{% endif %}">
+  <c-slot name="side">
+    <div class="font-bold text-lg">{{ countdown }}</div>
+    <div class="text-subtle text-xs">{{ episode.air_date|date:"M d, Y" }}</div>
+  </c-slot>
+</c-ui.components.episode-card>

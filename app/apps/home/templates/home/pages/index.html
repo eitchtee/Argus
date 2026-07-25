@@ -26,7 +26,16 @@
   <section>
   <div class="section-heading"><div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Tonight" %}</p><h2 class="text-3xl font-bold tracking-tight">{% trans "Movies" %}</h2></div></div>
   <div class="text-sm font-semibold text-base-content/70 mb-3">{% trans "Watch something" %}</div>
-  {% include "movies/fragments/home_watch_something.html" with movies=watch_something_movies %}
+  <div id="home-movies-panel"
+       hx-get="{{ request.get_full_path }}"
+       hx-trigger="load"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+    </div>
+  </div>
   </section>
 </div>
 {% endblock %}

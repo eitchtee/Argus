@@ -89,6 +89,11 @@
 }
 
 
+:root {
+    scrollbar-gutter: stable;
+}
+
+
 @layer utilities {
     .textarea {
         min-height: unset;
@@ -202,6 +207,38 @@
 
     .media-card {
         @apply border border-base-300 bg-base-100 shadow-sm transition duration-200 hover:border-primary/50 hover:shadow-md;
+    }
+
+    .upcoming-episode-group.has-additional > .upcoming-episode-group-main.media-card {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+
+    .upcoming-episode-group.has-additional > .upcoming-episode-group-lip {
+        border-bottom-left-radius: var(--radius-box);
+        border-bottom-right-radius: var(--radius-box);
+    }
+
+    .tv-show-poster-progress.progress-info {
+        color: color-mix(in oklab, var(--color-info) 78%, var(--color-neutral));
+    }
+
+    .tv-show-poster-progress.progress-success {
+        color: color-mix(in oklab, var(--color-success) 78%, var(--color-neutral));
+    }
+
+    .tv-show-poster-progress.progress-warning {
+        color: color-mix(in oklab, var(--color-warning) 78%, var(--color-neutral));
+    }
+
+    .upcoming-episode-card-past {
+        opacity: 0.55;
+        transition: opacity 160ms ease;
+    }
+
+    .upcoming-episode-card-past:hover,
+    .upcoming-episode-card-past:focus-within {
+        opacity: 1;
     }
 
     .media-hero {

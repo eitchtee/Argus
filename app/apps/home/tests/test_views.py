@@ -1,5 +1,6 @@
 from datetime import date
 import re
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -38,6 +39,16 @@ class IndexViewTests(TestCase):
     def test_renders_for_authenticated_user(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
+
+    @patch("apps.home.views.get_watch_something")
+    def test_page_shell_defers_movie_suggestions(self, get_watch_something_mock):
+        response = self.client.get("/")
+
+        get_watch_something_mock.assert_not_called()
+        self.assertContains(response, 'id="home-movies-panel"')
+        self.assertContains(response, 'hx-get="/"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertNotContains(response, "Nothing to suggest")
 
     def _sidebar_menu(self, response):
         content = response.content.decode()
@@ -233,7 +244,7 @@ class IndexViewTests(TestCase):
         self.assertIn("checked", content[watchlist_tag_start:watchlist_tag_end])
 
     def test_shows_empty_state_when_no_watchlist_movies(self):
-        response = self.client.get("/")
+        response = self.client.get("/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "Nothing to suggest")
 
@@ -249,7 +260,7 @@ class IndexViewTests(TestCase):
         )
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
 
-        response = self.client.get("/")
+        response = self.client.get("/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "Interstellar")
         self.assertContains(response, "Nov 07, 2014")

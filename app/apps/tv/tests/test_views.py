@@ -37,6 +37,20 @@ class ShowDetailViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
+    @patch("apps.tv.views._build_show_context")
+    def test_boosted_page_shell_defers_show_context(self, build_show_context_mock):
+        response = self.client.get(
+            "/tv/123/",
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_BOOSTED="true",
+        )
+
+        build_show_context_mock.assert_not_called()
+        self.assertContains(response, 'id="tv-show-content"')
+        self.assertContains(response, 'hx-get="/tv/123/"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertNotContains(response, "Foo")
+
     @patch("apps.tv.views.get_show_episodes")
     @patch("apps.tv.views.get_show_detail")
     def test_renders_preview_from_provider_cache_when_not_imported(
@@ -65,7 +79,7 @@ class ShowDetailViewTests(TestCase):
         get_show_episodes_mock.return_value = [
             EpisodeDTO(season_number=1, episode_number=1, name="Pilot", air_date="2020-01-01"),
         ]
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Foo")
@@ -93,7 +107,7 @@ class ShowDetailViewTests(TestCase):
         self.user.settings.tmdb_metadata_language = "en-US"
         self.user.settings.save()
 
-        response = self.client.get("/tv/1399/?provider=tmdb")
+        response = self.client.get("/tv/1399/?provider=tmdb", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         get_show_detail_mock.assert_called_once_with(
@@ -125,7 +139,7 @@ class ShowDetailViewTests(TestCase):
         self.user.settings.tvdb_metadata_language = "por"
         self.user.settings.save()
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Season 1")
@@ -143,6 +157,7 @@ class ShowDetailViewTests(TestCase):
             average_runtime=57,
             last_air_date=date.today() - timedelta(days=200),
             airs_time=time(21, 0),
+            airs_timezone="America/New_York",
             cast=[{
                 "name": "Emilia Clarke",
                 "character": "Daenerys Targaryen",
@@ -155,7 +170,7 @@ class ShowDetailViewTests(TestCase):
         )
         UserShow.objects.create(user=other_user, show=show, status=UserShow.Status.TRACKED)
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Foo")
@@ -164,7 +179,7 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "tt0944947")
         self.assertContains(response, "https://www.youtube.com/watch?v=abc123")
         self.assertContains(response, "57")
-        self.assertContains(response, "Airs at 9:00 PM UTC")
+        self.assertContains(response, "Airs at 9:00 PM America/New_York")
         self.assertContains(response, "Emilia Clarke")
         self.assertContains(response, "Daenerys Targaryen")
         self.assertContains(response, 'aria-label="Track show"')
@@ -178,7 +193,7 @@ class ShowDetailViewTests(TestCase):
             show=show, season=season, season_number=1, episode_number=1, name="Pilot"
         )
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertRegex(
             response.content.decode(),
@@ -199,7 +214,7 @@ class ShowDetailViewTests(TestCase):
         UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
         UserEpisode.objects.create(user=self.user, episode=episode)
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "checkbox-sm")
         self.assertContains(response, "checked")
@@ -218,7 +233,7 @@ class ShowDetailViewTests(TestCase):
         )
         UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Show actions"')
         self.assertContains(response, 'aria-label="Pause show"')
@@ -231,7 +246,7 @@ class ShowDetailViewTests(TestCase):
         show = Show.objects.create(external_id="123", name="Foo")
         UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.PAUSED)
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Start watching again"')
         self.assertContains(response, 'aria-label="Drop show"')
@@ -243,7 +258,7 @@ class ShowDetailViewTests(TestCase):
         show = Show.objects.create(external_id="123", name="Foo")
         UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.DROPPED)
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Start watching again"')
         self.assertContains(response, 'aria-label="Pause show"')
@@ -256,7 +271,7 @@ class ShowDetailViewTests(TestCase):
         show = Show.objects.create(external_id="123", name="Foo")
         UserShow.objects.create(user=other_user, show=show, status=UserShow.Status.TRACKED)
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Track show"')
 
@@ -275,7 +290,7 @@ class ShowDetailViewTests(TestCase):
         )
         UserShow.objects.create(user=self.user, show=source, status=UserShow.Status.TRACKED)
 
-        response = self.client.get("/tv/1399/?provider=tmdb")
+        response = self.client.get("/tv/1399/?provider=tmdb", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "Tracked on another provider")
         self.assertContains(response, 'aria-label="Switch to TMDB"')
@@ -301,7 +316,7 @@ class ShowDetailViewTests(TestCase):
         )
         UserShow.objects.create(user=self.user, show=source, status=UserShow.Status.TRACKED)
 
-        response = self.client.get("/tv/121361/?provider=tvdb")
+        response = self.client.get("/tv/121361/?provider=tvdb", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Switch to TVDB"')
 
@@ -326,7 +341,7 @@ class ShowDetailViewTests(TestCase):
             tmdb_id="1399",
         )
 
-        response = self.client.get("/tv/1399/?provider=tmdb")
+        response = self.client.get("/tv/1399/?provider=tmdb", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Switch to TMDB"')
         get_show_detail_mock.assert_called_once_with(
@@ -338,18 +353,18 @@ class ShowDetailViewTests(TestCase):
     def test_shows_delete_button_after_drop_but_not_before_any_tracking(self):
         show = Show.objects.create(external_id="123", name="Foo")
 
-        response_never_tracked = self.client.get("/tv/123/")
+        response_never_tracked = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
         self.assertNotContains(response_never_tracked, 'aria-label="Delete show"')
 
         UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.DROPPED)
-        response_dropped = self.client.get("/tv/123/")
+        response_dropped = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
         self.assertContains(response_dropped, 'aria-label="Delete show"')
 
     def test_tracked_show_renders_refresh_action(self):
         show = Show.objects.create(external_id="123", name="Foo")
         UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Refresh metadata"')
         self.assertContains(response, "/tv/123/refresh/")
@@ -359,7 +374,7 @@ class ShowDetailViewTests(TestCase):
         show = Show.objects.create(external_id="123", name="Foo")
         UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.PAUSED)
 
-        response = self.client.get("/tv/123/")
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Start watching again"')
         self.assertContains(response, 'aria-label="Delete show"')
@@ -422,6 +437,7 @@ class ShowRefreshViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 204)
+        self.assertEqual(response["HX-Trigger"], "toast")
         refresh_show_mock.assert_called_once_with(self.user, show)
 
     @patch("apps.tv.views.refresh_show")

@@ -8,7 +8,7 @@ class SearchForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                "class": "input input-bordered w-full",
+                "class": "input input-bordered h-10 min-h-10 w-full",
                 "placeholder": _("Search movies or TV shows..."),
                 "autocomplete": "off",
             }

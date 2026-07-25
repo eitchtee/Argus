@@ -12,7 +12,7 @@
     </div>
   </div>
 
-  <label class="input w-full">
+  <label class="input input-bordered h-10 min-h-10 w-full">
     <i class="fa-solid fa-magnifying-glass opacity-50" aria-hidden="true"></i>
     <input type="search" placeholder="{% trans 'Search your watchlist' %}"
            aria-label="{% trans 'Search your watchlist' %}" autocomplete="off"
@@ -21,30 +21,78 @@
                 when its dataset.name.toLowerCase() contains my value.toLowerCase()" />
   </label>
 
-  <div role="tablist" class="tabs tabs-border w-fit" aria-label="{% trans 'TV watchlist filters' %}">
-    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'All' %}"
-           checked
-           hx-get="{% url 'tv-watchlist-tab' section='all' %}"
-           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
-           hx-trigger="load, change">
-    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'Watching' %}"
-           hx-get="{% url 'tv-watchlist-tab' section='watching' %}"
-           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
-           hx-trigger="change">
-    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'Completed' %}"
-           hx-get="{% url 'tv-watchlist-tab' section='completed' %}"
-           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
-           hx-trigger="change">
-    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'Paused' %}"
-           hx-get="{% url 'tv-watchlist-tab' section='paused' %}"
-           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
-           hx-trigger="change">
-    <input type="radio" name="tv-watchlist-tab" role="tab" class="tab" aria-label="{% trans 'Dropped' %}"
-           hx-get="{% url 'tv-watchlist-tab' section='dropped' %}"
-           hx-target="#tv-watchlist-panel" hx-swap="innerHTML"
-           hx-trigger="change">
-  </div>
+  <form method="get" action="{% url 'tv-watchlist' %}"
+        hx-get="{% url 'tv-watchlist' %}" hx-trigger="change from:input"
+        hx-target="#tv-watchlist-panel" hx-swap="innerHTML" hx-push-url="true"
+        aria-label="{% trans 'TV watchlist filters' %}">
+    <fieldset id="tv-watchlist-condition-filters" class="flex flex-wrap gap-2"
+              aria-label="{% trans 'Condition' %}">
+      <legend class="sr-only">{% trans "Condition" %}</legend>
+      {% for value, label in watchlist_filter.form.condition.field.choices %}
+      <input id="tv-watchlist-condition-{{ value }}" type="hidden" name="condition"
+             value="{{ value }}"
+             {% if value not in watchlist_filter.selected_conditions %}disabled{% endif %}>
+      <button type="button"
+              class="btn btn-primary btn-outline btn-sm rounded-full{% if value in watchlist_filter.selected_conditions %} btn-active{% endif %}"
+              data-filter-value="{{ value }}" data-value="{{ value }}"
+              aria-pressed="{% if value in watchlist_filter.selected_conditions %}true{% else %}false{% endif %}"
+              _="on click
+                  set filter to previous <input/> from me
+                  if my @aria-pressed is 'true'
+                    remove .btn-active from me
+                    set my @aria-pressed to 'false'
+                    add @disabled to filter
+                  else
+                    add .btn-active to me
+                    set my @aria-pressed to 'true'
+                    remove @disabled from filter
+                  end
+                  trigger change on filter">
+        {{ label }}
+      </button>
+      {% endfor %}
+    </fieldset>
 
-  <div id="tv-watchlist-panel"></div>
+    <fieldset id="tv-watchlist-normalized-status-filters" class="mt-3 flex flex-wrap gap-2"
+              aria-label="{% trans 'Show status' %}">
+      <legend class="sr-only">{% trans "Show status" %}</legend>
+      {% for value, label in watchlist_filter.form.normalized_status.field.choices %}
+      <input id="tv-watchlist-normalized-status-{{ value }}" type="hidden"
+             name="normalized_status" value="{{ value }}"
+             {% if value not in watchlist_filter.selected_normalized_statuses %}disabled{% endif %}>
+      <button type="button"
+              class="btn btn-primary btn-outline btn-sm rounded-full{% if value in watchlist_filter.selected_normalized_statuses %} btn-active{% endif %}"
+              data-filter-value="{{ value }}" data-value="{{ value }}"
+              aria-pressed="{% if value in watchlist_filter.selected_normalized_statuses %}true{% else %}false{% endif %}"
+              _="on click
+                  set filter to previous <input/> from me
+                  if my @aria-pressed is 'true'
+                    remove .btn-active from me
+                    set my @aria-pressed to 'false'
+                    add @disabled to filter
+                  else
+                    add .btn-active to me
+                    set my @aria-pressed to 'true'
+                    remove @disabled from filter
+                  end
+                  trigger change on filter">
+        {{ label }}
+      </button>
+      {% endfor %}
+    </fieldset>
+    <button class="sr-only" type="submit">{% trans "Apply filters" %}</button>
+  </form>
+
+  <div id="tv-watchlist-panel"
+       hx-get="{{ request.get_full_path }}"
+       hx-trigger="load"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+      <span class="sr-only">{% trans "Loading watchlist" %}</span>
+    </div>
+  </div>
 </section>
 {% endblock %}

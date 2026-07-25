@@ -1,14 +1,36 @@
 {% load i18n %}
-<c-ui.components.episode-card
-    id="upcoming-episode-{{ entry.episode.id }}"
-    :image_url="entry.episode.show.poster_url"
-    show_url="{% url 'tv-detail' external_id=entry.episode.show.external_id %}{% if entry.episode.show.provider and entry.episode.show.provider != 'tvdb' %}?provider={{ entry.episode.show.provider }}{% endif %}"
-    show_name="{{ entry.episode.show.name }}"
-    season_episode_label="S{{ entry.episode.season_number|stringformat:'02d' }} | E{{ entry.episode.episode_number|stringformat:'02d' }}"
-    episode_title="{{ entry.episode.name }}"
-    title_url="{% url 'tv-episode-detail' external_id=entry.episode.show.external_id episode_id=entry.episode.id %}{% if entry.episode.show.provider and entry.episode.show.provider != 'tvdb' %}?provider={{ entry.episode.show.provider }}{% endif %}">
-  <c-slot name="side">
-    <div class="font-bold text-lg">{{ entry.countdown }}</div>
-    <div class="text-subtle text-xs">{{ entry.episode.air_date|date:"M d, Y" }}</div>
-  </c-slot>
-</c-ui.components.episode-card>
+<div id="upcoming-group-{{ entry.episode.id }}"
+     class="upcoming-episode-group{% if entry.additional_episodes %} has-additional{% endif %}{% if dim_past and entry.countdown == 'Yesterday' %} upcoming-episode-card-past{% endif %}"
+     data-search="{{ entry.episode.show.name }} {{ entry.episode.name }} S{{ entry.episode.season_number|stringformat:'02d' }} E{{ entry.episode.episode_number|stringformat:'02d' }}{% for additional in entry.additional_episodes %} {{ additional.episode.name }} S{{ additional.episode.season_number|stringformat:'02d' }} E{{ additional.episode.episode_number|stringformat:'02d' }}{% endfor %}"
+     {% if entry.additional_episodes %}x-data="{ expanded: false }"{% endif %}>
+  {% include "tv/fragments/upcoming_episode_card.html" with episode=entry.episode countdown=entry.countdown group_main=True group_has_additional=entry.additional_episodes %}
+  {% if entry.additional_episodes %}
+  <div id="upcoming-group-{{ entry.episode.id }}-additional"
+       class="upcoming-episode-group-additional border-x border-base-300 bg-base-100 px-4"
+       x-show="expanded"
+       x-collapse
+       x-cloak>
+    <ul class="divide-y divide-base-300">
+      {% for additional in entry.additional_episodes %}
+      <li class="upcoming-episode-group-additional-item">
+        <a href="{% url 'tv-episode-detail' external_id=additional.episode.show.external_id episode_id=additional.episode.id %}{% if additional.episode.show.provider and additional.episode.show.provider != 'tvdb' %}?provider={{ additional.episode.show.provider }}{% endif %}"
+           class="flex min-h-10 items-center gap-3 py-2 text-sm transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <span class="shrink-0 text-xs font-semibold text-subtle tabular-nums">
+            S{{ additional.episode.season_number|stringformat:'02d' }} | E{{ additional.episode.episode_number|stringformat:'02d' }}
+          </span>
+          <span class="min-w-0 truncate">{{ additional.episode.name }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  <button type="button"
+          class="upcoming-episode-group-lip flex min-h-10 w-full items-center justify-center border-x border-b border-base-300 bg-base-200/70 px-3 py-2 text-xs font-semibold text-subtle transition-colors hover:bg-base-300/70 hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          @click="expanded = !expanded"
+          aria-expanded="false"
+          :aria-expanded="expanded"
+          aria-controls="upcoming-group-{{ entry.episode.id }}-additional">
+    {% blocktrans count counter=entry.additional_episodes|length %}+ {{ counter }} episode{% plural %}+ {{ counter }} episodes{% endblocktrans %}
+  </button>
+  {% endif %}
+</div>

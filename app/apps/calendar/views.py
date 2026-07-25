@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from apps.common.decorators.user import htmx_login_required
+from apps.common.htmx import is_htmx_fragment_request
 
 from .events import (
     filter_query_params,
@@ -26,6 +27,9 @@ from .models import CalendarFeed
 @htmx_login_required
 @require_GET
 def calendar_page(request):
+    if not is_htmx_fragment_request(request):
+        return render(request, "calendar/pages/index.html")
+
     filters = parse_filters(request.GET)
     month = _parse_month(request.GET.get("month"))
     weeks = python_calendar.Calendar(firstweekday=python_calendar.MONDAY).monthdatescalendar(
@@ -76,7 +80,7 @@ def calendar_page(request):
         "current_query": _month_query(today.replace(day=1), filters),
         "next_query": _month_query(_next_month(month), filters),
     }
-    return render(request, "calendar/pages/index.html", context)
+    return render(request, "calendar/fragments/content.html", context)
 
 
 @htmx_login_required

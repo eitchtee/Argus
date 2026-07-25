@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -37,6 +39,16 @@ class MovieWatchedViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
+    @patch("apps.movies.views.get_watched_movies")
+    def test_page_shell_defers_watched_movies(self, get_watched_movies_mock):
+        response = self.client.get(reverse("movies-watched-page"))
+
+        get_watched_movies_mock.assert_not_called()
+        self.assertContains(response, 'id="movies-watched-content"')
+        self.assertContains(response, 'hx-get="/movies/watched/"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertNotContains(response, "Fight Club")
+
     def test_renders_watched_poster_cards_and_excludes_unwatched_movies(self):
         watched = Movie.objects.create(
             external_id="550",
@@ -52,10 +64,11 @@ class MovieWatchedViewTests(TestCase):
         )
 
         with self.settings(TMDB_IMAGE_BASE_URL="https://image.tmdb.org/t/p/"):
-            response = self.client.get(reverse("movies-watched-page"))
+            response = self.client.get(
+                reverse("movies-watched-page"), HTTP_HX_REQUEST="true"
+            )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Watched")
         self.assertContains(response, "Fight Club")
         self.assertContains(response, "https://image.tmdb.org/t/p/w342/poster.jpg")
         self.assertContains(
@@ -70,13 +83,17 @@ class MovieWatchedViewTests(TestCase):
         movie = Movie.objects.create(external_id="1", title="No Poster")
         UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
 
-        response = self.client.get(reverse("movies-watched-page"))
+        response = self.client.get(
+            reverse("movies-watched-page"), HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, "No Poster")
         self.assertContains(response, "fa-film")
         self.assertNotContains(response, 'src=""')
 
     def test_empty_watched_list_renders_empty_state(self):
-        response = self.client.get(reverse("movies-watched-page"))
+        response = self.client.get(
+            reverse("movies-watched-page"), HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, "No watched movies yet.")

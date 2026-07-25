@@ -1,5 +1,7 @@
 import uuid
 from datetime import date, time, timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -98,11 +100,30 @@ class CalendarViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
+    @patch("apps.calendar.views.get_calendar_feed")
+    @patch("apps.calendar.views.get_calendar_events")
+    def test_page_shell_defers_calendar_content(
+        self,
+        get_calendar_events_mock,
+        get_calendar_feed_mock,
+    ):
+        get_calendar_events_mock.return_value = []
+        get_calendar_feed_mock.return_value = SimpleNamespace(uuid=uuid.uuid4())
+
+        response = self.client.get("/calendar/?month=2026-07")
+
+        get_calendar_events_mock.assert_not_called()
+        get_calendar_feed_mock.assert_not_called()
+        self.assertContains(response, 'id="calendar-content"')
+        self.assertContains(response, 'hx-get="/calendar/?month=2026-07"')
+        self.assertContains(response, 'hx-trigger="load"')
+        self.assertNotContains(response, "calendar-event")
+
     def test_calendar_defaults_to_tracked_and_renders_the_month(self):
         self.make_episode("Tracked", UserShow.Status.TRACKED, date(2026, 7, 10))
         self.make_episode("Paused", UserShow.Status.PAUSED, date(2026, 7, 11))
 
-        response = self.client.get("/calendar/?month=2026-07")
+        response = self.client.get("/calendar/?month=2026-07", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "July 2026")
@@ -111,7 +132,9 @@ class CalendarViewTests(TestCase):
         self.assertContains(response, "/calendar/feed/")
 
     def test_status_query_parameters_preserve_filter_state_and_feed_link(self):
-        response = self.client.get("/calendar/?month=2026-07&paused=1&dropped=1")
+        response = self.client.get(
+            "/calendar/?month=2026-07&paused=1&dropped=1", HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, '<input class="checkbox checkbox-primary" type="checkbox" name="paused" value="1" checked>')
         self.assertContains(response, '<input class="checkbox checkbox-primary" type="checkbox" name="dropped" value="1" checked>')
@@ -119,7 +142,8 @@ class CalendarViewTests(TestCase):
 
     def test_calendar_has_explicit_tv_and_movie_filter_groups(self):
         response = self.client.get(
-            "/calendar/?month=2026-07&tracked=0&paused=1&dropped=1&movies=1"
+            "/calendar/?month=2026-07&tracked=0&paused=1&dropped=1&movies=1",
+            HTTP_HX_REQUEST="true",
         )
 
         self.assertContains(response, "TV Shows")
@@ -134,7 +158,7 @@ class CalendarViewTests(TestCase):
         )
 
     def test_calendar_defaults_to_tracked_tv_and_excludes_movies(self):
-        response = self.client.get("/calendar/?month=2026-07")
+        response = self.client.get("/calendar/?month=2026-07", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, '<input type="hidden" name="tracked" value="0">')
         self.assertContains(response, '<input class="checkbox checkbox-primary" type="checkbox" name="tracked" value="1" checked>')
@@ -156,7 +180,9 @@ class CalendarViewTests(TestCase):
         )
         feed = get_calendar_feed(self.user)
 
-        page_response = self.client.get("/calendar/?month=2026-07")
+        page_response = self.client.get(
+            "/calendar/?month=2026-07", HTTP_HX_REQUEST="true"
+        )
         feed_response = self.client.get(f"/calendar/feed/{feed.uuid}.ics")
         feed_content = feed_response.content.decode()
 
@@ -168,7 +194,7 @@ class CalendarViewTests(TestCase):
         self.assertNotIn(f"episode-{special.id}@argus", feed_content)
 
     def test_calendar_places_empty_state_before_grid_and_subscription_after_grid(self):
-        response = self.client.get("/calendar/?month=2026-07")
+        response = self.client.get("/calendar/?month=2026-07", HTTP_HX_REQUEST="true")
         content = response.content.decode()
 
         self.assertLess(content.index('class="calendar-month-bar"'), content.index('class="calendar-filters"'))
@@ -208,7 +234,9 @@ class CalendarViewTests(TestCase):
     def test_days_before_today_are_flagged_as_past(self):
         today = timezone.localdate()
 
-        response = self.client.get(f"/calendar/?month={today:%Y-%m}")
+        response = self.client.get(
+            f"/calendar/?month={today:%Y-%m}", HTTP_HX_REQUEST="true"
+        )
 
         cells = {
             cell["date"]: cell
@@ -220,19 +248,23 @@ class CalendarViewTests(TestCase):
         self.assertFalse(cells[today + timedelta(days=1)]["is_past"])
 
     def test_timed_release_is_placed_on_local_display_date(self):
-        self.make_episode("Late UTC", UserShow.Status.TRACKED, date(2026, 7, 10))
-        Show.objects.filter(name="Late UTC").update(airs_time=time(2, 0))
+        self.make_episode("Late Tokyo", UserShow.Status.TRACKED, date(2026, 7, 10))
+        Show.objects.filter(name="Late Tokyo").update(
+            airs_time=time(2, 0),
+            airs_timezone="Asia/Tokyo",
+        )
         self.client.cookies["mytz"] = "America/Sao_Paulo"
 
-        response = self.client.get("/calendar/?month=2026-07")
+        response = self.client.get("/calendar/?month=2026-07", HTTP_HX_REQUEST="true")
 
         cells = {
             cell["date"]: cell["events"]
             for week in response.context["weeks"]
             for cell in week
         }
-        self.assertEqual([event.show_name for event in cells[date(2026, 7, 9)]], ["Late UTC"])
+        self.assertEqual([event.show_name for event in cells[date(2026, 7, 9)]], ["Late Tokyo"])
         self.assertEqual(cells[date(2026, 7, 10)], [])
+        self.assertContains(response, 'calendar-event-time">14:00</span>')
 
     def test_movie_details_are_scoped_to_watchlisted_movies(self):
         movie = self.make_movie(
@@ -281,7 +313,9 @@ class CalendarViewTests(TestCase):
             release_date=date(2026, 7, 10),
         )
 
-        response = self.client.get("/calendar/?month=2026-07&movies=1")
+        response = self.client.get(
+            "/calendar/?month=2026-07&movies=1", HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, f"/calendar/movies/{movie.id}/")
         self.assertContains(response, f"/movies/{movie.external_id}/")
@@ -308,10 +342,13 @@ class CalendarViewTests(TestCase):
 
     def test_sidebar_contains_calendar_entry_and_daisyui_modal(self):
         response = self.client.get("/calendar/?month=2026-07")
+        fragment_response = self.client.get(
+            "/calendar/?month=2026-07", HTTP_HX_REQUEST="true"
+        )
 
         self.assertContains(response, 'href="/calendar/"')
         self.assertContains(response, "Calendar")
         self.assertContains(response, "fa-calendar")
-        self.assertContains(response, 'class="modal"')
-        self.assertContains(response, 'id="calendar-event-details"')
-        self.assertContains(response, 'data-copy-target="#calendar-feed-url"')
+        self.assertContains(fragment_response, 'class="modal"')
+        self.assertContains(fragment_response, 'id="calendar-event-details"')
+        self.assertContains(fragment_response, 'data-copy-target="#calendar-feed-url"')

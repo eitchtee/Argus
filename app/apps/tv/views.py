@@ -30,6 +30,8 @@ from apps.catalog.services import (
 )
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
+from apps.common.htmx import is_htmx_fragment_request
+from apps.tv.filters import WatchlistFilter
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 from apps.tv.services import (
     delete_show_data,
@@ -57,9 +59,12 @@ from apps.tv.services import (
 @htmx_login_required
 @require_http_methods(["GET"])
 def up_next(request):
+    if not is_htmx_fragment_request(request):
+        return render(request, "tv/pages/up_next.html")
+
     return render(
         request,
-        "tv/pages/up_next.html",
+        "tv/fragments/up_next_content.html",
         {"sections": _localize_sections(get_up_next(request.user), request.user)},
     )
 
@@ -75,10 +80,13 @@ def _parse_upcoming_month_cursor(value):
 def upcoming(request):
     cursor = request.GET.get("after")
     if cursor is None:
+        if not is_htmx_fragment_request(request):
+            return render(request, "tv/pages/upcoming.html")
+
         month = get_upcoming_month(request.user)
         return render(
             request,
-            "tv/pages/upcoming.html",
+            "tv/fragments/upcoming_content.html",
             {"month": _localize_upcoming_month(month, request.user)},
         )
 
@@ -100,7 +108,35 @@ def upcoming(request):
 @htmx_login_required
 @require_http_methods(["GET"])
 def watchlist(request):
-    return render(request, "tv/pages/watchlist.html")
+    watchlist_filter = _watchlist_filter(request)
+    context = {
+        "watchlist_filter": watchlist_filter,
+    }
+    if is_htmx_fragment_request(request):
+        filtered_show_ids = set(watchlist_filter.qs.values_list("pk", flat=True))
+        context["shows"] = [
+            LocalizedRecord(
+                show,
+                metadata_language_for_user(request.user, show.provider),
+            )
+            for show in watchlist_filter.condition_shows
+            if show.pk in filtered_show_ids
+        ]
+        return render(request, "tv/fragments/watchlist_grid.html", context)
+    return render(request, "tv/pages/watchlist.html", context)
+
+
+def _watchlist_filter(request):
+    data = request.GET.copy()
+    if not data.get("condition"):
+        data["condition"] = "watching"
+    return WatchlistFilter(
+        data,
+        queryset=Show.objects.filter(user_states__user=request.user).order_by(
+            "name", "id"
+        ),
+        request=request,
+    )
 
 
 @only_htmx
@@ -154,8 +190,11 @@ def up_next_episode_watched(request, episode_id):
 @require_http_methods(["GET"])
 def show_detail(request, external_id):
     provider = _provider_from_request(request)
+    if not is_htmx_fragment_request(request):
+        return render(request, "tv/pages/detail.html")
+
     context = {"show": _build_show_context(request.user, external_id, provider)}
-    return render(request, "tv/pages/detail.html", context)
+    return render(request, "tv/fragments/detail.html", context)
 
 
 @only_htmx
@@ -184,7 +223,7 @@ def show_refresh(request, external_id):
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     messages.success(request, _("Metadata refresh queued."))
-    return HttpResponse(status=204)
+    return HttpResponse(status=204, headers={"HX-Trigger": "toast"})
 
 
 @only_htmx
@@ -334,6 +373,9 @@ def episode_watched(request, external_id, episode_id):
 @require_http_methods(["GET"])
 def episode_detail(request, external_id, episode_id):
     provider = _provider_from_request(request)
+    if not is_htmx_fragment_request(request):
+        return render(request, "tv/pages/episode_detail.html")
+
     show = get_object_or_404(Show, provider=provider, external_id=external_id)
     episode = get_object_or_404(Episode, id=episode_id, show=show)
     tracked = UserShow.objects.filter(
@@ -352,7 +394,7 @@ def episode_detail(request, external_id, episode_id):
         "previous_episode": _adjacent_episode(episode, direction="previous"),
         "next_episode": _adjacent_episode(episode, direction="next"),
     }
-    return render(request, "tv/pages/episode_detail.html", context)
+    return render(request, "tv/fragments/episode_detail.html", context)
 
 
 def _adjacent_episode(episode: Episode, *, direction: str) -> Episode | None:
@@ -490,7 +532,17 @@ def _localize_sections(sections, user):
 
 
 def _localize_upcoming_entry(entry, user):
-    return replace(entry, episode=_localize_episode(entry.episode, user))
+    return replace(
+        entry,
+        episode=_localize_episode(entry.episode, user),
+        additional_episodes=[
+            replace(
+                additional,
+                episode=_localize_episode(additional.episode, user),
+            )
+            for additional in entry.additional_episodes
+        ],
+    )
 
 
 def _localize_upcoming_month(month, user):
@@ -558,6 +610,7 @@ def _build_show_context(user, external_id, provider="tvdb"):
         "next_air_date": show.next_air_date,
         "last_air_date": show.last_air_date,
         "airs_time": show.airs_time,
+        "airs_timezone": show.airs_timezone,
         "cast": show.cast,
         "tracked": tracked,
         "tracking_status": user_show.status if user_show else None,
@@ -734,6 +787,7 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         "next_air_date": _parse_iso_date(detail.next_air_date),
         "last_air_date": _parse_iso_date(detail.last_air_date),
         "airs_time": _parse_iso_time(detail.airs_time),
+        "airs_timezone": detail.airs_timezone or "UTC",
         "cast": [
             {"name": member.name, "character": member.character, "photo_url": member.photo_url}
             for member in detail.cast

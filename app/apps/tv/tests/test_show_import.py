@@ -66,6 +66,7 @@ def show_detail(**overrides):
         "next_air_date": None,
         "last_air_date": "2019-05-19",
         "airs_time": "21:00",
+        "airs_timezone": "America/New_York",
         "genres": [
             GenreDTO(provider="tvdb", external_id="1", name="Drama"),
             GenreDTO(provider="tvdb", external_id="2", name="Fantasy"),
@@ -91,6 +92,68 @@ def episode(**overrides):
 
 
 class ShowImportTests(TestCase):
+    def test_import_show_normalizes_provider_statuses(self):
+        cases = [
+            ("tvdb", "Upcoming", None, False, "Upcoming"),
+            ("tvdb", "Continuing", "2020-01-01", True, "Continuing"),
+            ("tvdb", "Ended", "2020-01-01", True, "Ended"),
+            ("tmdb", "Planned", None, False, "Upcoming"),
+            ("tmdb", "In Production", None, False, "Upcoming"),
+            ("tmdb", "In Production", "2020-01-01", True, "Continuing"),
+            ("tmdb", "Pilot", None, False, "Upcoming"),
+            ("tmdb", "Returning Series", "2020-01-01", True, "Continuing"),
+            ("tmdb", "Ended", "2020-01-01", True, "Ended"),
+            ("tmdb", "Canceled", "2020-01-01", True, "Ended"),
+            ("tmdb", "Completed", "2020-01-01", True, "Ended"),
+        ]
+
+        for index, (provider_name, raw_status, release_date, has_aired, expected) in enumerate(cases):
+            with self.subTest(provider=provider_name, raw_status=raw_status):
+                provider = FakeProvider(
+                    detail=show_detail(
+                        provider=provider_name,
+                        external_id=str(index),
+                        status=raw_status,
+                        release_date=release_date,
+                    ),
+                    episodes=[episode(air_date=release_date)] if has_aired else [],
+                )
+                show = import_show(
+                    str(index),
+                    provider=provider_name,
+                    provider_getter=lambda _name, provider=provider: provider,
+                )
+
+                self.assertEqual(show.status, raw_status)
+                self.assertEqual(show.normalized_status, expected)
+
+    def test_import_show_leaves_unknown_status_un_normalized(self):
+        provider = FakeProvider(detail=show_detail(status="Mystery"))
+
+        show = import_show("121361", provider_getter=lambda _: provider)
+
+        self.assertEqual(show.status, "Mystery")
+        self.assertIsNone(show.normalized_status)
+
+    def test_in_production_is_continuing_once_a_numbered_season_exists(self):
+        provider = FakeProvider(
+            detail=show_detail(
+                provider="tmdb",
+                external_id="999",
+                status="In Production",
+                release_date="2030-01-01",
+            ),
+            seasons=[SeasonDTO(season_number=1)],
+        )
+
+        show = import_show(
+            "999",
+            provider="tmdb",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(show.normalized_status, Show.NormalizedStatus.CONTINUING)
+
     def test_import_show_keeps_original_scalar_when_selected_language_is_translated(self):
         provider = FakeProvider(
             detail=show_detail(
@@ -218,6 +281,7 @@ class ShowImportTests(TestCase):
         show = import_show("121361", provider_getter=lambda _: provider)
 
         self.assertEqual(show.airs_time, time(21, 0))
+        self.assertEqual(show.airs_timezone, "America/New_York")
 
     def test_import_show_discards_invalid_airing_time(self):
         provider = FakeProvider(detail=show_detail(airs_time="not-a-time"), episodes=[])
@@ -225,6 +289,27 @@ class ShowImportTests(TestCase):
         show = import_show("121361", provider_getter=lambda _: provider)
 
         self.assertIsNone(show.airs_time)
+        self.assertIsNone(show.airs_timezone)
+
+    def test_import_tmdb_show_keeps_airing_time_empty(self):
+        provider = FakeProvider(
+            detail=show_detail(
+                provider="tmdb",
+                external_id="1399",
+                airs_time=None,
+                airs_timezone=None,
+            ),
+            episodes=[],
+        )
+
+        show = import_show(
+            "1399",
+            provider="tmdb",
+            provider_getter=lambda _: provider,
+        )
+
+        self.assertIsNone(show.airs_time)
+        self.assertIsNone(show.airs_timezone)
 
     def test_import_show_creates_show_genres_seasons_and_episodes(self):
         provider = FakeProvider(
@@ -259,6 +344,7 @@ class ShowImportTests(TestCase):
         self.assertIsNone(show.next_air_date)
         self.assertEqual(show.last_air_date.isoformat(), "2019-05-19")
         self.assertEqual(show.airs_time, time(21, 0))
+        self.assertEqual(show.airs_timezone, "America/New_York")
         self.assertEqual(
             show.cast,
             [{

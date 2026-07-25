@@ -12,23 +12,15 @@
     </div>
   </div>
 
-  {% if movies %}
-  <label class="input w-full">
-    <i class="fa-solid fa-magnifying-glass opacity-50" aria-hidden="true"></i>
-    <input type="search" placeholder="{% trans 'Search your watchlist' %}"
-           aria-label="{% trans 'Search your watchlist' %}" autocomplete="off"
-           _="on input
-                show <a/> in #movies-watchlist-grid
-                when its dataset.name.toLowerCase() contains my value.toLowerCase()" />
-  </label>
-
-  <div id="movies-watchlist-grid" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-    {% for movie in movies %}
-    <c-movies.movie-poster :movie="movie" />
-    {% endfor %}
+  <div id="movies-watchlist-content"
+       hx-get="{{ request.get_full_path }}"
+       hx-trigger="load"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+    </div>
   </div>
-  {% else %}
-  <div class="empty-state py-12 text-center">{% trans "No movies in your watchlist." %}</div>
-  {% endif %}
 </section>
 {% endblock %}

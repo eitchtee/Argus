@@ -24,6 +24,39 @@ from apps.trakt.models import TraktSyncIntent
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
+def normalize_show_status(
+    provider: str,
+    raw_status: str,
+    *,
+    has_season: bool,
+) -> str | None:
+    value = (raw_status or "").strip().casefold()
+
+    if value in {"ended", "canceled", "cancelled", "completed", "finished"}:
+        return Show.NormalizedStatus.ENDED
+
+    if provider == "tvdb":
+        return {
+            "upcoming": Show.NormalizedStatus.UPCOMING,
+            "continuing": Show.NormalizedStatus.CONTINUING,
+            "ended": Show.NormalizedStatus.ENDED,
+        }.get(value)
+
+    if provider == "tmdb":
+        if value == "returning series":
+            return Show.NormalizedStatus.CONTINUING
+        if value in {"planned", "upcoming"}:
+            return Show.NormalizedStatus.UPCOMING
+        if value in {"in production", "pilot"}:
+            return (
+                Show.NormalizedStatus.CONTINUING
+                if has_season
+                else Show.NormalizedStatus.UPCOMING
+            )
+
+    return None
+
+
 def import_show(
     external_id: str,
     *,
@@ -90,6 +123,21 @@ def import_show(
         raise
 
     today = timezone.localdate()
+    airs_time = _parse_time(detail.airs_time)
+    airs_timezone = detail.airs_timezone if airs_time else None
+    if airs_time and not airs_timezone:
+        # Preserve the previous UTC behavior when a provider has a time but no zone.
+        airs_timezone = "UTC"
+    first_aired = _parse_date(detail.release_date)
+    has_season = any(
+        item.season_number > 0
+        for item in [*season_details, *episodes]
+    )
+    normalized_status = normalize_show_status(
+        provider,
+        detail.status,
+        has_season=has_season,
+    )
 
     with transaction.atomic():
         existing_show = Show.objects.filter(
@@ -137,8 +185,9 @@ def import_show(
                 "translations": show_translations,
                 "poster_path": detail.poster_path,
                 "backdrop_path": detail.backdrop_path,
-                "first_aired": _parse_date(detail.release_date),
+                "first_aired": first_aired,
                 "status": detail.status,
+                "normalized_status": normalized_status,
                 "network": detail.network,
                 "imdb_id": detail.imdb_id,
                 "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
@@ -148,7 +197,8 @@ def import_show(
                 "average_runtime": detail.average_runtime,
                 "next_air_date": _parse_date(detail.next_air_date),
                 "last_air_date": _parse_date(detail.last_air_date),
-                "airs_time": _parse_time(detail.airs_time),
+                "airs_time": airs_time,
+                "airs_timezone": airs_timezone,
                 "last_synced_at": timezone.now(),
                 "sync_status": SyncStatus.OK,
             },
@@ -626,8 +676,10 @@ def _show_switch_defaults(
         "next_air_date": source.next_air_date,
         "last_air_date": source.last_air_date,
         "airs_time": source.airs_time,
+        "airs_timezone": source.airs_timezone,
         "first_aired": source.first_aired,
         "status": source.status,
+        "normalized_status": source.normalized_status,
         "network": source.network,
         "aired_episode_count": source.aired_episode_count,
         "sync_status": SyncStatus.PENDING,
@@ -824,21 +876,18 @@ class UpNextSections:
 
 
 WATCHLIST_SECTIONS = ("all", "watching", "completed", "paused", "dropped")
-FINISHED_SHOW_STATUSES = frozenset(
-    {"canceled", "cancelled", "completed", "ended", "finished"}
-)
 
 
 def watchlist_progress_color(
     watched_count: int,
     total_count: int,
-    show_status: str,
+    normalized_status: str | None,
 ) -> str:
-    if watched_count < total_count:
-        return "warning"
-    if (show_status or "").strip().casefold() in FINISHED_SHOW_STATUSES:
-        return "success"
-    return "info"
+    return {
+        Show.NormalizedStatus.UPCOMING: "warning",
+        Show.NormalizedStatus.CONTINUING: "info",
+        Show.NormalizedStatus.ENDED: "success",
+    }.get(normalized_status, "info")
 
 
 def _attach_watchlist_progress(user, shows: list[Show]) -> None:
@@ -867,14 +916,26 @@ def _attach_watchlist_progress(user, shows: list[Show]) -> None:
         .values("episode__show_id")
         .annotate(watched_count=Count("id"))
     }
+    upcoming_counts = {
+        row["show_id"]: row["upcoming_count"]
+        for row in Episode.objects.filter(
+            show_id__in=show_ids,
+            season_number__gt=0,
+            air_date__gt=timezone.localdate(),
+        )
+        .order_by()
+        .values("show_id")
+        .annotate(upcoming_count=Count("id"))
+    }
 
     for show in shows:
         show.total_episode_count = total_counts.get(show.id, 0)
         show.watched_episode_count = watched_counts.get(show.id, 0)
+        show.upcoming_episode_count = upcoming_counts.get(show.id, 0)
         show.progress_color = watchlist_progress_color(
             show.watched_episode_count,
             show.total_episode_count,
-            show.status,
+            show.normalized_status,
         )
 
 
@@ -916,10 +977,15 @@ def get_watchlist_shows(user, section: str = "all") -> list[Show]:
     for show in tracked_shows:
         aired_count = show.total_episode_count
         watched_count = show.watched_episode_count
+        upcoming_count = show.upcoming_episode_count
         if section == "completed":
-            include = aired_count > 0 and watched_count == aired_count
+            include = (
+                aired_count > 0
+                and watched_count == aired_count
+                and upcoming_count == 0
+            )
         else:
-            include = aired_count > watched_count
+            include = aired_count > watched_count or upcoming_count > 0
         if include:
             selected.append(show)
     return selected
@@ -1016,10 +1082,15 @@ def get_watchlist_entry(user, show: Show) -> WatchlistEntry | None:
 
 
 @dataclass
-class UpcomingEntry:
+class UpcomingEpisode:
     episode: Episode
     countdown: str
     watched: bool
+
+
+@dataclass
+class UpcomingEntry(UpcomingEpisode):
+    additional_episodes: list[UpcomingEpisode] = dataclasses.field(default_factory=list)
 
 
 @dataclass
@@ -1060,7 +1131,14 @@ def _upcoming_queryset(user):
             air_date__gte=yesterday,
         )
         .select_related("show")
-        .order_by("air_date", "show__name", "episode_number")
+        .order_by(
+            "air_date",
+            "show__name",
+            "show_id",
+            "season_number",
+            "episode_number",
+            "id",
+        )
     )
 
 
@@ -1075,19 +1153,35 @@ def _build_upcoming_entries(user, episodes) -> list[UpcomingEntry]:
         )
     )
 
-    return [
-        UpcomingEntry(
+    episode_entries = [
+        UpcomingEpisode(
             episode=episode,
             countdown=countdown_label(episode.air_date, today),
             watched=episode.id in watched_ids,
         )
         for episode in episodes
     ]
+    entries = []
+    for _group_key, grouped_entries in itertools.groupby(
+        episode_entries,
+        key=lambda entry: (entry.episode.show_id, entry.episode.air_date),
+    ):
+        grouped_entries = list(grouped_entries)
+        primary = grouped_entries[0]
+        entries.append(
+            UpcomingEntry(
+                episode=primary.episode,
+                countdown=primary.countdown,
+                watched=primary.watched,
+                additional_episodes=grouped_entries[1:],
+            )
+        )
+    return entries
 
 
 def get_upcoming_episodes(user, count: int = 10) -> list[UpcomingEntry]:
-    episodes = list(_upcoming_queryset(user)[:count])
-    return _build_upcoming_entries(user, episodes)
+    entries = _build_upcoming_entries(user, _upcoming_queryset(user))
+    return entries[:count]
 
 
 def get_upcoming_month(user, after_month: date | None = None) -> UpcomingMonth | None:

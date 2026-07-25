@@ -9,21 +9,27 @@ from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
 class WatchlistProgressColorTests(SimpleTestCase):
-    def test_remaining_episodes_are_yellow(self):
+    def test_upcoming_shows_are_yellow(self):
         self.assertEqual(
-            services.watchlist_progress_color(1, 2, "Ended"),
+            services.watchlist_progress_color(1, 2, "Upcoming"),
             "warning",
         )
 
-    def test_finished_show_with_all_available_episodes_is_green(self):
+    def test_ended_shows_are_green_even_with_unwatched_episodes(self):
         self.assertEqual(
-            services.watchlist_progress_color(2, 2, "Ended"),
+            services.watchlist_progress_color(1, 2, "Ended"),
             "success",
         )
 
-    def test_continuing_show_with_all_available_episodes_is_blue(self):
+    def test_continuing_shows_are_blue_even_with_unwatched_episodes(self):
         self.assertEqual(
-            services.watchlist_progress_color(2, 2, "Continuing"),
+            services.watchlist_progress_color(1, 2, "Continuing"),
+            "info",
+        )
+
+    def test_raw_provider_status_is_not_treated_as_normalized_status(self):
+        self.assertEqual(
+            services.watchlist_progress_color(2, 2, "Canceled"),
             "info",
         )
 
@@ -98,10 +104,13 @@ class WatchlistShowsServiceTests(TestCase):
         unreleased, unreleased_season = self.make_show("Unreleased", "unreleased")
         self.make_episode(unreleased, unreleased_season, 1, self.today + timedelta(days=1))
 
-        self.assertEqual(list(services.get_watchlist_shows(self.user, "watching")), [watching])
+        self.assertEqual(
+            list(services.get_watchlist_shows(self.user, "watching")),
+            [unreleased, watching],
+        )
         self.assertEqual(list(services.get_watchlist_shows(self.user, "completed")), [completed])
 
-    def test_special_future_and_undated_episodes_do_not_affect_completion(self):
+    def test_special_and_undated_episodes_do_not_affect_progress_but_future_does(self):
         show, season = self.make_show("Completed", "completed")
         aired_episode = self.make_episode(
             show, season, 1, self.today - timedelta(days=1)
@@ -113,8 +122,23 @@ class WatchlistShowsServiceTests(TestCase):
         self.make_episode(show, season, 2, self.today + timedelta(days=1))
         self.make_episode(show, season, 3, None)
 
-        self.assertEqual(list(services.get_watchlist_shows(self.user, "completed")), [show])
-        self.assertEqual(list(services.get_watchlist_shows(self.user, "watching")), [])
+        self.assertEqual(list(services.get_watchlist_shows(self.user, "completed")), [])
+        self.assertEqual(list(services.get_watchlist_shows(self.user, "watching")), [show])
+
+    def test_upcoming_numbered_episodes_keep_a_show_watching(self):
+        show, season = self.make_show("Returning Show", "returning")
+        aired = self.make_episode(show, season, 1, self.today - timedelta(days=1))
+        self.watch(aired)
+        self.make_episode(show, season, 2, self.today + timedelta(days=1))
+
+        self.assertEqual(
+            list(services.get_watchlist_shows(self.user, "watching")),
+            [show],
+        )
+        self.assertEqual(
+            list(services.get_watchlist_shows(self.user, "completed")),
+            [],
+        )
 
     def test_watched_episodes_belong_to_the_current_user(self):
         show, season = self.make_show("Still Watching", "still-watching")

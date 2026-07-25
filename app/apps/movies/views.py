@@ -20,6 +20,7 @@ from apps.catalog.services import SUPPORTED_PROVIDERS
 from apps.catalog.tracking import find_tracking_match
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
+from apps.common.htmx import is_htmx_fragment_request
 from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
     get_watched_movies,
@@ -40,16 +41,22 @@ from apps.movies.tasks import hydrate_movie_translations
 @require_http_methods(["GET"])
 def movie_detail(request, external_id):
     provider = _provider_from_request(request, "tmdb")
+    if not is_htmx_fragment_request(request):
+        return render(request, "movies/pages/detail.html")
+
     context = {"movie": _build_movie_context(request.user, external_id, provider)}
-    return render(request, "movies/pages/detail.html", context)
+    return render(request, "movies/fragments/detail.html", context)
 
 
 @htmx_login_required
 @require_http_methods(["GET"])
 def movie_watchlist(request):
+    if not is_htmx_fragment_request(request):
+        return render(request, "movies/pages/watchlist.html")
+
     return render(
         request,
-        "movies/pages/watchlist.html",
+        "movies/fragments/watchlist.html",
         {
             "movies": [
                 LocalizedRecord(
@@ -65,9 +72,12 @@ def movie_watchlist(request):
 @htmx_login_required
 @require_http_methods(["GET"])
 def movie_watched_list(request):
+    if not is_htmx_fragment_request(request):
+        return render(request, "movies/pages/watched.html")
+
     return render(
         request,
-        "movies/pages/watched.html",
+        "movies/fragments/watched.html",
         {
             "movies": [
                 LocalizedRecord(
@@ -127,7 +137,7 @@ def movie_refresh(request, external_id):
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     messages.success(request, _("Metadata refresh queued."))
-    return HttpResponse(status=204)
+    return HttpResponse(status=204, headers={"HX-Trigger": "toast"})
 
 
 @only_htmx

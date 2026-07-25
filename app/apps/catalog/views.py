@@ -24,11 +24,19 @@ TVDB_SEARCH_RESULT_PAGE_SIZE = 1
 @require_http_methods(["GET"])
 def search_page(request):
     query, media_type, provider, page = _params(request.GET)
-    context = _search_context(request, query, media_type, provider, page)
-    context["form"] = SearchForm(
+    return render(
+        request,
+        "catalog/pages/search.html",
+        {
+            "query": query,
+            "media_type": media_type,
+            "provider": provider,
+            "page": page,
+            "form": SearchForm(
         initial={"q": query, "type": media_type, "provider": provider}
+            ),
+        },
     )
-    return render(request, "catalog/pages/search.html", context)
 
 
 @only_htmx
