@@ -1,5 +1,6 @@
 from dataclasses import replace
-from datetime import date, time
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
 from django.contrib import messages
@@ -20,6 +21,7 @@ from apps.catalog.localization import (
     season_name,
 )
 from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
+from apps.catalog.links import build_external_links
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 from apps.catalog.tracking import find_tracking_match
@@ -46,14 +48,13 @@ from apps.tv.services import (
     mark_season_watched,
     mark_show_watched,
     pause_show,
+    queue_switch_show_provider,
+    queue_track_show,
     refresh_show,
-    switch_show_provider,
-    track_show,
     unmark_episode_watched,
     unmark_season_watched,
     unmark_show_watched,
 )
-
 
 
 @htmx_login_required
@@ -193,8 +194,21 @@ def show_detail(request, external_id):
     if not is_htmx_fragment_request(request):
         return render(request, "tv/pages/detail.html")
 
-    context = {"show": _build_show_context(request.user, external_id, provider)}
+    context = {
+        "show": _build_show_context(request.user, external_id, provider),
+    }
     return render(request, "tv/fragments/detail.html", context)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["GET"])
+def show_episodes(request, external_id):
+    provider = _provider_from_request(request)
+    context = {
+        "show": _build_show_episodes_context(request.user, external_id, provider),
+    }
+    return render(request, "tv/fragments/episodes.html", context)
 
 
 @only_htmx
@@ -205,7 +219,10 @@ def show_track(request, external_id):
         return HttpResponseForbidden("Demo mode is read-only.")
 
     provider = _provider_from_request(request)
-    track_show(request.user, external_id, provider=provider)
+    try:
+        queue_track_show(request.user, external_id, provider=provider)
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
     return _redirect_to_show_detail(external_id, provider)
 
 
@@ -254,7 +271,7 @@ def show_switch(request, external_id):
         }
         if target_imdb_id:
             switch_kwargs["target_imdb_id"] = target_imdb_id
-        switch_show_provider(
+        queue_switch_show_provider(
             request.user,
             **switch_kwargs,
         )
@@ -384,10 +401,23 @@ def episode_detail(request, external_id, episode_id):
         status=UserShow.Status.TRACKED,
     ).exists()
     watched = tracked and UserEpisode.objects.filter(user=request.user, episode=episode).exists()
+    localized_show = _localize_show(show, request.user)
+    show_title = localized_show.name
 
     context = {
         "episode": _localize_episode(episode, request.user),
-        "show": _localize_show(show, request.user),
+        "show": localized_show,
+        "show_links": build_external_links(
+            "tv",
+            provider=show.provider,
+            external_id=show.external_id,
+            title=show_title,
+            imdb_id=show.imdb_id,
+            tmdb_id=show.tmdb_id,
+            tvdb_id=show.tvdb_id,
+            trakt_id=show.trakt_id,
+        ),
+        "show_provider_label": show.provider.upper(),
         "show_provider": provider,
         "tracked": tracked,
         "watched": watched,
@@ -505,6 +535,7 @@ def _localize_episode(episode, user):
         overrides={
             "name": resolve_field(episode, "name", language),
             "show": LocalizedRecord(episode.show, language),
+            "air_status": _episode_air_status(episode.air_date),
         },
     )
 
@@ -573,30 +604,19 @@ def _build_show_context(user, external_id, provider="tvdb"):
     tracking_state = _refresh_show_identity(user, show, language)
     user_show = UserShow.objects.filter(user=user, show=show).first()
     tracked = bool(user_show and user_show.status == UserShow.Status.TRACKED)
-    watched_ids = set()
-    if tracked:
-        watched_ids = set(
-            UserEpisode.objects.filter(user=user, episode__show=show).values_list(
-                "episode_id", flat=True
-            )
-        )
-
-    seasons = [
-        _season_context(
-            season,
-            list(season.episodes.order_by("episode_number")),
-            watched_ids,
-            tracked,
-            language,
-        )
-        for season in Season.objects.filter(show=show).order_by("season_number")
-    ]
-    numbered_seasons = [season for season in seasons if season["season_number"] > 0]
+    title = resolve_field(show, "name", language)
+    air_time_context = _air_time_context(
+        show.airs_time,
+        show.airs_timezone,
+        show.next_air_date or show.last_air_date or show.first_aired,
+    )
 
     return {
+        "normalized_status": show.normalized_status,
         "external_id": show.external_id,
         "provider": show.provider,
-        "title": resolve_field(show, "name", language),
+        "provider_label": show.provider.upper(),
+        "title": title,
         "overview": resolve_field(show, "overview", language),
         "status": show.status,
         "network": show.network,
@@ -605,21 +625,108 @@ def _build_show_context(user, external_id, provider="tvdb"):
         "poster_url": show.poster_url,
         "backdrop_url": show.backdrop_url,
         "imdb_id": show.imdb_id,
+        "tmdb_id": show.tmdb_id,
+        "tvdb_id": show.tvdb_id,
+        "trakt_id": show.trakt_id,
         "trailer_url": show.trailer_url,
         "average_runtime": show.average_runtime,
         "next_air_date": show.next_air_date,
         "last_air_date": show.last_air_date,
-        "airs_time": show.airs_time,
-        "airs_timezone": show.airs_timezone,
         "cast": show.cast,
         "tracked": tracked,
         "tracking_status": user_show.status if user_show else None,
         "can_delete": user_show is not None,
-        "seasons": seasons,
+        "has_episodes": Episode.objects.filter(show=show).exists(),
         "show_fully_watched": (
-            tracked and bool(numbered_seasons) and all(s["fully_watched"] for s in numbered_seasons)
+            tracked and _show_is_fully_watched(user, show)
         ),
+        "external_links": build_external_links(
+            "tv",
+            provider=show.provider,
+            external_id=show.external_id,
+            title=title,
+            imdb_id=show.imdb_id,
+            tmdb_id=show.tmdb_id,
+            tvdb_id=show.tvdb_id,
+            trakt_id=show.trakt_id,
+        ),
+        **air_time_context,
         **tracking_state,
+    }
+
+
+def _build_show_episodes_context(user, external_id, provider="tvdb"):
+    language = metadata_language_for_user(user, provider)
+    show = Show.objects.filter(provider=provider, external_id=external_id).first()
+
+    if show is not None:
+        tracked = UserShow.objects.filter(
+            user=user,
+            show=show,
+            status=UserShow.Status.TRACKED,
+        ).exists()
+        watched_ids = set(
+            UserEpisode.objects.filter(user=user, episode__show=show).values_list(
+                "episode_id", flat=True
+            )
+        )
+        seasons = [
+            _season_context(
+                season,
+                list(season.episodes.order_by("episode_number")),
+                watched_ids,
+                tracked,
+                language,
+            )
+            for season in (
+                Season.objects.filter(show=show, episodes__isnull=False)
+                .distinct()
+                .order_by("season_number")
+            )
+        ]
+    else:
+        episodes = get_show_episodes(
+            external_id,
+            language=language,
+            provider=provider,
+        )
+        seasons = _preview_seasons(episodes, language, PROVIDER_DEFAULT_LANGUAGES[provider])
+        tracked = False
+
+    return {
+        "external_id": external_id,
+        "provider": provider,
+        "provider_label": provider.upper(),
+        "seasons": seasons,
+        "tracked": tracked,
+        "show_fully_watched": (
+            tracked and show is not None and _show_is_fully_watched(user, show)
+        ),
+        **_episode_counts(seasons),
+    }
+
+
+def _show_is_fully_watched(user, show):
+    aired_episodes = Episode.objects.filter(
+        show=show,
+        season_number__gt=0,
+        air_date__isnull=False,
+        air_date__lte=timezone.localdate(),
+    )
+    return aired_episodes.exists() and not aired_episodes.exclude(
+        user_states__user=user
+    ).exists()
+
+
+def _episode_counts(seasons):
+    episodes = [episode for season in seasons for episode in season["episodes"]]
+    return {
+        "episode_count": len(episodes),
+        "aired_count": sum(episode["air_status"] == "aired" for episode in episodes),
+        "upcoming_count": sum(
+            episode["air_status"] == "upcoming" for episode in episodes
+        ),
+        "tba_count": sum(episode["air_status"] == "tba" for episode in episodes),
     }
 
 
@@ -652,7 +759,8 @@ def _season_context(
     aired_watched_count = 0
 
     for episode in episodes:
-        aired = bool(episode.air_date and episode.air_date <= today)
+        air_status = _episode_air_status(episode.air_date, today)
+        aired = air_status == "aired"
         watched = episode.id in watched_ids
         if aired:
             aired_count += 1
@@ -667,6 +775,7 @@ def _season_context(
                 ),
                 "air_date": episode.air_date,
                 "aired": aired,
+                "air_status": air_status,
                 "watched": watched,
             }
         )
@@ -684,6 +793,12 @@ def _season_context(
         "episodes": episode_rows,
         "aired_count": aired_count,
         "aired_watched_count": aired_watched_count,
+        "upcoming_count": sum(
+            episode["air_status"] == "upcoming" for episode in episode_rows
+        ),
+        "tba_count": sum(
+            episode["air_status"] == "tba" for episode in episode_rows
+        ),
         "fully_watched": aired_count > 0 and aired_watched_count == aired_count,
         "tracked": tracked,
     }
@@ -697,68 +812,23 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         language=language,
         provider=provider,
     )
-    episodes = get_show_episodes(
-        external_id,
-        language=language,
-        provider=provider,
+    title = resolve_from_map(
+        detail.translations,
+        "title",
+        language,
+        default_language,
+        detail.title,
     )
-    today = timezone.localdate()
-
-    episodes_by_season: dict[int, list] = {}
-    for episode in episodes:
-        episodes_by_season.setdefault(episode.season_number, []).append(episode)
-
-    seasons = []
-    for season_number in sorted(episodes_by_season):
-        season_episodes = sorted(
-            episodes_by_season[season_number], key=lambda episode: episode.episode_number
-        )
-        episode_rows = []
-        aired_count = 0
-        for episode in season_episodes:
-            air_date = _parse_iso_date(episode.air_date)
-            aired = bool(air_date and air_date <= today)
-            if aired:
-                aired_count += 1
-            episode_rows.append(
-                {
-                    "id": None,
-                    "episode_number": episode.episode_number,
-                    "name": resolve_from_map(
-                        episode.translations,
-                        "name",
-                        language,
-                        default_language,
-                        episode.name,
-                    ) or episode_name(episode.episode_number),
-                    "air_date": air_date,
-                    "aired": aired,
-                    "watched": False,
-                }
-            )
-        seasons.append(
-            {
-                "id": None,
-                "season_number": season_number,
-                "name": season_name(season_number),
-                "episodes": episode_rows,
-                "aired_count": aired_count,
-                "aired_watched_count": 0,
-                "fully_watched": False,
-                "tracked": False,
-            }
-        )
+    next_air_date = _parse_iso_date(detail.next_air_date)
+    last_air_date = _parse_iso_date(detail.last_air_date)
+    release_date = _parse_iso_date(detail.release_date)
+    air_time = _parse_iso_time(detail.airs_time)
 
     return {
         "external_id": detail.external_id,
         "provider": provider,
-        "title": resolve_from_map(
-            detail.translations,
-            "title",
-            language,
-            default_language,
-            detail.title,
-        ),
+        "provider_label": provider.upper(),
+        "title": title,
         "overview": resolve_from_map(
             detail.translations,
             "overview",
@@ -768,7 +838,7 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         ),
         "status": detail.status,
         "network": detail.network,
-        "release_date": _parse_iso_date(detail.release_date),
+        "release_date": release_date,
         "genres": [
             resolve_from_map(
                 genre.translations,
@@ -782,12 +852,13 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         "poster_url": _provider_poster_url(detail.poster_path, provider),
         "backdrop_url": _provider_backdrop_url(detail.backdrop_path, provider),
         "imdb_id": detail.imdb_id,
+        "tmdb_id": detail.tmdb_id,
+        "tvdb_id": detail.tvdb_id,
+        "trakt_id": getattr(detail, "trakt_id", None),
         "trailer_url": detail.trailer_url,
         "average_runtime": detail.average_runtime,
-        "next_air_date": _parse_iso_date(detail.next_air_date),
-        "last_air_date": _parse_iso_date(detail.last_air_date),
-        "airs_time": _parse_iso_time(detail.airs_time),
-        "airs_timezone": detail.airs_timezone or "UTC",
+        "next_air_date": next_air_date,
+        "last_air_date": last_air_date,
         "cast": [
             {"name": member.name, "character": member.character, "photo_url": member.photo_url}
             for member in detail.cast
@@ -795,8 +866,23 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         "tracked": False,
         "tracking_status": None,
         "can_delete": False,
-        "seasons": seasons,
+        "has_episodes": False,
         "show_fully_watched": False,
+        "external_links": build_external_links(
+            "tv",
+            provider=provider,
+            external_id=detail.external_id,
+            title=title,
+            imdb_id=detail.imdb_id,
+            tmdb_id=detail.tmdb_id,
+            tvdb_id=detail.tvdb_id,
+            trakt_id=getattr(detail, "trakt_id", None),
+        ),
+        **_air_time_context(
+            air_time,
+            detail.airs_timezone,
+            next_air_date or last_air_date or release_date,
+        ),
         **_tracking_state_from_ids(
             user,
             "tv",
@@ -807,6 +893,62 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
             imdb_id=detail.imdb_id,
         ),
     }
+
+
+def _preview_seasons(episodes, language, default_language):
+    episodes_by_season: dict[int, list] = {}
+    for episode in episodes:
+        episodes_by_season.setdefault(episode.season_number, []).append(episode)
+
+    seasons = []
+    for season_number in sorted(episodes_by_season):
+        episode_rows = []
+        aired_count = 0
+        season_episodes = sorted(
+            episodes_by_season[season_number],
+            key=lambda episode: episode.episode_number,
+        )
+        for episode in season_episodes:
+            air_date = _parse_iso_date(episode.air_date)
+            air_status = _episode_air_status(air_date)
+            if air_status == "aired":
+                aired_count += 1
+            episode_rows.append(
+                {
+                    "id": None,
+                    "episode_number": episode.episode_number,
+                    "name": resolve_from_map(
+                        episode.translations,
+                        "name",
+                        language,
+                        default_language,
+                        episode.name,
+                    ) or episode_name(episode.episode_number),
+                    "air_date": air_date,
+                    "aired": air_status == "aired",
+                    "air_status": air_status,
+                    "watched": False,
+                }
+            )
+        seasons.append(
+            {
+                "id": None,
+                "season_number": season_number,
+                "name": season_name(season_number),
+                "episodes": episode_rows,
+                "aired_count": aired_count,
+                "aired_watched_count": 0,
+                "upcoming_count": sum(
+                    episode["air_status"] == "upcoming" for episode in episode_rows
+                ),
+                "tba_count": sum(
+                    episode["air_status"] == "tba" for episode in episode_rows
+                ),
+                "fully_watched": False,
+                "tracked": False,
+            }
+        )
+    return seasons
 
 
 def _show_tracking_state(user, show):
@@ -906,6 +1048,56 @@ def _parse_iso_time(value):
         return time.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _convert_air_time_to_user_timezone(
+    air_time: time | None,
+    source_timezone: str | None,
+    reference_date: date | None = None,
+) -> time | None:
+    if air_time is None:
+        return None
+
+    try:
+        source_tz = ZoneInfo(source_timezone or "UTC")
+    except (TypeError, ValueError, ZoneInfoNotFoundError):
+        source_tz = ZoneInfo("UTC")
+
+    aired_at = datetime.combine(
+        reference_date or timezone.localdate(),
+        air_time,
+        tzinfo=source_tz,
+    )
+    return timezone.localtime(aired_at).time().replace(tzinfo=None)
+
+
+def _episode_air_status(air_date: date | None, today: date | None = None) -> str:
+    if air_date is None:
+        return "tba"
+    return "aired" if air_date <= (today or timezone.localdate()) else "upcoming"
+
+
+def _air_time_context(
+    air_time: time | None,
+    source_timezone: str | None,
+    reference_date: date | None = None,
+):
+    source_timezone = source_timezone or "UTC"
+    try:
+        ZoneInfo(source_timezone)
+    except (TypeError, ValueError, ZoneInfoNotFoundError):
+        source_timezone = "UTC"
+
+    return {
+        "airs_time": _convert_air_time_to_user_timezone(
+            air_time,
+            source_timezone,
+            reference_date,
+        ),
+        "airs_timezone": timezone.get_current_timezone_name(),
+        "airs_source_time": air_time,
+        "airs_source_timezone": source_timezone,
+    }
 
 
 def _provider_from_request(request, default="tvdb"):

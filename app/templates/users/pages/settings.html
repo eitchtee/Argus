@@ -1,0 +1,70 @@
+{% extends "layouts/base.html" %}
+{% load dates i18n %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% trans "Settings" %}{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+  <div class="section-heading">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Account" %}</p>
+      <h1 class="text-3xl font-bold tracking-tight">{% trans "Settings" %}</h1>
+    </div>
+  </div>
+
+  <div role="tablist" class="tabs tabs-border w-full" aria-label="{% trans 'Settings sections' %}">
+    <input id="user-settings-tab" type="radio" name="settings-tabs" role="tab" class="tab"
+           aria-label="{% trans 'User settings' %}" aria-controls="user-settings-panel" checked>
+    <div id="user-settings-panel" role="tabpanel" class="tab-content pt-6" aria-labelledby="user-settings-tab">
+      <section class="surface-card rounded-box p-4 sm:p-6">
+        <div class="mb-6">
+          <h2 class="text-xl font-semibold">{% trans "User Settings" %}</h2>
+          <p class="mt-1 text-sm text-base-content/70">{% trans "Customize your language, metadata, and date preferences." %}</p>
+        </div>
+        <form method="post" action="{% url 'user_settings' %}" novalidate _="install init_tom_select">
+          {% csrf_token %}
+          {% crispy form %}
+        </form>
+      </section>
+    </div>
+
+    <input id="trakt-settings-tab" type="radio" name="settings-tabs" role="tab" class="tab"
+           aria-label="{% trans 'Trakt.tv' %}" aria-controls="trakt-settings-panel">
+    <div id="trakt-settings-panel" role="tabpanel" class="tab-content pt-6" aria-labelledby="trakt-settings-tab">
+      <section class="surface-card rounded-box p-4 sm:p-6">
+        <div class="mb-6">
+          <h2 class="text-xl font-semibold">{% trans "Trakt.tv" %}</h2>
+          <p class="mt-1 text-sm text-base-content/70">{% trans "Connect Trakt.tv to synchronize your library." %}</p>
+        </div>
+        {% if trakt_account %}
+          <p class="text-sm text-base-content/70">
+            {% trans "Connected as" %}
+            <span class="font-medium">{% if trakt_account.trakt_username %}{{ trakt_account.trakt_username }}{% else %}{% trans "Trakt user" %}{% endif %}</span>.
+          </p>
+          {% if trakt_account.last_synced_at %}
+            <p class="text-sm text-base-content/70">{% trans "Last sync" %}: {% user_datetime trakt_account.last_synced_at %}</p>
+          {% endif %}
+          {% if trakt_account.last_error %}
+            <p class="mt-2 text-sm text-error">{{ trakt_account.last_error }}</p>
+          {% endif %}
+          <div class="mt-4 flex flex-wrap gap-2">
+            <form method="post" action="{% url 'trakt_sync' %}" hx-post="{% url 'trakt_sync' %}" hx-swap="none">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary btn-sm">{% trans "Sync now" %}</button>
+            </form>
+            <a href="{% url 'trakt_connect' %}" class="btn btn-secondary btn-sm">{% trans "Reconnect" %}</a>
+            <form method="post" action="{% url 'trakt_disconnect' %}" hx-post="{% url 'trakt_disconnect' %}" hx-swap="none" hx-confirm="{% trans 'Disconnect Trakt.tv?' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm">{% trans "Disconnect" %}</button>
+            </form>
+          </div>
+        {% else %}
+          <p class="text-sm text-base-content/70">{% trans "Connect your Trakt.tv account to synchronize your library." %}</p>
+          <a href="{% url 'trakt_connect' %}" class="btn btn-primary btn-sm mt-4">{% trans "Connect Trakt.tv" %}</a>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

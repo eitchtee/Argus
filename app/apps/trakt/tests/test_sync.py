@@ -23,6 +23,7 @@ from apps.trakt.sync import (
     sync_account,
 )
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+from apps.tv.services import unmark_episode_watched
 
 
 class FakeTraktClient:
@@ -31,6 +32,7 @@ class FakeTraktClient:
         self.snapshot_calls = []
         self.watchlist_calls = []
         self.history_calls = []
+        self.history_remove_calls = []
         self.dropped_calls = []
 
     def get_snapshot(self, **kwargs):
@@ -40,8 +42,11 @@ class FakeTraktClient:
     def post_watchlist(self, items, *, remove=False):
         self.watchlist_calls.append((items, remove))
 
-    def post_history(self, movies, shows):
-        self.history_calls.append((movies, shows))
+    def post_history(self, movies, shows, *, remove=False):
+        if remove:
+            self.history_remove_calls.append((movies, shows))
+        else:
+            self.history_calls.append((movies, shows))
 
     def post_dropped(self, shows, *, remove=False):
         self.dropped_calls.append((shows, remove))
@@ -429,6 +434,75 @@ class TraktSyncTests(TestCase):
         sync_account(self.account.id, client_factory=client_factory(client))
 
         self.assertFalse(client.history_calls)
+
+    def test_local_unwatch_removes_episode_from_trakt_even_with_stale_snapshot(self):
+        self.account.initial_sync_complete = True
+        self.account.save(update_fields=["initial_sync_complete"])
+        show = Show.objects.create(
+            external_id="100",
+            trakt_id="1000",
+            name="The Show",
+        )
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        episode = Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=1,
+            trakt_id="1001",
+            name="Pilot",
+        )
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+        UserEpisode.objects.create(user=self.user, episode=episode, seen_at=timezone.now())
+        unmark_episode_watched(self.user, episode)
+        client = FakeTraktClient(
+            TraktSnapshot(
+                [],
+                [],
+                [],
+                [],
+                [],
+                watched_episodes=[
+                    {
+                        "watched_at": timezone.now().isoformat(),
+                        "show": {"ids": {"trakt": 1000}},
+                        "episode": {
+                            "season": 1,
+                            "number": 1,
+                            "ids": {"trakt": 1001},
+                        },
+                    }
+                ],
+            )
+        )
+
+        sync_account(self.account.id, client_factory=client_factory(client))
+
+        self.assertEqual(len(client.history_remove_calls), 1)
+        movies, shows = client.history_remove_calls[0]
+        self.assertFalse(movies)
+        self.assertEqual(shows[0]["ids"]["trakt"], 1000)
+        self.assertEqual(
+            shows[0]["seasons"][0]["episodes"][0]["ids"]["trakt"],
+            1001,
+        )
+        self.assertFalse(UserEpisode.objects.filter(user=self.user, episode=episode).exists())
+        intent = TraktSyncIntent.objects.get(
+            user=self.user,
+            kind=TraktSyncIntent.Kind.EPISODE_HISTORY,
+        )
+        self.assertFalse(intent.desired)
+
+        client.snapshot = TraktSnapshot([], [], [], [], [], watched_episodes=[])
+        sync_account(self.account.id, client_factory=client_factory(client))
+
+        self.assertEqual(len(client.history_remove_calls), 1)
+        self.assertFalse(
+            TraktSyncIntent.objects.filter(
+                user=self.user,
+                kind=TraktSyncIntent.Kind.EPISODE_HISTORY,
+            ).exists()
+        )
 
     def test_episode_history_intent_is_not_reposted_after_remote_accepts_it(self):
         show = Show.objects.create(external_id="100", trakt_id="1000", name="The Show")

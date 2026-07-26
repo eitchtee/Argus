@@ -9,8 +9,13 @@ from apps.movies.services import mark_seen
 from apps.trakt.changes import record_intent, suppress_local_intents
 from apps.trakt.identities import movie_payload
 from apps.trakt.models import TraktAccount, TraktSyncIntent
-from apps.tv.models import Episode, Season, Show, UserShow
-from apps.tv.services import drop_show, mark_episode_watched
+from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+from apps.tv.services import (
+    drop_show,
+    mark_episode_watched,
+    unmark_season_watched,
+    unmark_show_watched,
+)
 
 
 class TraktChangesTests(TestCase):
@@ -166,3 +171,47 @@ class TraktChangesTests(TestCase):
                 kind=TraktSyncIntent.Kind.SHOW_DROPPED,
             ).desired
         )
+
+    def test_bulk_tv_unwatch_records_episode_history_removals(self):
+        TraktAccount.objects.create(
+            user=self.user,
+            access_token="access",
+            refresh_token="refresh",
+        )
+        show = Show.objects.create(external_id="show-1", trakt_id="1000", name="The Show")
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        specials = Season.objects.create(show=show, season_number=0, name="Specials")
+        episodes = [
+            Episode.objects.create(
+                show=show,
+                season=season,
+                season_number=1,
+                episode_number=number,
+                trakt_id=str(1000 + number),
+                name=f"Episode {number}",
+            )
+            for number in (1, 2)
+        ]
+        special = Episode.objects.create(
+            show=show,
+            season=specials,
+            season_number=0,
+            episode_number=1,
+            trakt_id="1003",
+            name="Special",
+        )
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+        for episode in [*episodes, special]:
+            UserEpisode.objects.create(user=self.user, episode=episode)
+
+        unmark_season_watched(self.user, season)
+        unmark_show_watched(self.user, show)
+
+        intents = TraktSyncIntent.objects.filter(
+            user=self.user,
+            kind=TraktSyncIntent.Kind.EPISODE_HISTORY,
+        )
+        self.assertEqual(intents.count(), 2)
+        self.assertTrue(all(not intent.desired for intent in intents))
+        self.assertFalse(UserEpisode.objects.filter(user=self.user, episode__in=episodes).exists())
+        self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=special).exists())

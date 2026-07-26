@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 from procrastinate.contrib.django import app
@@ -7,6 +8,39 @@ from apps.catalog.models import SyncStatus
 from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
 from apps.tv import services as tv_services
 from apps.tv.models import Show, UserShow
+
+
+@app.task(name="track_show")
+def track_show(user_id: int, show_id: int):
+    user = get_user_model().objects.get(id=user_id)
+    show = Show.objects.get(id=show_id)
+    return tv_services.track_show(
+        user,
+        show.external_id,
+        provider=show.provider,
+        force_hydrate=True,
+    )
+
+
+@app.task(name="switch_show_provider")
+def switch_show_provider(
+    user_id: int,
+    *,
+    source_provider: str,
+    source_external_id: str,
+    target_provider: str,
+    target_external_id: str,
+    target_imdb_id: str | None = None,
+):
+    user = get_user_model().objects.get(id=user_id)
+    return tv_services.switch_show_provider(
+        user,
+        source_provider=source_provider,
+        source_external_id=source_external_id,
+        target_provider=target_provider,
+        target_external_id=target_external_id,
+        target_imdb_id=target_imdb_id,
+    )
 
 
 @app.task(name="hydrate_show_translations")

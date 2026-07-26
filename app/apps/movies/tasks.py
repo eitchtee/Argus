@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 from procrastinate.contrib.django import app
@@ -9,6 +10,34 @@ from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.movies import services as movie_services
 from apps.movies.models import Movie, UserMovie
+
+
+@app.task(name="track_movie")
+def track_movie(user_id: int, movie_id: int):
+    user = get_user_model().objects.get(id=user_id)
+    movie = Movie.objects.get(id=movie_id)
+    return movie_services.track_movie(user, movie.provider, movie.external_id)
+
+
+@app.task(name="switch_movie_provider")
+def switch_movie_provider(
+    user_id: int,
+    *,
+    source_provider: str,
+    source_external_id: str,
+    target_provider: str,
+    target_external_id: str,
+    target_imdb_id: str | None = None,
+):
+    user = get_user_model().objects.get(id=user_id)
+    return movie_services.switch_movie_provider(
+        user,
+        source_provider=source_provider,
+        source_external_id=source_external_id,
+        target_provider=target_provider,
+        target_external_id=target_external_id,
+        target_imdb_id=target_imdb_id,
+    )
 
 
 @app.task(name="hydrate_movie_translations")

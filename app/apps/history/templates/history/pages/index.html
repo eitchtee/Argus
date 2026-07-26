@@ -1,0 +1,27 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "History" %}{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <div class="section-heading">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Your activity" %}</p>
+      <h1 class="text-3xl font-bold tracking-tight">{% trans "History" %}</h1>
+    </div>
+  </div>
+
+  <div id="history-content"
+       hx-get="{{ request.get_full_path }}"
+       hx-trigger="load"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+      <span class="sr-only">{% trans "Loading history" %}</span>
+    </div>
+  </div>
+</section>
+{% endblock %}

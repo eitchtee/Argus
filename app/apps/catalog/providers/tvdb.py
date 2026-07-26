@@ -263,6 +263,7 @@ class TVDBProvider(BaseProvider):
             imdb_id=self._imdb_id_from_remote_ids(data),
             tvdb_id=str(data["id"]),
             tmdb_id=self._tmdb_id_from_remote_ids(data),
+            trakt_id=self._trakt_id_from_remote_ids(data),
             trailer_url=self._trailer_from_data(data),
             cast=self._cast_from_characters(data),
             average_runtime=data.get("averageRuntime"),
@@ -328,6 +329,7 @@ class TVDBProvider(BaseProvider):
             imdb_id=self._imdb_id_from_remote_ids(data),
             tvdb_id=str(data.get("id") or external_id),
             tmdb_id=self._tmdb_id_from_remote_ids(data),
+            trakt_id=self._trakt_id_from_remote_ids(data),
             trailer_url=self._trailer_from_data(data),
             cast=self._cast_from_characters(data),
             genres=[
@@ -397,6 +399,12 @@ class TVDBProvider(BaseProvider):
     def _tmdb_id_from_remote_ids(self, data: dict) -> str | None:
         for remote_id in data.get("remoteIds", []):
             if remote_id.get("sourceName") == "TheMovieDB.com":
+                return remote_id.get("id")
+        return None
+
+    def _trakt_id_from_remote_ids(self, data: dict) -> str | None:
+        for remote_id in data.get("remoteIds", []):
+            if remote_id.get("sourceName") == "Trakt":
                 return remote_id.get("id")
         return None
 

@@ -72,6 +72,7 @@ class IndexViewTests(TestCase):
         sidebar = self._sidebar_menu(response)
         home_url = reverse("index")
         search_url = reverse("catalog-search-page")
+        history_url = reverse("history-page")
         calendar_url = reverse("calendar")
         up_next_url = reverse("tv-up-next")
         upcoming_url = reverse("tv-upcoming")
@@ -84,6 +85,7 @@ class IndexViewTests(TestCase):
         self.assertGreaterEqual(sidebar.count("<ul"), 3)
         self.assertIn(">Home</span>", sidebar)
         self.assertIn(">Search</span>", sidebar)
+        self.assertIn(">History</span>", sidebar)
         self.assertIn(">TV</span>", sidebar)
         self.assertIn(">Up next</span>", sidebar)
         self.assertIn(">Upcoming</span>", sidebar)
@@ -100,6 +102,7 @@ class IndexViewTests(TestCase):
         labels = [
             ">Home</span>",
             ">Search</span>",
+            ">History</span>",
             ">TV</span>",
             ">Up next</span>",
             ">Upcoming</span>",
@@ -116,11 +119,15 @@ class IndexViewTests(TestCase):
             for anchor in re.findall(r"<a\b[^>]*>", sidebar)
             if "sidebar-item" in anchor
         ]
-        self.assertEqual(len(anchors), 8)
+        self.assertEqual(len(anchors), 9)
         for anchor in anchors:
             self.assertIn('hx-boost="true"', anchor)
 
         self.assertIn(f'href="{home_url}"', self._sidebar_link(sidebar, "Home"))
+        self.assertIn(
+            f'href="{history_url}"',
+            self._sidebar_link(sidebar, "History"),
+        )
         self.assertIn(
             f'href="{movie_watched_url}"',
             self._sidebar_link(sidebar, "Watched"),
@@ -213,6 +220,14 @@ class IndexViewTests(TestCase):
         self.assertIn(f'href="{reverse("movies-watched-page")}"', watched_link)
         self.assertIn('class="sidebar-item menu-active"', watched_link)
 
+    def test_history_sidebar_link_is_active(self):
+        response = self.client.get(reverse("history-page"))
+        sidebar = self._sidebar_menu(response)
+        history_link = self._sidebar_link(sidebar, "History")
+
+        self.assertIn(f'href="{reverse("history-page")}"', history_link)
+        self.assertIn('class="sidebar-item menu-active"', history_link)
+
     def test_sidebar_shows_admin_link_for_staff(self):
         self.user.is_staff = True
         self.user.save(update_fields=["is_staff"])
@@ -224,7 +239,9 @@ class IndexViewTests(TestCase):
         admin_link = self._sidebar_link(sidebar, "Admin")
         self.assertIsNotNone(admin_link)
         self.assertIn(f'href="{admin_url}"', admin_link)
-        self.assertIn('hx-boost="true"', admin_link)
+        self.assertIn('target="_blank"', admin_link)
+        self.assertIn('rel="noopener noreferrer"', admin_link)
+        self.assertIn('hx-boost="false"', admin_link)
 
     def test_renders_tv_tabs(self):
         response = self.client.get("/")

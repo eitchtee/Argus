@@ -8,6 +8,7 @@ from django.views.decorators.http import require_http_methods
 
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 from apps.catalog.providers.exceptions import ProviderError
+from apps.catalog.links import build_external_links
 from apps.catalog.localization import (
     LocalizedRecord,
     PROVIDER_DEFAULT_LANGUAGES,
@@ -28,10 +29,11 @@ from apps.movies.services import (
     delete_movie_data,
     import_movie,
     mark_seen,
+    normalize_movie_status,
     remove_from_watchlist,
+    queue_switch_movie_provider,
+    queue_track_movie,
     refresh_movie,
-    switch_movie_provider,
-    track_movie,
     unmark_seen,
 )
 from apps.movies.tasks import hydrate_movie_translations
@@ -44,7 +46,9 @@ def movie_detail(request, external_id):
     if not is_htmx_fragment_request(request):
         return render(request, "movies/pages/detail.html")
 
-    context = {"movie": _build_movie_context(request.user, external_id, provider)}
+    context = {
+        "movie": _build_movie_context(request.user, external_id, provider),
+    }
     return render(request, "movies/fragments/detail.html", context)
 
 
@@ -99,7 +103,10 @@ def movie_track(request, external_id):
 
     provider = _provider_from_request(request, "tmdb")
     if request.method == "POST":
-        user_movie = track_movie(request.user, provider, external_id)
+        try:
+            user_movie = queue_track_movie(request.user, provider, external_id)
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
         movie_state = {
             "external_id": user_movie.movie.external_id,
             "provider": user_movie.movie.provider,
@@ -168,7 +175,7 @@ def movie_switch(request, external_id):
         }
         if target_imdb_id:
             switch_kwargs["target_imdb_id"] = target_imdb_id
-        switch_movie_provider(
+        queue_switch_movie_provider(
             request.user,
             **switch_kwargs,
         )
@@ -239,16 +246,19 @@ def _build_movie_context(user, external_id, provider="tmdb"):
     if movie is not None:
         tracking_state = _refresh_movie_identity(user, movie, language)
         user_movie = UserMovie.objects.filter(user=user, movie=movie).first()
+        title = resolve_field(movie, "title", language)
         return {
             "external_id": movie.external_id,
             "provider": movie.provider,
-            "title": resolve_field(movie, "title", language),
+            "provider_label": movie.provider.upper(),
+            "title": title,
             "year": movie.release_date.year if movie.release_date else None,
             "release_date": movie.release_date,
             "tagline": resolve_field(movie, "tagline", language),
             "overview": resolve_field(movie, "overview", language),
             "runtime": movie.runtime,
             "status": movie.status,
+            "normalized_status": movie.normalized_status,
             "vote_average": movie.vote_average,
             "director": movie.director,
             "trailer_url": movie.trailer_url,
@@ -257,6 +267,19 @@ def _build_movie_context(user, external_id, provider="tmdb"):
             "genres": [resolve_field(genre, "name", language) for genre in movie.genres.all()],
             "poster_url": movie.poster_url,
             "backdrop_url": movie.backdrop_url,
+            "tmdb_id": movie.tmdb_id,
+            "tvdb_id": movie.tvdb_id,
+            "trakt_id": movie.trakt_id,
+            "external_links": build_external_links(
+                "movie",
+                provider=movie.provider,
+                external_id=movie.external_id,
+                title=title,
+                imdb_id=movie.imdb_id,
+                tmdb_id=movie.tmdb_id,
+                tvdb_id=movie.tvdb_id,
+                trakt_id=movie.trakt_id,
+            ),
             "on_watchlist": user_movie.on_watchlist if user_movie else False,
             "is_seen": user_movie.is_seen if user_movie else False,
             **tracking_state,
@@ -268,12 +291,14 @@ def _build_movie_context(user, external_id, provider="tmdb"):
         provider=provider,
     )
     default_language = PROVIDER_DEFAULT_LANGUAGES[provider]
+    title = resolve_from_map(
+        detail.translations, "title", language, default_language, detail.title
+    )
     return {
         "external_id": detail.external_id,
         "provider": provider,
-        "title": resolve_from_map(
-            detail.translations, "title", language, default_language, detail.title
-        ),
+        "provider_label": provider.upper(),
+        "title": title,
         "year": _year_from_iso_date(detail.release_date),
         "release_date": _parse_iso_date(detail.release_date),
         "tagline": resolve_from_map(
@@ -284,6 +309,7 @@ def _build_movie_context(user, external_id, provider="tmdb"):
         ),
         "runtime": detail.runtime,
         "status": detail.status,
+        "normalized_status": normalize_movie_status(detail.status),
         "vote_average": detail.vote_average,
         "director": detail.director,
         "trailer_url": detail.trailer_url,
@@ -304,6 +330,19 @@ def _build_movie_context(user, external_id, provider="tmdb"):
         ],
         "poster_url": build_poster_url(detail.poster_path),
         "backdrop_url": build_backdrop_url(detail.backdrop_path),
+        "tmdb_id": detail.tmdb_id,
+        "tvdb_id": detail.tvdb_id,
+        "trakt_id": getattr(detail, "trakt_id", None),
+        "external_links": build_external_links(
+            "movie",
+            provider=provider,
+            external_id=detail.external_id,
+            title=title,
+            imdb_id=detail.imdb_id,
+            tmdb_id=detail.tmdb_id,
+            tvdb_id=detail.tvdb_id,
+            trakt_id=getattr(detail, "trakt_id", None),
+        ),
         "on_watchlist": False,
         "is_seen": False,
         **_tracking_state_from_ids(

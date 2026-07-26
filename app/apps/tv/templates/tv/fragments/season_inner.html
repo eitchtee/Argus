@@ -1,11 +1,11 @@
-{% load i18n %}
+{% load dates i18n %}
 <div id="season-{{ season.id|default:season.season_number }}" class="bg-base-100 border-base-300 border rounded-box">
-  <div class="p-4 flex items-center justify-between gap-4 cursor-pointer" @click="expanded = !expanded">
-    <div class="flex items-center gap-2">
+  <div class="flex cursor-pointer items-center justify-between gap-4 p-4" @click="expanded = !expanded">
+    <div class="flex min-w-0 items-center gap-3">
       <i class="fa-solid fa-chevron-down fa-xs transition-transform duration-200" :class="{ 'rotate-180': expanded }"></i>
-      <span class="font-medium">{{ season.name }}</span>
+      <span class="truncate font-semibold">{{ season.name }}</span>
       {% if season.tracked %}
-      <span class="text-subtle text-xs ms-2">{{ season.aired_watched_count }}/{{ season.aired_count }} {% trans "watched" %}</span>
+      <span class="text-subtle ms-2 whitespace-nowrap text-xs">{{ season.aired_watched_count }}/{{ season.aired_count }} {% trans "watched" %}</span>
       {% endif %}
     </div>
     {% if season.tracked and season.aired_count > 0 %}
@@ -15,25 +15,34 @@
             hx-trigger="change"></div>
     {% endif %}
   </div>
-  <div x-show="expanded" x-collapse x-cloak class="px-4 pb-4 flex flex-col gap-1">
+  <div x-show="expanded" x-collapse x-cloak class="flex flex-col gap-2 px-4 pb-4">
     {% for episode in season.episodes %}
-    <div class="flex items-center justify-between gap-2 py-1 border-t border-base-300">
-      <div class="flex items-center gap-2">
+    <div class="episode-row flex flex-wrap items-center justify-between gap-3 border-t border-base-300 pt-2">
+      <div class="flex min-w-0 items-center gap-3">
         {% if season.tracked %}
-        <input type="checkbox" class="checkbox checkbox-sm"
+        <input type="checkbox" class="checkbox checkbox-sm shrink-0"
+               aria-label="{% if episode.watched %}{% trans 'Mark episode unwatched' %}{% else %}{% trans 'Mark episode watched' %}{% endif %}"
                {% if episode.watched %}checked{% endif %}
                hx-{% if episode.watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-episode-watched' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
                hx-trigger="change" hx-target="#season-{{ season.id }}" hx-swap="outerHTML" hx-disabled-elt="this">
         {% else %}
-        <i class="fa-solid {% if episode.aired %}fa-check text-success{% else %}fa-clock text-subtle{% endif %}"></i>
+        <i class="fa-solid shrink-0 {% if episode.air_status == 'aired' %}fa-circle-check text-success{% elif episode.air_status == 'upcoming' %}fa-calendar-days text-info{% else %}fa-circle-question text-subtle{% endif %}" aria-hidden="true"></i>
         {% endif %}
         {% if episode.id %}
-        <a href="{% url 'tv-episode-detail' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" class="text-sm link link-hover">{{ episode.episode_number }}. {{ episode.name }}</a>
+        <a href="{% url 'tv-episode-detail' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" class="min-w-0 truncate text-sm font-medium link link-hover">{{ episode.episode_number }}. {{ episode.name }}</a>
         {% else %}
-        <span class="text-sm">{{ episode.episode_number }}. {{ episode.name }}</span>
+        <span class="min-w-0 truncate text-sm font-medium">{{ episode.episode_number }}. {{ episode.name }}</span>
         {% endif %}
       </div>
-      <span class="text-subtle text-xs">{{ episode.air_date|date:"M d, Y"|default:"TBA" }}</span>
+      <div class="flex shrink-0 items-center gap-2">
+        <span class="episode-status episode-status--{{ episode.air_status }}">
+          <i class="fa-solid {% if episode.air_status == 'aired' %}fa-circle-check{% elif episode.air_status == 'upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
+          {% if episode.air_status == "aired" %}{% trans "Aired" %}{% elif episode.air_status == "upcoming" %}{% trans "Upcoming" %}{% else %}{% trans "TBA" %}{% endif %}
+        </span>
+        {% if episode.air_date %}
+        <span class="text-subtle text-xs">{% user_date episode.air_date %}</span>
+        {% endif %}
+      </div>
     </div>
     {% endfor %}
   </div>

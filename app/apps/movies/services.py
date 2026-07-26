@@ -20,6 +20,40 @@ from apps.trakt.identities import movie_payload
 from apps.trakt.models import TraktSyncIntent
 
 
+def normalize_movie_status(raw_status: str) -> str:
+    value = (raw_status or "").strip().casefold()
+
+    if value == "released":
+        return Movie.NormalizedStatus.RELEASED
+
+    if value in {"canceled", "cancelled"}:
+        return Movie.NormalizedStatus.CANCELED
+
+    if value in {
+        "upcoming",
+        "rumored",
+        "planned",
+        "announced",
+        "pre-production",
+        "pre production",
+        "pre_production",
+        "in production",
+        "in_production",
+        "post production",
+        "post-production",
+        "post_production",
+        "filming",
+        "filming / post-production",
+        "filming/post-production",
+        "filming / post_production",
+        "filming_post_production",
+        "completed",
+    }:
+        return Movie.NormalizedStatus.UPCOMING
+
+    return Movie.NormalizedStatus.UNKNOWN
+
+
 def import_movie(
     provider: str,
     external_id: str,
@@ -73,6 +107,7 @@ def import_movie(
                 "imdb_id": detail.imdb_id,
                 "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
                 "tvdb_id": detail.tvdb_id or (external_id if provider == "tvdb" else None),
+                "trakt_id": detail.trakt_id or (existing_movie.trakt_id if existing_movie else None),
                 "director": detail.director or "",
                 "trailer_url": detail.trailer_url,
                 "cast": [dataclasses.asdict(member) for member in detail.cast],
@@ -86,6 +121,7 @@ def import_movie(
                 "release_date": _parse_date(detail.release_date),
                 "runtime": detail.runtime,
                 "status": detail.status,
+                "normalized_status": normalize_movie_status(detail.status),
                 "vote_average": detail.vote_average,
                 "vote_count": detail.vote_count,
                 "last_synced_at": timezone.now(),
@@ -156,6 +192,61 @@ def track_movie(
             movie_id=movie_id,
         )
     hydrate_func(movie.id)
+    return user_movie
+
+
+def queue_track_movie(
+    user,
+    provider: str,
+    external_id: str,
+    *,
+    task_func=None,
+) -> UserMovie:
+    if provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    external_id = str(external_id)
+    with transaction.atomic():
+        movie, _created = Movie.objects.select_for_update().get_or_create(
+            provider=provider,
+            external_id=external_id,
+            defaults={
+                "title": external_id,
+                "sync_status": SyncStatus.PENDING,
+            },
+        )
+        match = find_tracking_match(
+            user,
+            "movie",
+            provider=movie.provider,
+            external_id=movie.external_id,
+            tmdb_id=movie.tmdb_id,
+            tvdb_id=movie.tvdb_id,
+            imdb_id=movie.imdb_id,
+        )
+        if match is not None and not match.same_provider:
+            raise ValueError("Tracked on another provider.")
+
+        user_movie, created = UserMovie.objects.get_or_create(user=user, movie=movie)
+        if not created and user_movie.on_watchlist:
+            return user_movie
+
+        user_movie.on_watchlist = True
+        user_movie.watchlist_added_at = timezone.now()
+        user_movie.save(update_fields=["on_watchlist", "watchlist_added_at", "updated_at"])
+        movie.sync_status = SyncStatus.PENDING
+        movie.save(update_fields=["sync_status", "updated_at"])
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+            movie_payload(movie),
+        )
+
+    if task_func is None:
+        from apps.movies.tasks import track_movie as track_movie_task
+
+        task_func = lambda **kwargs: track_movie_task.defer(**kwargs)
+    task_func(user_id=user.id, movie_id=movie.id)
     return user_movie
 
 
@@ -302,6 +393,135 @@ def switch_movie_provider(
     return target
 
 
+def queue_switch_movie_provider(
+    user,
+    *,
+    source_provider: str,
+    source_external_id: str,
+    target_provider: str,
+    target_external_id: str,
+    target_imdb_id: str | None = None,
+    task_func=None,
+) -> Movie:
+    if source_provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {source_provider}")
+    if target_provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {target_provider}")
+    if source_provider == target_provider:
+        raise ValueError("Target provider must differ from the source provider.")
+
+    source_external_id = str(source_external_id)
+    target_external_id = str(target_external_id)
+    with transaction.atomic():
+        source_state = (
+            UserMovie.objects.select_for_update()
+            .filter(
+                user=user,
+                movie__provider=source_provider,
+                movie__external_id=source_external_id,
+            )
+            .select_related("movie")
+            .first()
+        )
+        if source_state is None:
+            raise ValueError("Source movie is not tracked by this user.")
+
+        source = Movie.objects.select_for_update().get(id=source_state.movie_id)
+        target = (
+            Movie.objects.select_for_update()
+            .filter(provider=target_provider, external_id=target_external_id)
+            .first()
+        )
+        if not _movie_provider_ids_match(
+            source,
+            target,
+            target_provider=target_provider,
+            target_external_id=target_external_id,
+            target_imdb_id=target_imdb_id,
+        ):
+            raise ValueError("Movies do not match across providers.")
+
+        if target is None:
+            target = Movie.objects.create(
+                provider=target_provider,
+                external_id=target_external_id,
+                **_movie_switch_defaults(source, target_provider, target_external_id),
+            )
+            target.genres.set(source.genres.all())
+        else:
+            target.imdb_id = target.imdb_id or target_imdb_id or source.imdb_id
+            target.tmdb_id = target.tmdb_id or source.tmdb_id
+            target.tvdb_id = target.tvdb_id or source.tvdb_id
+
+        target.tmdb_id = (
+            target_external_id
+            if target_provider == "tmdb"
+            else target.tmdb_id
+        )
+        target.tvdb_id = (
+            target_external_id
+            if target_provider == "tvdb"
+            else target.tvdb_id
+        )
+        target.sync_status = SyncStatus.PENDING
+        target.save(
+            update_fields=[
+                "imdb_id",
+                "tmdb_id",
+                "tvdb_id",
+                "sync_status",
+                "updated_at",
+            ]
+        )
+
+        target_state, _created = UserMovie.objects.get_or_create(
+            user=user,
+            movie=target,
+        )
+        target_state.on_watchlist = source_state.on_watchlist
+        target_state.watchlist_added_at = source_state.watchlist_added_at
+        target_state.is_seen = source_state.is_seen
+        target_state.seen_at = source_state.seen_at
+        target_state.tier = source_state.tier
+        target_state.save(
+            update_fields=[
+                "on_watchlist",
+                "watchlist_added_at",
+                "is_seen",
+                "seen_at",
+                "tier",
+                "updated_at",
+            ]
+        )
+
+    if target_state.is_seen:
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.MOVIE_HISTORY,
+            movie_payload(target, watched_at=target_state.seen_at),
+        )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        movie_payload(target),
+        desired=target_state.on_watchlist,
+    )
+
+    if task_func is None:
+        from apps.movies.tasks import switch_movie_provider as switch_movie_provider_task
+
+        task_func = lambda **kwargs: switch_movie_provider_task.defer(**kwargs)
+    task_func(
+        user_id=user.id,
+        source_provider=source_provider,
+        source_external_id=source_external_id,
+        target_provider=target_provider,
+        target_external_id=target_external_id,
+        target_imdb_id=target_imdb_id,
+    )
+    return target
+
+
 def _movie_provider_ids_match(
     source: Movie,
     target: Movie | None,
@@ -349,6 +569,7 @@ def _movie_switch_defaults(
         "release_date": source.release_date,
         "runtime": source.runtime,
         "status": source.status,
+        "normalized_status": source.normalized_status,
         "vote_average": source.vote_average,
         "vote_count": source.vote_count,
         "sync_status": SyncStatus.PENDING,

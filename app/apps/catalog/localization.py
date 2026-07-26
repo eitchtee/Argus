@@ -2,6 +2,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from django.utils.formats import get_format
+
 
 PROVIDER_DEFAULT_LANGUAGES = {
     "tvdb": "eng",
@@ -30,6 +32,34 @@ def merge_translation_maps(*maps):
 def metadata_language_for_user(user, provider: str) -> str:
     default = PROVIDER_DEFAULT_LANGUAGES[provider]
     return getattr(user.settings, f"{provider}_metadata_language", default)
+
+
+def _format_for_user(user, setting_name: str, default: str) -> str:
+    configured = getattr(getattr(user, "settings", None), setting_name, default)
+    configured = configured or default
+
+    if configured in {"SHORT_DATE_FORMAT", "SHORT_DATETIME_FORMAT"}:
+        return get_format(configured, use_l10n=True)
+    return configured
+
+
+def date_format_for_user(user) -> str:
+    return _format_for_user(user, "date_format", "SHORT_DATE_FORMAT")
+
+
+def datetime_format_for_user(user) -> str:
+    return _format_for_user(user, "datetime_format", "SHORT_DATETIME_FORMAT")
+
+
+def time_format_for_user(user=None) -> str:
+    """Return the time portion of the user's automatic or chosen datetime format."""
+    format_string = datetime_format_for_user(user)
+    parts = format_string.split()
+    if len(parts) > 1:
+        if parts[-1] in {"A", "a"} and len(parts) > 2:
+            return " ".join(parts[-2:])
+        return parts[-1]
+    return get_format("TIME_FORMAT", use_l10n=True)
 
 
 def season_name(season_number: int) -> str:

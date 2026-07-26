@@ -16,6 +16,7 @@ import sys
 import socket
 from pathlib import Path
 
+from django.conf.locale import LANG_INFO
 from django.utils.text import slugify
 
 SITE_TITLE = "Argus"
@@ -64,6 +65,7 @@ INSTALLED_APPS = [
     "apps.catalog.apps.CatalogConfig",
     "apps.movies.apps.MoviesConfig",
     "apps.tv.apps.TvConfig",
+    "apps.history.apps.HistoryConfig",
     "apps.trakt.apps.TraktConfig",
     "apps.calendar.apps.CalendarConfig",
     "cachalot",
@@ -197,9 +199,26 @@ AUTH_USER_MODEL = "users.User"
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = "en"
-LANGUAGES = (
-    ("en", "English"),
-    ("pt-br", "Português (Brasil)"),
+
+
+def _language_name_local(code, language):
+    if language.get("name_local"):
+        return language["name_local"]
+
+    for fallback_code in language.get("fallback", ()):
+        fallback = LANG_INFO.get(fallback_code, {})
+        if fallback.get("name_local"):
+            return fallback["name_local"]
+
+    return code
+
+
+LANGUAGES = tuple(
+    (code, _language_name_local(code, language))
+    for code, language in sorted(
+        LANG_INFO.items(),
+        key=lambda item: _language_name_local(item[0], item[1]).casefold(),
+    )
 )
 
 TIME_ZONE = os.getenv("TZ", "UTC")

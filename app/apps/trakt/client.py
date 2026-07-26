@@ -178,10 +178,19 @@ class TraktClient:
             items_by_type,
         )
 
-    def post_history(self, movies: list[dict], shows: list[dict]):
+    def post_history(
+        self,
+        movies: list[dict],
+        shows: list[dict],
+        *,
+        remove: bool = False,
+    ):
         if not movies and not shows:
             return None
-        return self._write_json("/sync/history", {"movies": movies, "shows": shows})
+        return self._write_json(
+            "/sync/history/remove" if remove else "/sync/history",
+            {"movies": movies, "shows": shows},
+        )
 
     def post_dropped(self, shows: list[dict], *, remove: bool = False):
         if not shows:

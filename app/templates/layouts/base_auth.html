@@ -2,8 +2,9 @@
 {% load i18n %}
 {% load title %}
 {% load django_vite %}
+{% get_current_language as current_language %}
 <!doctype html>
-<html lang="en" data-theme="argus_dark">
+<html lang="{{ current_language }}" data-theme="argus_dark">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

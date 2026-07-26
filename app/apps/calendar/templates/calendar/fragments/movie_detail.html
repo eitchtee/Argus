@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load dates i18n %}
 <div class="space-y-5">
   <div>
     <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{% trans "Movie" %}</p>
@@ -8,7 +8,7 @@
   <div class="grid gap-3 text-sm sm:grid-cols-2">
     <div class="rounded-box bg-base-200/60 p-3">
       <p class="text-xs uppercase tracking-wide text-base-content/50">{% trans "Release" %}</p>
-      <p class="mt-1 font-semibold">{{ event.release_date|date:"F j, Y" }} · {% trans "All day" %}</p>
+      <p class="mt-1 font-semibold">{% user_date event.release_date %} · {% trans "All day" %}</p>
     </div>
     <div class="rounded-box bg-base-200/60 p-3">
       <p class="text-xs uppercase tracking-wide text-base-content/50">{% trans "Status" %}</p>

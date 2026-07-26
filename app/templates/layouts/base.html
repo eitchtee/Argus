@@ -3,9 +3,10 @@
 {% load i18n %}
 {% load title %}
 {% load django_vite %}
+{% get_current_language as current_language %}
 
 <!DOCTYPE html>
-<html lang="en"
+<html lang="{{ current_language }}"
   data-theme="{% if request.session.theme == 'argus_light' %}argus_light{% else %}argus_dark{% endif %}">
 
 <head>

@@ -48,6 +48,11 @@ class UserSettings(models.Model):
         default="SHORT_DATE_FORMAT",
         verbose_name=_("Date Format"),
     )
+    datetime_format = models.CharField(
+        max_length=100,
+        default="SHORT_DATETIME_FORMAT",
+        verbose_name=_("Datetime Format"),
+    )
 
     def __str__(self):
         return f"{self.user.email}'s settings"

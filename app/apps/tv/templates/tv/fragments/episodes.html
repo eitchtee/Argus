@@ -1,0 +1,37 @@
+{% load i18n %}
+
+<div class="space-y-4">
+  {% if show.seasons %}
+  <div class="detail-episode-summary" aria-label="{% trans 'Episode summary' %}">
+    <span class="detail-summary-item detail-summary-item--aired">
+      <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+      <strong>{{ show.aired_count }}</strong> {% trans "aired" %}
+    </span>
+    <span class="detail-summary-item detail-summary-item--upcoming">
+      <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+      <strong>{{ show.upcoming_count }}</strong> {% trans "upcoming" %}
+    </span>
+    {% if show.tba_count %}
+    <span class="detail-summary-item detail-summary-item--tba">
+      <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+      <strong>{{ show.tba_count }}</strong> {% trans "TBA" %}
+    </span>
+    {% endif %}
+    <span class="text-subtle ms-auto text-xs">
+      <strong>{{ show.episode_count }}</strong> {% trans "episodes" %}
+    </span>
+  </div>
+
+  <div class="flex flex-col gap-4">
+    {% for season in show.seasons %}
+    {% include "tv/fragments/season.html" with show_external_id=show.external_id show_provider=show.provider %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state py-10">
+    <i class="fa-solid fa-calendar-xmark mb-3 text-2xl" aria-hidden="true"></i>
+    <p class="font-medium">{% trans "No episodes available yet." %}</p>
+    <p class="mt-1 text-sm">{% trans "Episode metadata will appear here when the provider publishes it." %}</p>
+  </div>
+  {% endif %}
+</div>

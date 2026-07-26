@@ -72,13 +72,13 @@ def track(request):
     if error is None:
         try:
             if media_type == "movie":
-                from apps.movies.services import track_movie
+                from apps.movies.services import queue_track_movie
 
-                track_movie(request.user, provider, external_id)
+                queue_track_movie(request.user, provider, external_id)
             else:
-                from apps.tv.services import track_show
+                from apps.tv.services import queue_track_show
 
-                track_show(request.user, external_id, provider=provider)
+                queue_track_show(request.user, external_id, provider=provider)
         except (ValueError, ProviderError) as exc:
             error = str(exc) or _("Provider error.")
 

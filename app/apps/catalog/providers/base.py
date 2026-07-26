@@ -51,6 +51,7 @@ class DetailDTO:
     imdb_id: str | None = None
     tmdb_id: str | None = None
     tvdb_id: str | None = None
+    trakt_id: str | None = None
     network: str | None = None
     genres: list[GenreDTO] = field(default_factory=list)
     cast: list[CastMemberDTO] = field(default_factory=list)

@@ -4,6 +4,8 @@ from django.utils import translation
 
 from apps.catalog.localization import (
     LocalizedRecord,
+    date_format_for_user,
+    datetime_format_for_user,
     metadata_language_for_user,
     merge_translation_maps,
     resolve_field,
@@ -118,3 +120,46 @@ class UserMetadataLanguageTests(TestCase):
         with translation.override("fr"):
             self.assertEqual(metadata_language_for_user(user, "tvdb"), "spa")
             self.assertEqual(metadata_language_for_user(user, "tmdb"), "de-DE")
+
+
+class UserDateFormatTests(SimpleTestCase):
+    def test_automatic_formats_follow_the_active_interface_language(self):
+        user = type(
+            "UserStub",
+            (),
+            {
+                "settings": type(
+                    "SettingsStub",
+                    (),
+                    {
+                        "date_format": "SHORT_DATE_FORMAT",
+                        "datetime_format": "SHORT_DATETIME_FORMAT",
+                    },
+                )(),
+            },
+        )()
+
+        with translation.override("pt-br"):
+            self.assertEqual(
+                date_format_for_user(user),
+                "d/m/Y",
+            )
+            self.assertEqual(
+                datetime_format_for_user(user),
+                "d/m/Y H:i",
+            )
+
+    def test_custom_datetime_format_is_preserved(self):
+        user = type(
+            "UserStub",
+            (),
+            {
+                "settings": type(
+                    "SettingsStub",
+                    (),
+                    {"datetime_format": "Y-m-d h:i A"},
+                )(),
+            },
+        )()
+
+        self.assertEqual(datetime_format_for_user(user), "Y-m-d h:i A")

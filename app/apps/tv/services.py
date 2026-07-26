@@ -192,6 +192,7 @@ def import_show(
                 "imdb_id": detail.imdb_id,
                 "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
                 "tvdb_id": detail.tvdb_id or (external_id if provider == "tvdb" else None),
+                "trakt_id": detail.trakt_id or (existing_show.trakt_id if existing_show else None),
                 "trailer_url": detail.trailer_url,
                 "cast": [dataclasses.asdict(member) for member in detail.cast],
                 "average_runtime": detail.average_runtime,
@@ -369,6 +370,7 @@ def track_show(
     provider: str = "tvdb",
     import_func=import_show,
     hydrate_func=None,
+    force_hydrate=False,
 ) -> UserShow:
     if provider not in PROVIDER_DEFAULT_LANGUAGES:
         raise ValueError(f"Unsupported provider: {provider}")
@@ -399,6 +401,14 @@ def track_show(
             TraktSyncIntent.Kind.SHOW_WATCHLIST,
             show_payload(show),
         )
+        if force_hydrate:
+            if hydrate_func is None:
+                from apps.tv.tasks import hydrate_show_translations
+
+                hydrate_func = lambda show_id: hydrate_show_translations.defer(
+                    show_id=show_id,
+                )
+            hydrate_func(show.id)
         return user_show
 
     user_show.status = UserShow.Status.TRACKED
@@ -425,6 +435,78 @@ def track_show(
             show_id=show_id,
         )
     hydrate_func(show.id)
+    return user_show
+
+
+def queue_track_show(
+    user,
+    external_id: str,
+    *,
+    provider: str = "tvdb",
+    task_func=None,
+) -> UserShow:
+    if provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    external_id = str(external_id)
+    with transaction.atomic():
+        show, _created = Show.objects.select_for_update().get_or_create(
+            provider=provider,
+            external_id=external_id,
+            defaults={
+                "name": external_id,
+                "sync_status": SyncStatus.PENDING,
+            },
+        )
+        match = find_tracking_match(
+            user,
+            "tv",
+            provider=show.provider,
+            external_id=show.external_id,
+            tmdb_id=show.tmdb_id,
+            tvdb_id=show.tvdb_id,
+            imdb_id=show.imdb_id,
+        )
+        if match is not None and not match.same_provider:
+            raise ValueError("Tracked on another provider.")
+
+        user_show, created = UserShow.objects.get_or_create(user=user, show=show)
+        if not created and user_show.status == UserShow.Status.TRACKED:
+            if not user_show.on_watchlist:
+                user_show.on_watchlist = True
+                user_show.save(update_fields=["on_watchlist", "updated_at"])
+            record_intent(
+                user,
+                TraktSyncIntent.Kind.SHOW_WATCHLIST,
+                show_payload(show),
+            )
+            return user_show
+
+        user_show.status = UserShow.Status.TRACKED
+        user_show.on_watchlist = True
+        user_show.tracking_started_at = timezone.now()
+        user_show.save(
+            update_fields=["status", "on_watchlist", "tracking_started_at", "updated_at"]
+        )
+        show.sync_status = SyncStatus.PENDING
+        show.save(update_fields=["sync_status", "updated_at"])
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.SHOW_WATCHLIST,
+            show_payload(show),
+        )
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.SHOW_DROPPED,
+            show_payload(show),
+            desired=False,
+        )
+
+    if task_func is None:
+        from apps.tv.tasks import track_show as track_show_task
+
+        task_func = lambda **kwargs: track_show_task.defer(**kwargs)
+    task_func(user_id=user.id, show_id=show.id)
     return user_show
 
 
@@ -509,6 +591,8 @@ def switch_show_provider(
             target.imdb_id = target.imdb_id or target_imdb_id or source.imdb_id
             target.tmdb_id = target.tmdb_id or source.tmdb_id
             target.tvdb_id = target.tvdb_id or source.tvdb_id
+            if not target.seasons.exists() and source.seasons.exists():
+                _clone_show_catalog(source, target)
 
         target.tmdb_id = (
             str(target_external_id)
@@ -628,6 +712,133 @@ def switch_show_provider(
 
         sync_func = lambda show_id: sync_show.defer(show_id=show_id)
     sync_func(target.id)
+    return target
+
+
+def queue_switch_show_provider(
+    user,
+    *,
+    source_provider: str,
+    source_external_id: str,
+    target_provider: str,
+    target_external_id: str,
+    target_imdb_id: str | None = None,
+    task_func=None,
+) -> Show:
+    if source_provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {source_provider}")
+    if target_provider not in PROVIDER_DEFAULT_LANGUAGES:
+        raise ValueError(f"Unsupported provider: {target_provider}")
+    if source_provider == target_provider:
+        raise ValueError("Target provider must differ from the source provider.")
+
+    source_external_id = str(source_external_id)
+    target_external_id = str(target_external_id)
+    with transaction.atomic():
+        source_state = (
+            UserShow.objects.select_for_update()
+            .filter(
+                user=user,
+                show__provider=source_provider,
+                show__external_id=source_external_id,
+            )
+            .select_related("show")
+            .first()
+        )
+        if source_state is None:
+            raise ValueError("Source show is not tracked by this user.")
+
+        source = Show.objects.select_for_update().get(id=source_state.show_id)
+        target = (
+            Show.objects.select_for_update()
+            .filter(provider=target_provider, external_id=target_external_id)
+            .first()
+        )
+        if not _show_provider_ids_match(
+            source,
+            target,
+            target_provider=target_provider,
+            target_external_id=target_external_id,
+            target_imdb_id=target_imdb_id,
+        ):
+            raise ValueError("Shows do not match across providers.")
+
+        if target is None:
+            target = Show.objects.create(
+                provider=target_provider,
+                external_id=target_external_id,
+                **_show_switch_defaults(source, target_provider, target_external_id),
+            )
+            target.genres.set(source.genres.all())
+        else:
+            target.imdb_id = target.imdb_id or target_imdb_id or source.imdb_id
+            target.tmdb_id = target.tmdb_id or source.tmdb_id
+            target.tvdb_id = target.tvdb_id or source.tvdb_id
+
+        target.tmdb_id = (
+            target_external_id
+            if target_provider == "tmdb"
+            else target.tmdb_id
+        )
+        target.tvdb_id = (
+            target_external_id
+            if target_provider == "tvdb"
+            else target.tvdb_id
+        )
+        target.sync_status = SyncStatus.PENDING
+        target.save(
+            update_fields=[
+                "imdb_id",
+                "tmdb_id",
+                "tvdb_id",
+                "sync_status",
+                "updated_at",
+            ]
+        )
+
+        target_state, _created = UserShow.objects.get_or_create(
+            user=user,
+            show=target,
+        )
+        target_state.status = source_state.status
+        target_state.on_watchlist = source_state.on_watchlist
+        target_state.tracking_started_at = source_state.tracking_started_at
+        target_state.tier = source_state.tier
+        target_state.save(
+            update_fields=[
+                "status",
+                "on_watchlist",
+                "tracking_started_at",
+                "tier",
+                "updated_at",
+            ]
+        )
+
+    if target_state.status == UserShow.Status.DROPPED:
+        record_intent(
+            user,
+            TraktSyncIntent.Kind.SHOW_DROPPED,
+            show_payload(target),
+        )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        show_payload(target),
+        desired=target_state.on_watchlist,
+    )
+
+    if task_func is None:
+        from apps.tv.tasks import switch_show_provider as switch_show_provider_task
+
+        task_func = lambda **kwargs: switch_show_provider_task.defer(**kwargs)
+    task_func(
+        user_id=user.id,
+        source_provider=source_provider,
+        source_external_id=source_external_id,
+        target_provider=target_provider,
+        target_external_id=target_external_id,
+        target_imdb_id=target_imdb_id,
+    )
     return target
 
 
@@ -794,6 +1005,32 @@ def _require_tracking(user, show: Show) -> UserShow:
         raise ValueError("Show must be tracked before managing watched episodes.") from exc
 
 
+def _record_episode_history_removal(user, episode: Episode, watched_at) -> None:
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.EPISODE_HISTORY,
+        episode_payload(
+            episode,
+            watched_at=watched_at,
+        ),
+        desired=False,
+    )
+
+
+def remove_episode_history(user, episode: Episode) -> bool:
+    user_episode = (
+        UserEpisode.objects.filter(user=user, episode=episode)
+        .only("seen_at")
+        .first()
+    )
+    if user_episode is None:
+        return False
+
+    _record_episode_history_removal(user, episode, user_episode.seen_at)
+    user_episode.delete()
+    return True
+
+
 def mark_episode_watched(user, episode: Episode) -> UserEpisode:
     _require_tracking(user, episode.show)
     watched_at = timezone.now()
@@ -825,7 +1062,7 @@ def mark_episode_watched(user, episode: Episode) -> UserEpisode:
 
 def unmark_episode_watched(user, episode: Episode) -> None:
     _require_tracking(user, episode.show)
-    UserEpisode.objects.filter(user=user, episode=episode).delete()
+    remove_episode_history(user, episode)
 
 
 def mark_season_watched(user, season: Season) -> None:
@@ -838,7 +1075,20 @@ def mark_season_watched(user, season: Season) -> None:
 
 def unmark_season_watched(user, season: Season) -> None:
     _require_tracking(user, season.show)
-    UserEpisode.objects.filter(user=user, episode__season=season).delete()
+    user_episodes = list(
+        UserEpisode.objects.filter(user=user, episode__season=season)
+        .select_related("episode")
+    )
+    UserEpisode.objects.filter(
+        user=user,
+        episode__season=season,
+    ).delete()
+    for user_episode in user_episodes:
+        _record_episode_history_removal(
+            user,
+            user_episode.episode,
+            user_episode.seen_at,
+        )
 
 
 def mark_show_watched(user, show: Show) -> None:
@@ -856,9 +1106,24 @@ def mark_show_watched(user, show: Show) -> None:
 
 def unmark_show_watched(user, show: Show) -> None:
     _require_tracking(user, show)
+    user_episodes = list(
+        UserEpisode.objects.filter(
+            user=user,
+            episode__show=show,
+            episode__season_number__gt=0,
+        ).select_related("episode")
+    )
     UserEpisode.objects.filter(
-        user=user, episode__show=show, episode__season_number__gt=0
+        user=user,
+        episode__show=show,
+        episode__season_number__gt=0,
     ).delete()
+    for user_episode in user_episodes:
+        _record_episode_history_removal(
+            user,
+            user_episode.episode,
+            user_episode.seen_at,
+        )
 
 
 @dataclass

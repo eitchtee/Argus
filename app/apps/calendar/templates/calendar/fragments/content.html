@@ -1,4 +1,4 @@
-{% load i18n tz %}
+{% load dates i18n tz %}
 
 <div class="space-y-6">
   <section class="calendar-month-bar">
@@ -6,7 +6,7 @@
       <a class="btn btn-ghost btn-sm btn-square" href="?{{ previous_query }}" hx-boost="true" aria-label="{% trans 'Previous month' %}">
         <i class="fa-solid fa-chevron-left"></i>
       </a>
-      <h2 class="calendar-month-name">{{ month|date:"F Y" }}</h2>
+      <h2 class="calendar-month-name">{% user_month month %}</h2>
       <a class="btn btn-ghost btn-sm btn-square" href="?{{ next_query }}" hx-boost="true" aria-label="{% trans 'Next month' %}">
         <i class="fa-solid fa-chevron-right"></i>
       </a>
@@ -59,7 +59,7 @@
   {% endif %}
 
   <section class="calendar-scroll" aria-label="{% trans 'Monthly calendar' %}">
-    <div class="calendar-grid" role="grid" aria-label="{{ month|date:'F Y' }}">
+    <div class="calendar-grid" role="grid" aria-label="{% user_month month %}">
       <div class="calendar-weekday" role="columnheader">{% trans "Mon" %}</div>
       <div class="calendar-weekday" role="columnheader">{% trans "Tue" %}</div>
       <div class="calendar-weekday" role="columnheader">{% trans "Wed" %}</div>
@@ -97,7 +97,7 @@
                data-calendar-event
                aria-controls="calendar-event-details" aria-haspopup="dialog"
                aria-label="{{ event.show_name }} {{ event.subtitle }} {{ event.title }}">
-              {% if event.starts_at %}<span class="calendar-event-time">{{ event.starts_at|localtime|date:"H:i" }}</span>{% else %}<span class="calendar-event-time">{% trans "All day" %}</span>{% endif %}
+              {% if event.starts_at %}<span class="calendar-event-time">{% user_time event.starts_at %}</span>{% else %}<span class="calendar-event-time">{% trans "All day" %}</span>{% endif %}
               <span class="calendar-event-title">{{ event.show_name }}</span>
               <span class="calendar-event-code">{{ event.subtitle }}</span>
             </a>

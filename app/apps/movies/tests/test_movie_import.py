@@ -133,6 +133,18 @@ class MovieImportTests(TestCase):
         )
         self.assertEqual(Genre.objects.count(), 2)
 
+    def test_import_movie_stores_normalized_status(self):
+        provider = FakeProvider(movie_detail(status="In Production"))
+
+        movie = import_movie(
+            "tmdb",
+            "550",
+            provider_getter=lambda provider_name: provider,
+        )
+
+        self.assertEqual(movie.status, "In Production")
+        self.assertEqual(movie.normalized_status, Movie.NormalizedStatus.UPCOMING)
+
     def test_import_movie_updates_existing_movie_without_duplicates(self):
         provider = FakeProvider(movie_detail(title="Fight Club Updated"))
         movie = Movie.objects.create(external_id="550", title="Old title")

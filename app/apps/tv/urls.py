@@ -17,6 +17,11 @@ urlpatterns = [
         name="tv-watchlist-tab",
     ),
     path("tv/<str:external_id>/", views.show_detail, name="tv-detail"),
+    path(
+        "tv/<str:external_id>/episodes/",
+        views.show_episodes,
+        name="tv-detail-episodes",
+    ),
     path("tv/<str:external_id>/track/", views.show_track, name="tv-detail-track"),
     path("tv/<str:external_id>/refresh/", views.show_refresh, name="tv-detail-refresh"),
     path("tv/<str:external_id>/switch/", views.show_switch, name="tv-detail-switch"),

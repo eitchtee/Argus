@@ -91,7 +91,7 @@
       <i class="fa-solid fa-trash" aria-hidden="true"></i>
     </button>
   </div>
-      {% if show.tracked and show.seasons %}
+      {% if show.tracked and show.has_episodes %}
   <div class="tooltip tooltip-left" data-tip="{{ show_watched_label }}">
     <button type="button" aria-label="{{ show_watched_label }}"
             class="btn btn-lg btn-circle btn-success"

@@ -11,6 +11,7 @@ from apps.tv.services import (
     delete_show_data,
     drop_show,
     pause_show,
+    remove_episode_history,
     refresh_show,
     switch_show_provider,
     track_show,
@@ -79,6 +80,20 @@ class TrackShowServiceTests(TestCase):
 
         self.assertEqual(hydration_calls, [show.id])
 
+    @patch("apps.tv.tasks.hydrate_show_translations")
+    def test_track_show_can_hydrate_an_already_tracked_prepared_row(self, hydrate_show_translations):
+        show = Show.objects.create(external_id="123", name="Foo")
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        track_show(
+            self.user,
+            "123",
+            import_func=lambda external_id, *, language, provider="tvdb": show,
+            force_hydrate=True,
+        )
+
+        hydrate_show_translations.defer.assert_called_once_with(show_id=show.id)
+
     def test_track_show_uses_the_selected_provider_language(self):
         show = Show.objects.create(provider="tmdb", external_id="1399", name="Foo")
         self.user.settings.tmdb_metadata_language = "pt-BR"
@@ -141,6 +156,62 @@ class TrackShowServiceTests(TestCase):
 
         with self.assertRaisesMessage(ValueError, "Show is not tracked by this user."):
             refresh_show(self.user, show, sync_func=lambda _show_id: None)
+
+    @patch("apps.tv.tasks.track_show", create=True)
+    def test_queue_track_show_creates_pending_catalog_and_user_state(self, track_show_task):
+        from apps.tv.services import queue_track_show
+
+        user_show = queue_track_show(self.user, "123")
+
+        show = Show.objects.get(provider="tvdb", external_id="123")
+        self.assertEqual(user_show.show_id, show.id)
+        self.assertEqual(show.sync_status, SyncStatus.PENDING)
+        self.assertEqual(user_show.status, UserShow.Status.TRACKED)
+        self.assertTrue(user_show.on_watchlist)
+        track_show_task.defer.assert_called_once_with(
+            user_id=self.user.id,
+            show_id=show.id,
+        )
+
+    @patch("apps.tv.tasks.switch_show_provider", create=True)
+    def test_queue_switch_show_provider_defers_catalog_migration(self, switch_task):
+        from apps.tv.services import queue_switch_show_provider
+
+        source = Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            tmdb_id="1399",
+            name="Game of Thrones",
+        )
+        season = Season.objects.create(show=source, season_number=1, name="Season 1")
+        Episode.objects.create(
+            show=source,
+            season=season,
+            season_number=1,
+            episode_number=1,
+        )
+        UserShow.objects.create(user=self.user, show=source, status=UserShow.Status.TRACKED)
+
+        target = queue_switch_show_provider(
+            self.user,
+            source_provider="tvdb",
+            source_external_id="121361",
+            target_provider="tmdb",
+            target_external_id="1399",
+        )
+
+        self.assertEqual(target.sync_status, SyncStatus.PENDING)
+        self.assertEqual(target.seasons.count(), 0)
+        self.assertTrue(UserShow.objects.filter(user=self.user, show=source).exists())
+        self.assertTrue(UserShow.objects.filter(user=self.user, show=target).exists())
+        switch_task.defer.assert_called_once_with(
+            user_id=self.user.id,
+            source_provider="tvdb",
+            source_external_id="121361",
+            target_provider="tmdb",
+            target_external_id="1399",
+            target_imdb_id=None,
+        )
 
     def test_switch_show_provider_moves_state_and_matching_watched_episodes(self):
         source = Show.objects.create(
@@ -285,6 +356,48 @@ class TrackShowServiceTests(TestCase):
         self.assertEqual(switched.airs_time, time(21, 0))
         self.assertEqual(switched.airs_timezone, "America/New_York")
         self.assertEqual(target_episode.trakt_id, "9001")
+
+    def test_switch_show_provider_clones_empty_prepared_target_before_moving_history(self):
+        source = Show.objects.create(
+            provider="tvdb",
+            external_id="121361",
+            tmdb_id="1399",
+            name="Game of Thrones",
+        )
+        source_season = Season.objects.create(show=source, season_number=1, name="Season 1")
+        source_episode = Episode.objects.create(
+            show=source,
+            season=source_season,
+            season_number=1,
+            episode_number=1,
+            name="Winter Is Coming",
+        )
+        Show.objects.create(
+            provider="tmdb",
+            external_id="1399",
+            tvdb_id="121361",
+            name="Game of Thrones",
+            sync_status=SyncStatus.PENDING,
+        )
+        UserShow.objects.create(user=self.user, show=source)
+        UserEpisode.objects.create(user=self.user, episode=source_episode)
+
+        switched = switch_show_provider(
+            self.user,
+            source_provider="tvdb",
+            source_external_id="121361",
+            target_provider="tmdb",
+            target_external_id="1399",
+            sync_func=lambda _show_id: None,
+        )
+
+        target_episode = Episode.objects.get(
+            show=switched,
+            season_number=1,
+            episode_number=1,
+        )
+        self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=target_episode).exists())
+        self.assertFalse(UserEpisode.objects.filter(user=self.user, episode__show=source).exists())
 
     def test_switch_show_provider_preserves_tmdb_poster_url_until_sync(self):
         source = Show.objects.create(
@@ -445,6 +558,22 @@ class MarkEpisodeWatchedServiceTests(TestCase):
 
         with self.assertRaises(ValueError):
             unmark_episode_watched(self.user, self.episode)
+
+    def test_remove_episode_history_allows_dropped_shows(self):
+        UserShow.objects.create(
+            user=self.user,
+            show=self.show,
+            status=UserShow.Status.DROPPED,
+        )
+        UserEpisode.objects.create(user=self.user, episode=self.episode)
+
+        self.assertTrue(remove_episode_history(self.user, self.episode))
+        self.assertFalse(
+            UserEpisode.objects.filter(
+                user=self.user,
+                episode=self.episode,
+            ).exists()
+        )
 
 
 class MarkSeasonWatchedServiceTests(TestCase):

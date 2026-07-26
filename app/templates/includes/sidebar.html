@@ -36,6 +36,13 @@
         </a>
       </li>
       <li>
+        <a href="{% url 'history-page' %}" hx-boost="true"
+           class="sidebar-item {% active_link 'history-page' css_class='menu-active' %}">
+          <i class="fa-solid fa-clock-rotate-left fa-fw"></i>
+          <span>{% trans "History" %}</span>
+        </a>
+      </li>
+      <li>
         <h2 class="menu-title px-3 pt-4 text-xs uppercase tracking-[0.18em] text-base-content/50">
           <i class="fa-solid fa-tv fa-fw"></i>
           <span>{% trans "TV" %}</span>
@@ -95,7 +102,8 @@
       </li>
       {% if request.user.is_staff %}
       <li>
-        <a href="{% url 'admin:index' %}" hx-boost="true" class="sidebar-item">
+        <a href="{% url 'admin:index' %}" target="_blank" rel="noopener noreferrer"
+           hx-boost="false" class="sidebar-item">
           <i class="fa-solid fa-screwdriver-wrench fa-fw"></i>
           <span>{% trans "Admin" %}</span>
         </a>
@@ -103,4 +111,36 @@
       {% endif %}
     </ul>
   </nav>
+
+  <div class="mt-auto border-t border-base-300 p-3">
+    <div class="flex items-center gap-2">
+      <span class="min-w-0 flex-1 truncate px-3 text-sm font-medium text-base-content/80">
+        {{ request.user.get_full_name|default:request.user.email }}
+      </span>
+      <div class="dropdown dropdown-top dropdown-end shrink-0">
+        <button type="button" class="btn btn-ghost btn-sm btn-square" tabindex="0"
+                aria-label="{% trans 'Settings' %}" aria-haspopup="menu">
+          <i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i>
+        </button>
+        <ul class="dropdown-content menu menu-sm z-1 mb-2 w-56 rounded-box bg-base-100 p-2 shadow-xl"
+            tabindex="0" role="menu">
+          <li>
+            <a href="{% url 'user_settings' %}" hx-boost="true" role="menuitem">
+              <i class="fa-solid fa-gear fa-fw me-2" aria-hidden="true"></i>{% translate 'Settings' %}
+            </a>
+          </li>
+          <hr class="my-1 hr">
+          <li>
+            <a href="{% url 'logout' %}" role="menuitem">
+              <i class="fa-solid fa-door-open fa-fw me-2" aria-hidden="true"></i>{% translate 'Logout' %}
+            </a>
+          </li>
+          <hr class="my-1 hr">
+          <li>
+            <a class="pointer-events-none opacity-60">v. {% settings "APP_VERSION" %}</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
 </div>

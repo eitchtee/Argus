@@ -1,11 +1,17 @@
 @use "@fortawesome/fontawesome-free/css/fontawesome.css"; // Core FontAwesome styles
 @use "@fortawesome/fontawesome-free/css/solid.css"; // Solid icons (fas)
 @use "@fortawesome/fontawesome-free/css/regular.css"; // Regular icons (far)
+@use "@fortawesome/fontawesome-free/css/brands.css"; // Brand icons (fab)
 
 
 // Override FontAwesome's .fab class to avoid conflict with DaisyUI
 // This removes the FontAwesome Brand icons styling from .fab, allowing DaisyUI to style it
 .fab {
+    // DaisyUI uses .fab as the floating-action-button wrapper. Font Awesome's
+    // brand stylesheet also uses it as an icon class, so clear its inherited
+    // custom properties at the wrapper boundary.
+    --fa-family: initial;
+    --fa-style: initial;
     font-family: unset;
     font-weight: unset;
     -moz-osx-font-smoothing: unset;

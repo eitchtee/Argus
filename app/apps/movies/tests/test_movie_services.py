@@ -222,6 +222,54 @@ class MovieServiceTests(TestCase):
         with self.assertRaisesMessage(ValueError, "Movie is not tracked by this user."):
             refresh_movie(self.user, movie, sync_func=lambda _movie_id: None)
 
+    @patch("apps.movies.tasks.track_movie", create=True)
+    def test_queue_track_movie_creates_pending_catalog_and_user_state(self, track_movie_task):
+        from apps.movies.services import queue_track_movie
+
+        user_movie = queue_track_movie(self.user, "tmdb", "550")
+
+        movie = Movie.objects.get(provider="tmdb", external_id="550")
+        self.assertEqual(user_movie.movie_id, movie.id)
+        self.assertEqual(movie.title, "550")
+        self.assertEqual(movie.sync_status, SyncStatus.PENDING)
+        self.assertTrue(user_movie.on_watchlist)
+        track_movie_task.defer.assert_called_once_with(
+            user_id=self.user.id,
+            movie_id=movie.id,
+        )
+
+    @patch("apps.movies.tasks.switch_movie_provider", create=True)
+    def test_queue_switch_movie_provider_defers_state_migration(self, switch_task):
+        from apps.movies.services import queue_switch_movie_provider
+
+        source = Movie.objects.create(
+            provider="tmdb",
+            external_id="550",
+            tvdb_id="42",
+            title="Fight Club",
+        )
+        UserMovie.objects.create(user=self.user, movie=source, on_watchlist=True)
+
+        target = queue_switch_movie_provider(
+            self.user,
+            source_provider="tmdb",
+            source_external_id="550",
+            target_provider="tvdb",
+            target_external_id="42",
+        )
+
+        self.assertEqual(target.sync_status, SyncStatus.PENDING)
+        self.assertTrue(UserMovie.objects.filter(user=self.user, movie=source).exists())
+        self.assertTrue(UserMovie.objects.filter(user=self.user, movie=target).exists())
+        switch_task.defer.assert_called_once_with(
+            user_id=self.user.id,
+            source_provider="tmdb",
+            source_external_id="550",
+            target_provider="tvdb",
+            target_external_id="42",
+            target_imdb_id=None,
+        )
+
     def test_switch_movie_provider_moves_state_and_enqueues_sync(self):
         source = Movie.objects.create(
             provider="tmdb",

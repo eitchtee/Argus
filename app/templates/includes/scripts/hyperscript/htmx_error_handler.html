@@ -1,0 +1,37 @@
+{% load i18n %}
+<script type="text/hyperscript">
+behavior htmx_error_handler
+  on htmx:responseError or htmx:afterRequest[detail.failed] or htmx:sendError queue none
+    -- Check if the event detail contains the xhr object and the status is 403
+    if event.detail.xhr.status == 403 then
+      call Swal.fire({
+        title: '{% trans "Access Denied" %}',
+        text: '{% trans "You do not have permission to perform this action or access this resource." %}',
+        icon: 'warning',
+        timer: 60000,
+        customClass: {
+          confirmButton: 'btn btn-warning'
+        },
+        buttonsStyling: false
+      })
+    else
+      call Swal.fire({
+        title: '{% trans "Something went wrong loading your data" %}',
+        text: '{% trans "Try reloading the page or check the console for more information." %}',
+        icon: 'error',
+        timer: 60000,
+        showDenyButton: true,
+        denyButtonText: '{% trans "Reload" %}',
+        customClass: {
+          confirmButton: 'btn btn-primary',
+          denyButton: 'btn btn-error',
+          actions: 'gap-2'
+        },
+        buttonsStyling: false,
+        reverseButtons: true
+      }) then if it.isDenied call location.reload()
+    end
+    then log event
+    then halt the event
+end
+</script>

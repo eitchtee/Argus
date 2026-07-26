@@ -1,4 +1,3 @@
-from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.users.forms import LoginForm, UserSettingsForm
 from apps.trakt.models import TraktAccount
@@ -26,8 +25,8 @@ class UserLoginView(LoginView):
     redirect_authenticated_user = True
 
 
-@only_htmx
 @htmx_login_required
+@require_http_methods(["GET", "POST"])
 def update_settings(request):
     user_settings = request.user.settings
 
@@ -36,10 +35,12 @@ def update_settings(request):
         if form.is_valid():
             form.save()
             messages.success(request, _("Your settings have been updated"))
-            return HttpResponse(
-                status=204,
-                headers={"HX-Refresh": "true"},
-            )
+            if request.headers.get("HX-Request"):
+                return HttpResponse(
+                    status=204,
+                    headers={"HX-Refresh": "true"},
+                )
+            return redirect(reverse("user_settings"))
     else:
         form = UserSettingsForm(instance=user_settings)
 
@@ -50,7 +51,7 @@ def update_settings(request):
     )
     return render(
         request,
-        "users/fragments/user_settings.html",
+        "users/pages/settings.html",
         {"form": form, "trakt_account": trakt_account},
     )
 

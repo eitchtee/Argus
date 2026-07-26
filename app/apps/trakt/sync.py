@@ -107,6 +107,7 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
             initial=initial,
         )
         report.intents_sent = _send_outbound(client, outbound)
+        _clear_removed_episode_cache(account, outbound["history_remove_shows"])
         _acknowledge_intents(intents, remote)
     return report
 
@@ -436,6 +437,16 @@ def _apply_remote_shows(user, remote, intents, local, report, *, initial: bool):
 
     episode_pairs = []
     for watched in remote.watched_episodes.values():
+        if (
+            _pending_episode_desired(
+                intents,
+                watched.show,
+                watched.season_number,
+                watched.episode_number,
+            )
+            is False
+        ):
+            continue
         show = ensure(watched.show)
         if show is None:
             continue
@@ -940,6 +951,8 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
     watch_remove_shows = []
     history_movies = []
     history_shows: dict[str, dict] = {}
+    history_remove_movies = []
+    history_remove_shows: dict[str, dict] = {}
     dropped_add = []
     dropped_remove = []
     remote_episode_index = _remote_episode_index(remote.watched_episodes.values())
@@ -1007,8 +1020,10 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
                 payload,
                 remote_episode_index,
             )
-            if remote_episode is None:
+            if intent.desired and remote_episode is None:
                 _add_episode_history(history_shows, payload)
+            elif not intent.desired and remote_episode is not None:
+                _add_episode_history(history_remove_shows, payload)
         elif kind == TraktSyncIntent.Kind.SHOW_DROPPED:
             target = dropped_add if intent.desired else dropped_remove
             remote_present = _matching_remote_media(
@@ -1024,6 +1039,8 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
         "watch_remove": {"movies": watch_remove_movies, "shows": watch_remove_shows},
         "history_movies": history_movies,
         "history_shows": list(history_shows.values()),
+        "history_remove_movies": history_remove_movies,
+        "history_remove_shows": list(history_remove_shows.values()),
         "dropped_add": dropped_add,
         "dropped_remove": dropped_remove,
     }
@@ -1040,6 +1057,15 @@ def _send_outbound(client, outbound: dict) -> int:
     if outbound["history_movies"] or outbound["history_shows"]:
         client.post_history(outbound["history_movies"], outbound["history_shows"])
         sent += len(outbound["history_movies"]) + len(outbound["history_shows"])
+    if outbound["history_remove_movies"] or outbound["history_remove_shows"]:
+        client.post_history(
+            outbound["history_remove_movies"],
+            outbound["history_remove_shows"],
+            remove=True,
+        )
+        sent += len(outbound["history_remove_movies"]) + len(
+            outbound["history_remove_shows"]
+        )
     if outbound["dropped_add"]:
         client.post_dropped(outbound["dropped_add"])
         sent += len(outbound["dropped_add"])
@@ -1078,7 +1104,8 @@ def _acknowledge_intents(intents, remote):
             if remote_watch is not None:
                 _delete_intent_if_unchanged(intent)
         elif intent.kind == TraktSyncIntent.Kind.EPISODE_HISTORY:
-            if _matching_remote_episode(payload, remote_episode_index):
+            present = _matching_remote_episode(payload, remote_episode_index) is not None
+            if present == intent.desired:
                 _delete_intent_if_unchanged(intent)
 
 
@@ -1087,6 +1114,48 @@ def _delete_intent_if_unchanged(intent):
         id=intent.id,
         updated_at=intent.updated_at,
     ).delete()
+
+
+def _clear_removed_episode_cache(account, payloads):
+    candidates = []
+    for payload in payloads:
+        show = payload.get("show") or payload
+        show_tokens = _media_tokens(show)
+        for season in payload.get("seasons") or []:
+            season_number = _as_int(season.get("number"), default=0)
+            for episode in season.get("episodes") or []:
+                episode_number = _as_int(episode.get("number"), default=0)
+                candidates.append(
+                    (
+                        episode_identity_key(
+                            {"show": show},
+                            season_number=season_number,
+                            episode_number=episode_number,
+                        ),
+                        show_tokens,
+                        season_number,
+                        episode_number,
+                    )
+                )
+    if not candidates:
+        return
+
+    rows = TraktWatchedEpisode.objects.filter(account=account)
+    delete_ids = []
+    for row in rows:
+        row_tokens = _media_tokens(row.show_data)
+        if any(
+            row.identity_key == identity_key
+            or (
+                row.season_number == season_number
+                and row.episode_number == episode_number
+                and show_tokens.intersection(row_tokens)
+            )
+            for identity_key, show_tokens, season_number, episode_number in candidates
+        ):
+            delete_ids.append(row.id)
+    if delete_ids:
+        TraktWatchedEpisode.objects.filter(id__in=delete_ids).delete()
 
 
 def _add_episode_history(history_shows: dict[str, dict], payload: dict):
@@ -1193,6 +1262,36 @@ def _pending_desired(intents, kind: str, tokens: set[str]) -> bool | None:
             continue
         if tokens.intersection(_media_tokens(_payload_media(intent.payload, "movie" if kind.startswith("movie_") else "show"))):
             return intent.desired
+    return None
+
+
+def _pending_episode_desired(
+    intents,
+    show: dict,
+    season_number: int,
+    episode_number: int,
+) -> bool | None:
+    remote_key = episode_identity_key(
+        {"show": show},
+        season_number=season_number,
+        episode_number=episode_number,
+    )
+    show_tokens = _media_tokens(show)
+    for intent in reversed(intents):
+        if intent.kind != TraktSyncIntent.Kind.EPISODE_HISTORY:
+            continue
+        if intent.identity_key == remote_key:
+            return intent.desired
+        payload = intent.payload
+        seasons = payload.get("seasons") or []
+        for season in seasons:
+            if _as_int(season.get("number"), default=0) != season_number:
+                continue
+            for episode in season.get("episodes") or []:
+                if _as_int(episode.get("number"), default=0) != episode_number:
+                    continue
+                if show_tokens.intersection(_media_tokens(payload.get("show") or {})):
+                    return intent.desired
     return None
 
 

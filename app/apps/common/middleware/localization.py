@@ -25,17 +25,26 @@ class LocalizationMiddleware:
                 # Create UserSettings if it doesn't exist
                 UserSettings.objects.create(user=request.user)
 
-        if tz_cookie and user_timezone == "auto":
-            timezone.activate(zoneinfo.ZoneInfo(tz_cookie))
-        elif user_timezone != "auto":
-            timezone.activate(zoneinfo.ZoneInfo(user_timezone))
-        else:
-            timezone.activate(zoneinfo.ZoneInfo("UTC"))
+        configured_timezone = (
+            user_timezone if user_timezone and user_timezone != "auto" else tz_cookie
+        )
+        active_timezone = self._get_timezone(configured_timezone)
+        timezone.activate(active_timezone or timezone.get_default_timezone())
 
         if user_language and user_language != "auto":
             translation.activate(user_language)
         else:
             detected_language = translation.get_language_from_request(request)
-            translation.activate(detected_language)
+            translation.activate(detected_language or translation.get_default_language())
 
         return self.get_response(request)
+
+    @staticmethod
+    def _get_timezone(name):
+        if not name or name == "auto":
+            return None
+
+        try:
+            return zoneinfo.ZoneInfo(name)
+        except (TypeError, ValueError, zoneinfo.ZoneInfoNotFoundError):
+            return None

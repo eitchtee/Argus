@@ -6,6 +6,12 @@ from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 
 
 class Movie(ProviderBackedModel):
+    class NormalizedStatus(models.TextChoices):
+        UPCOMING = "Upcoming", "Upcoming"
+        RELEASED = "Released", "Released"
+        CANCELED = "Canceled", "Canceled"
+        UNKNOWN = "Unknown", "Unknown"
+
     provider = models.CharField(max_length=16, default="tmdb")
     trakt_id = models.CharField(max_length=32, null=True, blank=True, unique=True)
     imdb_id = models.CharField(max_length=32, null=True, blank=True)
@@ -24,6 +30,11 @@ class Movie(ProviderBackedModel):
     release_date = models.DateField(null=True, blank=True)
     runtime = models.PositiveIntegerField(null=True, blank=True)
     status = models.CharField(max_length=64, blank=True)
+    normalized_status = models.CharField(
+        max_length=8,
+        choices=NormalizedStatus.choices,
+        default=NormalizedStatus.UNKNOWN,
+    )
     vote_average = models.FloatField(null=True, blank=True)
     vote_count = models.PositiveIntegerField(null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True, related_name="movies")

@@ -65,6 +65,27 @@ class UserSettingsForm(forms.ModelForm):
         ("m.d.Y", "01.20.2025"),
         ("Y.m.d", "2025.01.20"),
     ]
+    DATETIME_FORMAT_CHOICES = [
+        ("SHORT_DATETIME_FORMAT", _("Default")),
+        ("d-m-Y H:i", "20-01-2025 15:30"),
+        ("m-d-Y H:i", "01-20-2025 15:30"),
+        ("Y-m-d H:i", "2025-01-20 15:30"),
+        ("d-m-Y h:i A", "20-01-2025 03:30 PM"),
+        ("m-d-Y h:i A", "01-20-2025 03:30 PM"),
+        ("Y-m-d h:i A", "2025-01-20 03:30 PM"),
+        ("d/m/Y H:i", "20/01/2025 15:30"),
+        ("m/d/Y H:i", "01/20/2025 15:30"),
+        ("Y/m/d H:i", "2025/01/20 15:30"),
+        ("d/m/Y h:i A", "20/01/2025 03:30 PM"),
+        ("m/d/Y h:i A", "01/20/2025 03:30 PM"),
+        ("Y/m/d h:i A", "2025/01/20 03:30 PM"),
+        ("d.m.Y H:i", "20.01.2025 15:30"),
+        ("m.d.Y H:i", "01.20.2025 15:30"),
+        ("Y.m.d H:i", "2025.01.20 15:30"),
+        ("d.m.Y h:i A", "20.01.2025 03:30 PM"),
+        ("m.d.Y h:i A", "01.20.2025 03:30 PM"),
+        ("Y.m.d h:i A", "2025.01.20 03:30 PM"),
+    ]
 
     LANGUAGE_CHOICES = (("auto", _("Auto")),) + settings.LANGUAGES
 
@@ -77,6 +98,11 @@ class UserSettingsForm(forms.ModelForm):
     date_format = forms.ChoiceField(
         choices=DATE_FORMAT_CHOICES, initial="SHORT_DATE_FORMAT", label=_("Date Format")
     )
+    datetime_format = forms.ChoiceField(
+        choices=DATETIME_FORMAT_CHOICES,
+        initial="SHORT_DATETIME_FORMAT",
+        label=_("Datetime Format"),
+    )
 
     class Meta:
         model = UserSettings
@@ -86,6 +112,7 @@ class UserSettingsForm(forms.ModelForm):
             "tmdb_metadata_language",
             "timezone",
             "date_format",
+            "datetime_format",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -116,8 +143,19 @@ class UserSettingsForm(forms.ModelForm):
             ),
             "timezone",
             "date_format",
+            "datetime_format",
             Submit("submit", _("Save"), css_class="btn btn-primary"),
         )
+
+        for field_name in (
+            "language",
+            "tvdb_metadata_language",
+            "tmdb_metadata_language",
+            "timezone",
+            "date_format",
+            "datetime_format",
+        ):
+            self.fields[field_name].widget.attrs["data-tom-select"] = "true"
 
     def _set_metadata_language_choices(self, provider):
         field_name = f"{provider}_metadata_language"

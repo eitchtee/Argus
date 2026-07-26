@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from apps.users.forms import UserSettingsForm
@@ -15,6 +15,16 @@ LANGUAGE_CHOICES = {
 
 def choices_for(provider):
     return LANGUAGE_CHOICES[provider]
+
+
+class UserSettingsFormTests(SimpleTestCase):
+    @patch("apps.users.forms.get_language_choices", side_effect=choices_for)
+    def test_interface_language_offers_the_full_language_catalog(self, _choices):
+        form = UserSettingsForm()
+        language_choices = dict(form.fields["language"].choices)
+
+        self.assertEqual(language_choices["fr"], "français")
+        self.assertEqual(language_choices["ja"], "日本語")
 
 
 class UserSettingsViewTests(TestCase):
@@ -47,6 +57,7 @@ class UserSettingsViewTests(TestCase):
                 "tmdb_metadata_language": "pt-BR",
                 "timezone": "auto",
                 "date_format": "SHORT_DATE_FORMAT",
+                "datetime_format": "SHORT_DATETIME_FORMAT",
             },
             HTTP_HX_REQUEST="true",
         )
@@ -66,6 +77,7 @@ class UserSettingsViewTests(TestCase):
                 "tmdb_metadata_language": "pt-BR",
                 "timezone": "auto",
                 "date_format": "SHORT_DATE_FORMAT",
+                "datetime_format": "SHORT_DATETIME_FORMAT",
             },
             instance=self.user.settings,
         )
@@ -81,3 +93,13 @@ class UserSettingsViewTests(TestCase):
         form = UserSettingsForm(instance=self.user.settings)
 
         self.assertIn(("legacy", "legacy"), form.fields["tvdb_metadata_language"].choices)
+
+    @patch("apps.users.forms.get_language_choices", side_effect=choices_for)
+    def test_settings_format_controls_are_tom_selects(self, _choices):
+        form = UserSettingsForm(instance=self.user.settings)
+
+        self.assertIn("datetime_format", form.fields)
+        self.assertEqual(
+            form.fields["datetime_format"].widget.attrs["data-tom-select"],
+            "true",
+        )

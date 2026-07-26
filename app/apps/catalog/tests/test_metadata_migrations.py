@@ -11,7 +11,7 @@ class MetadataLanguageMigrationTests(TransactionTestCase):
         ("tv", "0006_remove_show_airs_schedule_show_airs_time"),
     ]
     migrate_to = [
-        ("users", "0003_usersettings_metadata_languages"),
+        ("users", "0004_usersettings_datetime_format"),
         ("catalog", "0002_genre_translations"),
         ("movies", "0004_movie_provider_ids"),
         ("tv", "0009_show_tvdb_id"),
@@ -93,6 +93,8 @@ class MetadataLanguageMigrationTests(TransactionTestCase):
         self.assertEqual(settings.language, "auto")
         self.assertEqual(settings.tvdb_metadata_language, "eng")
         self.assertEqual(settings.tmdb_metadata_language, "en-US")
+        self.assertEqual(settings.date_format, "SHORT_DATE_FORMAT")
+        self.assertEqual(settings.datetime_format, "SHORT_DATETIME_FORMAT")
 
     def test_existing_catalog_text_is_seeded_without_changing_scalars(self):
         Genre = self.apps.get_model("catalog", "Genre")

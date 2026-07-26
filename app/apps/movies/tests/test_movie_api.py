@@ -105,15 +105,16 @@ class MovieAPITests(TestCase):
             ],
         )
 
-    @patch("apps.movies.api.track_movie")
-    def test_track_movie_returns_tracked_state(self, track_movie):
+    @patch("apps.movies.services.track_movie")
+    @patch("apps.movies.api.queue_track_movie")
+    def test_track_movie_returns_tracked_state(self, queue_track_movie, track_movie):
         user_movie = self._create_user_movie(
             self.user,
             title="Fight Club",
             external_id="550",
             on_watchlist=True,
         )
-        track_movie.return_value = user_movie
+        queue_track_movie.return_value = user_movie
         self.client.force_authenticate(self.user)
 
         response = self.client.post(
@@ -127,7 +128,8 @@ class MovieAPITests(TestCase):
             response.json(),
             self._expected_movie_payload(user_movie, on_watchlist=True),
         )
-        track_movie.assert_called_once_with(self.user, "tmdb", "550")
+        queue_track_movie.assert_called_once_with(self.user, "tmdb", "550")
+        track_movie.assert_not_called()
 
     def test_mark_seen_scopes_state_to_current_user(self):
         shared_movie = self._create_movie(title="Fight Club", external_id="550")

@@ -258,15 +258,15 @@ class TrackViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    @patch("apps.movies.services.track_movie")
-    def test_track_movie_calls_service_and_marks_tracked(self, track_movie_mock):
+    @patch("apps.movies.services.queue_track_movie")
+    def test_track_movie_calls_service_and_marks_tracked(self, queue_track_movie_mock):
         def fake_track(user, provider, external_id):
             movie = Movie.objects.create(
                 external_id="550", provider="tmdb", title="Fight Club"
             )
             UserMovie.objects.create(user=user, movie=movie, on_watchlist=True)
 
-        track_movie_mock.side_effect = fake_track
+        queue_track_movie_mock.side_effect = fake_track
         with patch("apps.catalog.views.catalog_search", return_value=[_movie_dto()]):
             response = self.client.post(
                 "/search/track/",
@@ -274,18 +274,43 @@ class TrackViewTests(TestCase):
                 HTTP_HX_REQUEST="true",
             )
         self.assertEqual(response.status_code, 200)
-        track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
+        queue_track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
         self.assertContains(response, "Tracking")
 
     @patch("apps.movies.services.track_movie")
-    def test_track_movie_uses_provider_from_search_result(self, track_movie_mock):
+    @patch("apps.movies.services.queue_track_movie")
+    def test_track_movie_queues_background_service(self, queue_track_movie_mock, track_movie_mock):
+        movie = Movie.objects.create(
+            external_id="550",
+            provider="tmdb",
+            title="Fight Club",
+        )
+        user_movie = UserMovie.objects.create(
+            user=self.user,
+            movie=movie,
+            on_watchlist=True,
+        )
+        queue_track_movie_mock.return_value = user_movie
+        with patch("apps.catalog.views.catalog_search", return_value=[_movie_dto()]):
+            response = self.client.post(
+                "/search/track/",
+                {"type": "movie", "external_id": "550", "q": "Fight", "page": "1"},
+                HTTP_HX_REQUEST="true",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        queue_track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
+        track_movie_mock.assert_not_called()
+
+    @patch("apps.movies.services.queue_track_movie")
+    def test_track_movie_uses_provider_from_search_result(self, queue_track_movie_mock):
         def fake_track(user, provider, external_id):
             movie = Movie.objects.create(
                 external_id=external_id, provider=provider, title="A Movie"
             )
             UserMovie.objects.create(user=user, movie=movie, on_watchlist=True)
 
-        track_movie_mock.side_effect = fake_track
+        queue_track_movie_mock.side_effect = fake_track
         dto = SearchResultDTO(
             provider="tvdb",
             external_id="42",
@@ -308,18 +333,18 @@ class TrackViewTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        track_movie_mock.assert_called_once_with(self.user, "tvdb", "42")
+        queue_track_movie_mock.assert_called_once_with(self.user, "tvdb", "42")
         self.assertTrue(
             Movie.objects.filter(provider="tvdb", external_id="42").exists()
         )
 
-    @patch("apps.tv.services.track_show")
-    def test_track_tv_calls_service_and_marks_tracked(self, track_show_mock):
+    @patch("apps.tv.services.queue_track_show")
+    def test_track_tv_calls_service_and_marks_tracked(self, queue_track_show_mock):
         def fake_track(user, external_id, *, provider="tvdb"):
             show = Show.objects.create(provider=provider, external_id="123", name="Foo")
             UserShow.objects.create(user=user, show=show, status=UserShow.Status.TRACKED)
 
-        track_show_mock.side_effect = fake_track
+        queue_track_show_mock.side_effect = fake_track
         with patch("apps.catalog.views.catalog_search", return_value=[_show_dto()]):
             response = self.client.post(
                 "/search/track/",
@@ -327,11 +352,32 @@ class TrackViewTests(TestCase):
                 HTTP_HX_REQUEST="true",
             )
         self.assertEqual(response.status_code, 200)
-        track_show_mock.assert_called_once_with(self.user, "123", provider="tvdb")
+        queue_track_show_mock.assert_called_once_with(self.user, "123", provider="tvdb")
         self.assertContains(response, "Tracking")
 
     @patch("apps.tv.services.track_show")
-    def test_track_tv_uses_provider_from_search_result(self, track_show_mock):
+    @patch("apps.tv.services.queue_track_show")
+    def test_track_tv_queues_background_service(self, queue_track_show_mock, track_show_mock):
+        show = Show.objects.create(provider="tvdb", external_id="123", name="Foo")
+        user_show = UserShow.objects.create(
+            user=self.user,
+            show=show,
+            status=UserShow.Status.TRACKED,
+        )
+        queue_track_show_mock.return_value = user_show
+        with patch("apps.catalog.views.catalog_search", return_value=[_show_dto()]):
+            response = self.client.post(
+                "/search/track/",
+                {"type": "tv", "external_id": "123", "q": "Foo", "page": "1"},
+                HTTP_HX_REQUEST="true",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        queue_track_show_mock.assert_called_once_with(self.user, "123", provider="tvdb")
+        track_show_mock.assert_not_called()
+
+    @patch("apps.tv.services.queue_track_show")
+    def test_track_tv_uses_provider_from_search_result(self, queue_track_show_mock):
         def fake_track(user, external_id, *, provider="tvdb"):
             show = Show.objects.create(
                 provider=provider,
@@ -340,7 +386,7 @@ class TrackViewTests(TestCase):
             )
             UserShow.objects.create(user=user, show=show, status=UserShow.Status.TRACKED)
 
-        track_show_mock.side_effect = fake_track
+        queue_track_show_mock.side_effect = fake_track
         dto = SearchResultDTO(
             provider="tmdb",
             external_id="123",
@@ -363,5 +409,5 @@ class TrackViewTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        track_show_mock.assert_called_once_with(self.user, "123", provider="tmdb")
+        queue_track_show_mock.assert_called_once_with(self.user, "123", provider="tmdb")
         self.assertTrue(Show.objects.filter(provider="tmdb", external_id="123").exists())

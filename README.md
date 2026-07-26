@@ -30,6 +30,6 @@ python manage.py procrastinate worker
 
 The sync covers movie watchlists and watched movies, every Trakt watchlist or watched TV show, watched episodes, and Trakt dropped shows. A watchlist-only show is tracked in Argus without marking any episodes watched. Dropping a show in either application synchronizes through Trakt's dropped/hidden show endpoints; Argus keeps the watched episode history when a show is dropped.
 
-Watched state is monotonic: if either Argus or Trakt says a movie or episode is watched, it remains watched. When Trakt reports duplicate plays, only the newest watch timestamp is retained. Argus batches writes, paginates reads, deduplicates pending changes, and honors Trakt's `Retry-After` response when rate limited.
+Watched state is merged from both sides, and duplicate Trakt plays retain only the newest watch timestamp. An explicit local unwatch queues a Trakt history removal and suppresses stale snapshots until the removal is observed. Argus batches writes, paginates reads, deduplicates pending changes, and honors Trakt's `Retry-After` response when rate limited.
 
 Trakt's API application credentials are server-wide, but OAuth tokens and media state are isolated per Argus user. Tests use fake clients and do not require live Trakt, TMDB, or TVDB credentials.

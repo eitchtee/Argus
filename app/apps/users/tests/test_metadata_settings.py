@@ -12,3 +12,5 @@ class MetadataSettingsDefaultsTests(TestCase):
         self.assertEqual(user.settings.language, "auto")
         self.assertEqual(user.settings.tvdb_metadata_language, "eng")
         self.assertEqual(user.settings.tmdb_metadata_language, "en-US")
+        self.assertEqual(user.settings.date_format, "SHORT_DATE_FORMAT")
+        self.assertEqual(user.settings.datetime_format, "SHORT_DATETIME_FORMAT")

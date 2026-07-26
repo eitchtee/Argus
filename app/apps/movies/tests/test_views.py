@@ -54,6 +54,8 @@ class MovieDetailViewTests(TestCase):
         Movie.objects.create(
             external_id="550",
             title="Fight Club",
+            status="Completed",
+            normalized_status=Movie.NormalizedStatus.UPCOMING,
             overview="A movie about a fight club.",
             backdrop_path="/backdrop.jpg",
             director="David Fincher",
@@ -66,6 +68,8 @@ class MovieDetailViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fight Club")
+        self.assertContains(response, "Upcoming")
+        self.assertNotContains(response, "Completed")
         self.assertContains(response, "A movie about a fight club.")
         self.assertContains(response, 'aria-label="Add to watchlist"')
         self.assertContains(response, "fa-bookmark")
@@ -190,6 +194,20 @@ class MovieDetailViewTests(TestCase):
         self.assertFalse(Movie.objects.filter(external_id="603").exists())
 
     @patch("apps.movies.views.get_movie_detail")
+    def test_renders_normalized_status_for_provider_preview(self, get_movie_detail_mock):
+        get_movie_detail_mock.return_value = DetailDTO(
+            provider="tmdb",
+            external_id="603",
+            title="The Matrix",
+            status="In Production",
+        )
+
+        response = self.client.get("/movies/603/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Upcoming")
+        self.assertNotContains(response, "In Production")
+
+    @patch("apps.movies.views.get_movie_detail")
     def test_preview_uses_requested_provider_and_language(self, get_movie_detail_mock):
         get_movie_detail_mock.return_value = DetailDTO(
             provider="tvdb",
@@ -218,23 +236,23 @@ class MovieTrackViewTests(TestCase):
         response = self.client.post("/movies/550/track/")
         self.assertEqual(response.status_code, 403)
 
-    @patch("apps.movies.views.track_movie")
-    def test_post_tracks_movie(self, track_movie_mock):
+    @patch("apps.movies.views.queue_track_movie")
+    def test_post_tracks_movie(self, queue_track_movie_mock):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
-        track_movie_mock.return_value = UserMovie.objects.create(
+        queue_track_movie_mock.return_value = UserMovie.objects.create(
             user=self.user, movie=movie, on_watchlist=True
         )
 
         response = self.client.post("/movies/550/track/", HTTP_HX_REQUEST="true")
 
-        track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
+        queue_track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
         self.assertContains(response, 'aria-label="Movie actions"')
         self.assertContains(response, 'aria-label="Remove from watchlist"')
 
-    @patch("apps.movies.views.track_movie")
-    def test_post_tracks_movie_with_requested_provider(self, track_movie_mock):
+    @patch("apps.movies.views.queue_track_movie")
+    def test_post_tracks_movie_with_requested_provider(self, queue_track_movie_mock):
         movie = Movie.objects.create(provider="tvdb", external_id="42", title="A Movie")
-        track_movie_mock.return_value = UserMovie.objects.create(
+        queue_track_movie_mock.return_value = UserMovie.objects.create(
             user=self.user,
             movie=movie,
             on_watchlist=True,
@@ -245,7 +263,7 @@ class MovieTrackViewTests(TestCase):
             HTTP_HX_REQUEST="true",
         )
 
-        track_movie_mock.assert_called_once_with(self.user, "tvdb", "42")
+        queue_track_movie_mock.assert_called_once_with(self.user, "tvdb", "42")
 
     def test_delete_untracks_movie(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
@@ -258,13 +276,31 @@ class MovieTrackViewTests(TestCase):
             UserMovie.objects.filter(user=self.user, movie=movie, on_watchlist=True).exists()
         )
 
-    @patch("apps.movies.views.track_movie")
-    def test_demo_mode_blocks_non_superusers(self, track_movie_mock):
+    @patch("apps.movies.views.queue_track_movie")
+    def test_demo_mode_blocks_non_superusers(self, queue_track_movie_mock):
         with self.settings(DEMO=True):
             response = self.client.post("/movies/550/track/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 403)
-        track_movie_mock.assert_not_called()
+        queue_track_movie_mock.assert_not_called()
+
+    @patch("apps.movies.views.queue_track_movie")
+    def test_post_queues_movie_tracking_without_calling_heavy_service(
+        self,
+        queue_track_movie_mock,
+    ):
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        user_movie = UserMovie.objects.create(
+            user=self.user,
+            movie=movie,
+            on_watchlist=True,
+        )
+        queue_track_movie_mock.return_value = user_movie
+
+        response = self.client.post("/movies/550/track/", HTTP_HX_REQUEST="true")
+
+        queue_track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
+        self.assertContains(response, 'aria-label="Remove from watchlist"')
 
 
 class MovieSwitchViewTests(TestCase):
@@ -272,14 +308,14 @@ class MovieSwitchViewTests(TestCase):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
         self.client.login(username="user@example.com", password="password")
 
-    @patch("apps.movies.views.switch_movie_provider")
-    def test_post_switches_movie_provider_and_redirects(self, switch_movie_provider_mock):
+    @patch("apps.movies.views.queue_switch_movie_provider")
+    def test_post_switches_movie_provider_and_redirects(self, queue_switch_movie_provider_mock):
         response = self.client.post(
             "/movies/42/switch/?provider=tvdb&from_provider=tmdb&from_external_id=550",
             HTTP_HX_REQUEST="true",
         )
 
-        switch_movie_provider_mock.assert_called_once_with(
+        queue_switch_movie_provider_mock.assert_called_once_with(
             self.user,
             source_provider="tmdb",
             source_external_id="550",
@@ -288,18 +324,18 @@ class MovieSwitchViewTests(TestCase):
         )
         self.assertEqual(response["HX-Redirect"], "/movies/42/?provider=tvdb")
 
-    @patch("apps.movies.views.switch_movie_provider")
-    def test_switch_requires_source_state_parameters(self, switch_movie_provider_mock):
+    @patch("apps.movies.views.queue_switch_movie_provider")
+    def test_switch_requires_source_state_parameters(self, queue_switch_movie_provider_mock):
         response = self.client.post(
             "/movies/42/switch/?provider=tvdb",
             HTTP_HX_REQUEST="true",
         )
 
         self.assertEqual(response.status_code, 400)
-        switch_movie_provider_mock.assert_not_called()
+        queue_switch_movie_provider_mock.assert_not_called()
 
-    @patch("apps.movies.views.switch_movie_provider")
-    def test_demo_mode_blocks_switch(self, switch_movie_provider_mock):
+    @patch("apps.movies.views.queue_switch_movie_provider")
+    def test_demo_mode_blocks_switch(self, queue_switch_movie_provider_mock):
         with self.settings(DEMO=True):
             response = self.client.post(
                 "/movies/42/switch/?provider=tvdb&from_provider=tmdb&from_external_id=550",
@@ -307,7 +343,26 @@ class MovieSwitchViewTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 403)
-        switch_movie_provider_mock.assert_not_called()
+        queue_switch_movie_provider_mock.assert_not_called()
+
+    @patch("apps.movies.views.queue_switch_movie_provider")
+    def test_post_queues_movie_provider_switch_without_calling_heavy_service(
+        self,
+        queue_switch_movie_provider_mock,
+    ):
+        response = self.client.post(
+            "/movies/42/switch/?provider=tvdb&from_provider=tmdb&from_external_id=550",
+            HTTP_HX_REQUEST="true",
+        )
+
+        queue_switch_movie_provider_mock.assert_called_once_with(
+            self.user,
+            source_provider="tmdb",
+            source_external_id="550",
+            target_provider="tvdb",
+            target_external_id="42",
+        )
+        self.assertEqual(response["HX-Redirect"], "/movies/42/?provider=tvdb")
 
 
 class MovieWatchedViewTests(TestCase):

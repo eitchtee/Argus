@@ -156,3 +156,17 @@ class TraktClientTests(SimpleTestCase):
 
         sleeper.assert_called_once()
         self.assertAlmostEqual(sleeper.call_args.args[0], 0.75, places=2)
+
+    def test_history_removal_uses_remove_endpoint(self):
+        self.opener.responses = [FakeResponse({})]
+
+        self.client.post_history(
+            [],
+            [{"ids": {"trakt": 1000}}],
+            remove=True,
+        )
+
+        self.assertEqual(
+            self.opener.requests[0][0].full_url,
+            "https://api.trakt.tv/sync/history/remove",
+        )

@@ -1,0 +1,19 @@
+<script type="text/hyperscript">
+  behavior init_tom_select
+    init
+      set selects to <select/> in me
+      for x in selects
+        remove .select from x
+        js(it)
+          TomSelect(it)
+        end
+      end
+    end
+
+    on reset
+      for elm in <select/> in event.target
+        call elm.tomselect.clear()
+      end
+    end
+  end
+</script>

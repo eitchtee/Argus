@@ -10,9 +10,9 @@ from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
     clear_tier,
     mark_seen,
+    queue_track_movie,
     remove_from_watchlist,
     set_tier,
-    track_movie,
     unmark_seen,
 )
 
@@ -124,7 +124,7 @@ class MovieTrackAPIView(APIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            user_movie = track_movie(
+            user_movie = queue_track_movie(
                 request.user,
                 serializer.validated_data["provider"],
                 serializer.validated_data["external_id"],
