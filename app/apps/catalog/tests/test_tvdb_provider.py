@@ -229,6 +229,40 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.genres[0].name, "Drama")
         self.assertIn("/movies/42/extended", opener.requests[0][0].full_url)
 
+    def test_fetch_movie_detail_selects_poster_in_requested_language(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = {
+            "status": "success",
+            "data": {
+                "id": 42,
+                "name": "A Movie",
+                "image": "https://artworks.thetvdb.com/poster-random.jpg",
+                "artworks": [
+                    {
+                        "type": 2,
+                        "language": "por",
+                        "image": "https://artworks.thetvdb.com/poster-por.jpg",
+                        "score": 500,
+                    },
+                    {
+                        "type": 2,
+                        "language": "eng",
+                        "image": "https://artworks.thetvdb.com/poster-eng.jpg",
+                        "score": 100,
+                    },
+                ],
+            },
+        }
+        opener = SequenceOpener([payload])
+        provider = TVDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("42", language="eng", media_type="movie")
+
+        self.assertEqual(
+            detail.poster_path,
+            "https://artworks.thetvdb.com/poster-eng.jpg",
+        )
+
     def test_cached_token_avoids_login_call(self):
         cache.set("catalog:tvdb:token", "existing-token")
         opener = SequenceOpener(
@@ -289,6 +323,53 @@ class TVDBProviderTests(SimpleTestCase):
                 "overview": "Nine noble families fight for control.",
             },
         )
+
+    def test_fetch_detail_selects_poster_in_requested_language(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_series_extended.json")
+        payload["data"]["image"] = "https://artworks.thetvdb.com/poster-random.jpg"
+        payload["data"]["artworks"] = [
+            {
+                "type": 2,
+                "language": "por",
+                "image": "https://artworks.thetvdb.com/poster-por.jpg",
+                "score": 500,
+            },
+            {
+                "type": 2,
+                "language": "eng",
+                "image": "https://artworks.thetvdb.com/poster-eng.jpg",
+                "score": 100,
+            },
+        ]
+        opener = SequenceOpener([payload])
+        provider = TVDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("121361", language="eng")
+
+        self.assertEqual(
+            detail.poster_path,
+            "https://artworks.thetvdb.com/poster-eng.jpg",
+        )
+
+    def test_fetch_detail_preserves_primary_image_when_no_localized_poster_exists(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_series_extended.json")
+        payload["data"]["image"] = "banners/poster-primary.jpg"
+        payload["data"]["artworks"] = [
+            {
+                "type": 2,
+                "language": "spa",
+                "image": "banners/poster-spa.jpg",
+                "score": 100,
+            },
+        ]
+        opener = SequenceOpener([payload])
+        provider = TVDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("121361", language="eng")
+
+        self.assertEqual(detail.poster_path, "banners/poster-primary.jpg")
 
     def test_fetch_detail_normalizes_all_series_translation_metadata(self):
         cache.set("catalog:tvdb:token", "existing-token")

@@ -255,7 +255,7 @@ class TVDBProvider(BaseProvider):
             title=data.get("name") or "",
             original_title=data.get("name") or "",
             overview=data.get("overview") or "",
-            poster_path=data.get("image"),
+            poster_path=self._poster_from_artworks(data, language) or data.get("image"),
             backdrop_path=self._backdrop_from_artworks(data),
             release_date=data.get("firstAired") or None,
             status=status.get("name") or "",
@@ -319,7 +319,8 @@ class TVDBProvider(BaseProvider):
             original_title=data.get("name") or "",
             overview=data.get("overview") or "",
             tagline=data.get("tagline") or "",
-            poster_path=self._artwork_url(data.get("image")),
+            poster_path=self._poster_from_artworks(data, language)
+            or self._artwork_url(data.get("image")),
             backdrop_path=self._backdrop_from_artworks(data),
             release_date=data.get("releaseDate") or data.get("firstAired") or None,
             runtime=data.get("runtime") or data.get("runtimeMinutes"),
@@ -389,6 +390,28 @@ class TVDBProvider(BaseProvider):
             return None
         best = max(backgrounds, key=lambda a: a.get("score", 0))
         return best.get("image")
+
+    def _poster_from_artworks(self, data: dict, language: str) -> str | None:
+        posters = [
+            artwork
+            for artwork in data.get("artworks", [])
+            if artwork.get("type") == 2 and artwork.get("image")
+        ]
+        preferred_languages = list(dict.fromkeys((language, "eng")))
+        for preferred_language in preferred_languages:
+            localized_posters = [
+                artwork
+                for artwork in posters
+                if artwork.get("language") == preferred_language
+            ]
+            if localized_posters:
+                best = max(
+                    localized_posters,
+                    key=lambda artwork: artwork.get("score") or 0,
+                )
+                return self._artwork_url(best.get("image"))
+
+        return None
 
     def _imdb_id_from_remote_ids(self, data: dict) -> str | None:
         for remote_id in data.get("remoteIds", []):
