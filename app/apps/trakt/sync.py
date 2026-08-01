@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from django.conf import settings
-from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from cachalot.api import cachalot_disabled
@@ -137,6 +136,18 @@ def normalize_snapshot(snapshot: TraktSnapshot) -> RemoteSnapshot:
         snapshot.watched_episodes or snapshot.watched_shows
     )
     return normalized
+
+
+def apply_remote_snapshot(user, snapshot: TraktSnapshot) -> SyncReport:
+    """Apply an initial remote snapshot without synchronizing anything back."""
+    remote = normalize_snapshot(snapshot)
+    report = SyncReport()
+    with cachalot_disabled():
+        local = _collect_local_snapshot(user)
+        with suppress_local_intents():
+            _apply_remote_movies(user, remote, [], local, report, initial=True)
+            _apply_remote_shows(user, remote, [], local, report, initial=True)
+    return report
 
 
 def _merge_latest_watches(records: list[dict], media_type: str = "movie") -> dict[str, datetime]:

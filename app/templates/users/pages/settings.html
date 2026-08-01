@@ -5,7 +5,7 @@
 {% block title %}{% trans "Settings" %}{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
+<section class="space-y-6">
   <div class="section-heading">
     <div>
       <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Account" %}</p>
@@ -13,58 +13,146 @@
     </div>
   </div>
 
-  <div role="tablist" class="tabs tabs-border w-full" aria-label="{% trans 'Settings sections' %}">
-    <input id="user-settings-tab" type="radio" name="settings-tabs" role="tab" class="tab"
+  <div role="tablist" class="tabs tabs-lift w-full">
+    <input id="user-settings-tab" type="radio" name="settings-tabs" role="tab"
+           class="tab min-h-11 px-4 text-xs font-semibold sm:px-6 sm:text-sm"
            aria-label="{% trans 'User settings' %}" aria-controls="user-settings-panel" checked>
-    <div id="user-settings-panel" role="tabpanel" class="tab-content pt-6" aria-labelledby="user-settings-tab">
-      <section class="surface-card rounded-box p-4 sm:p-6">
-        <div class="mb-6">
-          <h2 class="text-xl font-semibold">{% trans "User Settings" %}</h2>
-          <p class="mt-1 text-sm text-base-content/70">{% trans "Customize your language, metadata, and date preferences." %}</p>
-        </div>
-        <form method="post" action="{% url 'user_settings' %}" novalidate _="install init_tom_select">
+    <div id="user-settings-panel" role="tabpanel" class="tab-content w-full border-base-300 bg-base-100 p-4 sm:p-6" aria-labelledby="user-settings-tab">
+      <div class="space-y-5">
+        <header class="flex items-start gap-3 border-b border-base-300 pb-4">
+          <i class="fa-solid fa-sliders mt-1 text-lg text-primary" aria-hidden="true"></i>
+          <div>
+            <h2 class="text-xl font-semibold tracking-tight">{% trans "Personal preferences" %}</h2>
+            <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "Customize your language, metadata, and date preferences." %}</p>
+          </div>
+        </header>
+        <form method="post" action="{% url 'user_settings' %}" novalidate _="install init_tom_select" class="space-y-4">
           {% csrf_token %}
           {% crispy form %}
         </form>
-      </section>
+      </div>
     </div>
 
-    <input id="trakt-settings-tab" type="radio" name="settings-tabs" role="tab" class="tab"
+    <input id="trakt-settings-tab" type="radio" name="settings-tabs" role="tab"
+           class="tab min-h-11 px-4 text-xs font-semibold sm:px-6 sm:text-sm"
            aria-label="{% trans 'Trakt.tv' %}" aria-controls="trakt-settings-panel">
-    <div id="trakt-settings-panel" role="tabpanel" class="tab-content pt-6" aria-labelledby="trakt-settings-tab">
-      <section class="surface-card rounded-box p-4 sm:p-6">
-        <div class="mb-6">
-          <h2 class="text-xl font-semibold">{% trans "Trakt.tv" %}</h2>
-          <p class="mt-1 text-sm text-base-content/70">{% trans "Connect Trakt.tv to synchronize your library." %}</p>
-        </div>
+    <div id="trakt-settings-panel" role="tabpanel" class="tab-content w-full border-base-300 bg-base-100 p-4 sm:p-6" aria-labelledby="trakt-settings-tab">
+      <div class="space-y-5">
+        <header class="flex flex-col gap-3 border-b border-base-300 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="flex items-start gap-3">
+            <i class="fa-solid fa-arrows-rotate mt-1 text-lg text-success" aria-hidden="true"></i>
+            <div>
+              <h2 class="text-xl font-semibold tracking-tight">{% trans "Trakt.tv" %}</h2>
+              <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "Keep your watch history and lists aligned with Trakt.tv." %}</p>
+            </div>
+          </div>
+          {% if trakt_account %}
+            <span class="inline-flex items-center gap-2 text-sm font-semibold text-success">
+              <i class="fa-solid fa-check" aria-hidden="true"></i>
+              {% trans "Connected" %}
+            </span>
+          {% else %}
+            <span class="inline-flex items-center gap-2 text-sm font-semibold text-warning">
+              <i class="fa-solid fa-link-slash" aria-hidden="true"></i>
+              {% trans "Not connected" %}
+            </span>
+          {% endif %}
+        </header>
         {% if trakt_account %}
-          <p class="text-sm text-base-content/70">
-            {% trans "Connected as" %}
-            <span class="font-medium">{% if trakt_account.trakt_username %}{{ trakt_account.trakt_username }}{% else %}{% trans "Trakt user" %}{% endif %}</span>.
-          </p>
-          {% if trakt_account.last_synced_at %}
-            <p class="text-sm text-base-content/70">{% trans "Last sync" %}: {% user_datetime trakt_account.last_synced_at %}</p>
-          {% endif %}
+          <div class="flex flex-col gap-3 border-b border-base-300 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 items-center gap-3">
+              <i class="fa-solid fa-user text-success" aria-hidden="true"></i>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Connected account" %}</p>
+                <p class="mt-1 truncate text-sm font-semibold">
+                  {% if trakt_account.trakt_username %}{{ trakt_account.trakt_username }}{% else %}{% trans "Trakt user" %}{% endif %}
+                </p>
+              </div>
+            </div>
+            {% if trakt_account.last_synced_at %}
+              <div class="sm:text-right">
+                <span class="block text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Last sync" %}</span>
+                <span class="mt-1 block text-xs text-base-content/70">{% user_datetime trakt_account.last_synced_at %}</span>
+              </div>
+            {% endif %}
+          </div>
           {% if trakt_account.last_error %}
-            <p class="mt-2 text-sm text-error">{{ trakt_account.last_error }}</p>
+            <div class="flex items-start gap-2.5 border-l-2 border-error pl-3 text-sm text-error" role="alert">
+              <i class="fa-solid fa-triangle-exclamation mt-0.5" aria-hidden="true"></i>
+              <span>{{ trakt_account.last_error }}</span>
+            </div>
           {% endif %}
-          <div class="mt-4 flex flex-wrap gap-2">
+          <div class="flex flex-wrap gap-2">
             <form method="post" action="{% url 'trakt_sync' %}" hx-post="{% url 'trakt_sync' %}" hx-swap="none">
               {% csrf_token %}
-              <button type="submit" class="btn btn-primary btn-sm">{% trans "Sync now" %}</button>
+              <button type="submit" class="btn btn-primary btn-sm">
+                <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+                {% trans "Sync now" %}
+              </button>
             </form>
-            <a href="{% url 'trakt_connect' %}" class="btn btn-secondary btn-sm">{% trans "Reconnect" %}</a>
+            <a href="{% url 'trakt_connect' %}" class="btn btn-secondary btn-sm">
+              <i class="fa-solid fa-link" aria-hidden="true"></i>
+              {% trans "Reconnect" %}
+            </a>
             <form method="post" action="{% url 'trakt_disconnect' %}" hx-post="{% url 'trakt_disconnect' %}" hx-swap="none" hx-confirm="{% trans 'Disconnect Trakt.tv?' %}">
               {% csrf_token %}
-              <button type="submit" class="btn btn-ghost btn-sm">{% trans "Disconnect" %}</button>
+              <button type="submit" class="btn btn-ghost btn-sm">
+                <i class="fa-solid fa-link-slash" aria-hidden="true"></i>
+                {% trans "Disconnect" %}
+              </button>
             </form>
           </div>
         {% else %}
-          <p class="text-sm text-base-content/70">{% trans "Connect your Trakt.tv account to synchronize your library." %}</p>
-          <a href="{% url 'trakt_connect' %}" class="btn btn-primary btn-sm mt-4">{% trans "Connect Trakt.tv" %}</a>
+          <div class="border-t border-base-300 pt-5">
+            <div class="flex items-start gap-3">
+              <i class="fa-solid fa-link mt-1 text-lg text-primary" aria-hidden="true"></i>
+              <div>
+                <h3 class="text-base font-semibold">{% trans "Connect your Trakt library" %}</h3>
+                <p class="mt-1 max-w-xl text-sm leading-6 text-base-content/65">{% trans "Connect Trakt.tv to synchronize your library and keep your watch history in step." %}</p>
+                <a href="{% url 'trakt_connect' %}" class="btn btn-primary btn-sm mt-4">
+                  <i class="fa-solid fa-link" aria-hidden="true"></i>
+                  {% trans "Connect Trakt.tv" %}
+                </a>
+              </div>
+            </div>
+          </div>
         {% endif %}
-      </section>
+      </div>
+    </div>
+
+    <input id="import-settings-tab" type="radio" name="settings-tabs" role="tab"
+           class="tab min-h-11 px-4 text-xs font-semibold sm:px-6 sm:text-sm"
+           aria-label="{% trans 'Import' %}" aria-controls="import-settings-panel">
+    <div id="import-settings-panel" role="tabpanel" class="tab-content w-full border-base-300 bg-base-100 p-4 sm:p-6" aria-labelledby="import-settings-tab">
+      <div class="space-y-5">
+        <header class="flex items-start gap-3 border-b border-base-300 pb-4">
+          <i class="fa-solid fa-file-import mt-1 text-lg text-info" aria-hidden="true"></i>
+          <div>
+            <h2 class="text-xl font-semibold tracking-tight">{% trans "Import your library" %}</h2>
+            <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "Move your history and lists into Argus from another service." %}</p>
+          </div>
+        </header>
+        <div role="tablist" class="tabs tabs-box w-fit">
+          <input id="import-trakt-tab" type="radio" name="import-services" role="tab" class="tab"
+                 aria-label="{% trans 'Trakt' %}" checked
+                 hx-get="{% url 'import_trakt' %}"
+                 hx-trigger="change"
+                 hx-target="#import-service-content"
+                 hx-swap="innerHTML">
+        </div>
+        <div id="import-service-content"
+             class="pt-1"
+             hx-get="{% url 'import_trakt' %}"
+             hx-trigger="load"
+             hx-target="this"
+             hx-swap="innerHTML">
+          <div class="flex min-h-32 items-center justify-center gap-3 text-sm text-base-content/60" role="status">
+            <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+            <span>{% trans "Loading import options" %}</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-</div>
+</section>
 {% endblock %}

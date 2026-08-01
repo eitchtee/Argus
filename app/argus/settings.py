@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "apps.tv.apps.TvConfig",
     "apps.history.apps.HistoryConfig",
     "apps.trakt.apps.TraktConfig",
+    "apps.imports.apps.ImportsConfig",
     "apps.calendar.apps.CalendarConfig",
     "cachalot",
     "apps.api.apps.ApiConfig",
@@ -122,6 +123,9 @@ TEMPLATES = [
 ]
 
 STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
