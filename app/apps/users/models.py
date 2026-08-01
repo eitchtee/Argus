@@ -53,6 +53,10 @@ class UserSettings(models.Model):
         default="SHORT_DATETIME_FORMAT",
         verbose_name=_("Datetime Format"),
     )
+    show_specials = models.BooleanField(
+        default=False,
+        verbose_name=_("Show Specials"),
+    )
 
     def __str__(self):
         return f"{self.user.email}'s settings"

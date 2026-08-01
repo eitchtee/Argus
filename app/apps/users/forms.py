@@ -103,6 +103,7 @@ class UserSettingsForm(forms.ModelForm):
         initial="SHORT_DATETIME_FORMAT",
         label=_("Datetime Format"),
     )
+    show_specials = forms.BooleanField(label=_("Show Specials"), required=False)
 
     class Meta:
         model = UserSettings
@@ -113,6 +114,7 @@ class UserSettingsForm(forms.ModelForm):
             "timezone",
             "date_format",
             "datetime_format",
+            "show_specials",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -144,6 +146,7 @@ class UserSettingsForm(forms.ModelForm):
             "timezone",
             "date_format",
             "datetime_format",
+            "show_specials",
             Submit("submit", _("Save"), css_class="btn btn-primary"),
         )
 

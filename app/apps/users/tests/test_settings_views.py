@@ -103,3 +103,30 @@ class UserSettingsViewTests(TestCase):
             form.fields["datetime_format"].widget.attrs["data-tom-select"],
             "true",
         )
+
+    @patch("apps.users.forms.get_language_choices", side_effect=choices_for)
+    def test_settings_form_includes_show_specials_checkbox(self, _choices):
+        form = UserSettingsForm(instance=self.user.settings)
+
+        self.assertIn("show_specials", form.fields)
+        self.assertEqual(form.fields["show_specials"].label, "Show Specials")
+
+    @patch("apps.users.forms.get_language_choices", side_effect=choices_for)
+    def test_settings_save_show_specials_preference(self, _choices):
+        response = self.client.post(
+            self.url,
+            {
+                "language": "en",
+                "tvdb_metadata_language": "eng",
+                "tmdb_metadata_language": "en-US",
+                "timezone": "auto",
+                "date_format": "SHORT_DATE_FORMAT",
+                "datetime_format": "SHORT_DATETIME_FORMAT",
+                "show_specials": "on",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 204)
+        self.user.settings.refresh_from_db()
+        self.assertTrue(self.user.settings.show_specials)
