@@ -5,7 +5,10 @@ from django.utils import timezone
 from procrastinate.contrib.django import app
 
 from apps.catalog.models import SyncStatus
-from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
+from apps.catalog.localization import (
+    PROVIDER_DEFAULT_LANGUAGES,
+    metadata_language_for_user,
+)
 from apps.tv import services as tv_services
 from apps.tv.models import Show, UserShow
 
@@ -14,12 +17,16 @@ from apps.tv.models import Show, UserShow
 def track_show(user_id: int, show_id: int):
     user = get_user_model().objects.get(id=user_id)
     show = Show.objects.get(id=show_id)
-    return tv_services.track_show(
-        user,
+    imported_show = tv_services.import_show(
         show.external_id,
         provider=show.provider,
-        force_hydrate=True,
+        language=metadata_language_for_user(user, show.provider),
     )
+    translation_task_id = hydrate_show_translations.defer(show_id=imported_show.id)
+    return {
+        "item_id": imported_show.id,
+        "translation_task_id": translation_task_id,
+    }
 
 
 @app.task(name="switch_show_provider")

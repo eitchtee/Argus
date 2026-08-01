@@ -42,16 +42,31 @@ class MovieTaskTests(TransactionTestCase):
         self.user = get_user_model().objects.create_user("user@example.com")
 
     @patch("apps.movies.tasks.movie_services.track_movie", create=True)
-    def test_track_movie_task_reloads_models_and_delegates(self, track_movie):
+    @patch("apps.movies.tasks.hydrate_movie_translations")
+    @patch("apps.movies.tasks.movie_services.import_movie")
+    def test_track_movie_task_imports_metadata_without_reapplying_tracking(
+        self,
+        import_movie,
+        hydrate_movie_translations,
+        track_movie,
+    ):
         from apps.movies.tasks import track_movie as track_movie_task
 
         movie = Movie.objects.create(provider="tvdb", external_id="42", title="Movie")
-        track_movie.return_value = "tracked"
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=False)
+        import_movie.return_value = movie
+        hydrate_movie_translations.defer.return_value = 41
 
         result = track_movie_task.func(self.user.id, movie.id)
 
-        track_movie.assert_called_once_with(self.user, "tvdb", "42")
-        self.assertEqual(result, "tracked")
+        track_movie.assert_not_called()
+        import_movie.assert_called_once_with("tvdb", "42", language="eng")
+        hydrate_movie_translations.defer.assert_called_once_with(movie_id=movie.id)
+        self.assertEqual(
+            result,
+            {"item_id": movie.id, "translation_task_id": 41},
+        )
+        self.assertFalse(UserMovie.objects.get(user=self.user, movie=movie).on_watchlist)
 
     @patch("apps.movies.tasks.movie_services.switch_movie_provider", create=True)
     def test_switch_movie_provider_task_reloads_user_and_delegates(self, switch_movie_provider):

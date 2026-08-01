@@ -5,7 +5,10 @@ from django.utils import timezone
 from procrastinate.contrib.django import app
 
 from apps.catalog.models import SyncStatus
-from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
+from apps.catalog.localization import (
+    PROVIDER_DEFAULT_LANGUAGES,
+    metadata_language_for_user,
+)
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.movies import services as movie_services
@@ -16,7 +19,16 @@ from apps.movies.models import Movie, UserMovie
 def track_movie(user_id: int, movie_id: int):
     user = get_user_model().objects.get(id=user_id)
     movie = Movie.objects.get(id=movie_id)
-    return movie_services.track_movie(user, movie.provider, movie.external_id)
+    imported_movie = movie_services.import_movie(
+        movie.provider,
+        movie.external_id,
+        language=metadata_language_for_user(user, movie.provider),
+    )
+    translation_task_id = hydrate_movie_translations.defer(movie_id=imported_movie.id)
+    return {
+        "item_id": imported_movie.id,
+        "translation_task_id": translation_task_id,
+    }
 
 
 @app.task(name="switch_movie_provider")
@@ -75,7 +87,9 @@ def sync_movie(movie_id: int):
             movie.external_id,
             language=PROVIDER_DEFAULT_LANGUAGES[movie.provider],
         )
-        translation_task_id = hydrate_movie_translations.defer(movie_id=imported_movie.id)
+        translation_task_id = hydrate_movie_translations.defer(
+            movie_id=imported_movie.id,
+        )
         return {
             "item_id": imported_movie.id,
             "translation_task_id": translation_task_id,

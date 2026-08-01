@@ -346,6 +346,15 @@ def _apply_remote_movies(user, remote, intents, local, report, *, initial: bool)
         return movie_cache[cache_key]
 
     for watched in remote.watched_movies.values():
+        if (
+            _pending_desired(
+                intents,
+                TraktSyncIntent.Kind.MOVIE_HISTORY,
+                _media_tokens(watched.media),
+            )
+            is False
+        ):
+            continue
         movie = ensure(watched.media)
         if movie is None:
             continue
@@ -1024,8 +1033,13 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
             remote_watch = _matching_remote_media(
                 _media_tokens(payload), remote.watched_movies.values()
             )
-            if remote_watch is None:
+            if intent.desired and remote_watch is None:
                 _append_unique(history_movies, _payload_media(payload, "movie"))
+            elif not intent.desired and remote_watch is not None:
+                _append_unique(
+                    history_remove_movies,
+                    _payload_media(payload, "movie"),
+                )
         elif kind == TraktSyncIntent.Kind.EPISODE_HISTORY:
             remote_episode = _matching_remote_episode(
                 payload,
@@ -1112,7 +1126,7 @@ def _acknowledge_intents(intents, remote):
             remote_watch = _matching_remote_media(
                 _media_tokens(payload), remote.watched_movies.values()
             )
-            if remote_watch is not None:
+            if (remote_watch is not None) == intent.desired:
                 _delete_intent_if_unchanged(intent)
         elif intent.kind == TraktSyncIntent.Kind.EPISODE_HISTORY:
             present = _matching_remote_episode(payload, remote_episode_index) is not None

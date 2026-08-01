@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
+from apps.catalog.models import SyncStatus
 from apps.catalog.providers.base import CastMemberDTO, DetailDTO, EpisodeDTO
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
@@ -109,6 +110,23 @@ class ShowDetailViewTests(TestCase):
             language="eng",
             provider="tvdb",
         )
+
+    def test_pending_episode_fragment_polls_until_metadata_import_finishes(self):
+        Show.objects.create(
+            external_id="123",
+            name="Foo",
+            sync_status=SyncStatus.PENDING,
+        )
+
+        response = self.client.get(
+            "/tv/123/episodes/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'hx-trigger="every 2s"')
+        self.assertContains(response, 'hx-target="#show-episodes-content"')
+        self.assertContains(response, "Loading episodes")
 
     @patch("apps.tv.views.get_show_episodes")
     @patch("apps.tv.views.get_show_detail")
@@ -260,9 +278,8 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "tt0944947")
         self.assertContains(response, "https://www.youtube.com/watch?v=abc123")
         self.assertContains(response, "57")
-        self.assertContains(response, "11:00 PM")
-        self.assertContains(response, "Original airing time: 9:00 PM America/New_York")
-        self.assertNotContains(response, "Airs locally")
+        self.assertContains(response, "Last aired")
+        self.assertNotContains(response, "Next episode")
         self.assertContains(response, "Emilia Clarke")
         self.assertContains(response, "Daenerys Targaryen")
         self.assertContains(response, 'aria-label="Track show"')
@@ -273,6 +290,26 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(episodes_response, "Pilot")
         # Current user has not tracked it themselves: no checkboxes, no watched state.
         self.assertNotContains(episodes_response, "checkbox-sm")
+
+    def test_next_airing_uses_the_converted_local_date(self):
+        Show.objects.create(
+            external_id="123",
+            name="Foo",
+            next_air_date=date(2026, 7, 25),
+            airs_time=time(23, 0),
+            airs_timezone="America/New_York",
+            sync_status=SyncStatus.OK,
+        )
+        self.user.settings.timezone = "Asia/Tokyo"
+        self.user.settings.date_format = "Y-m-d"
+        self.user.settings.datetime_format = "Y-m-d H:i"
+        self.user.settings.save()
+
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "2026-07-26")
+        self.assertContains(response, "12:00")
+        self.assertNotContains(response, "2026-07-25")
 
     def test_hides_seasons_without_episodes_but_keeps_unreleased_episodes(self):
         show = Show.objects.create(external_id="123", name="Foo")

@@ -18,6 +18,8 @@ LOCALIZED_FIELDS = {
     "Genre": ("name",),
 }
 
+_TIME_FORMAT_DIRECTIVES = frozenset("HhGgisuaAOPTZ")
+
 
 def merge_translation_maps(*maps):
     merged = {}
@@ -53,13 +55,29 @@ def datetime_format_for_user(user) -> str:
 
 def time_format_for_user(user=None) -> str:
     """Return the time portion of the user's automatic or chosen datetime format."""
+    configured = getattr(
+        getattr(user, "settings", None),
+        "datetime_format",
+        "SHORT_DATETIME_FORMAT",
+    )
+    if configured == "SHORT_DATETIME_FORMAT":
+        return get_format("TIME_FORMAT", use_l10n=True)
+
     format_string = datetime_format_for_user(user)
     parts = format_string.split()
-    if len(parts) > 1:
-        if parts[-1] in {"A", "a"} and len(parts) > 2:
-            return " ".join(parts[-2:])
-        return parts[-1]
-    return get_format("TIME_FORMAT", use_l10n=True)
+    time_parts = [
+        part
+        for part in parts
+        if any(
+            char in _TIME_FORMAT_DIRECTIVES and (index == 0 or part[index - 1] != "\\")
+            for index, char in enumerate(part)
+        )
+    ]
+    if not time_parts:
+        return get_format("TIME_FORMAT", use_l10n=True)
+    if time_parts[-1] in {"A", "a"} and len(time_parts) > 1:
+        return " ".join(time_parts[-2:])
+    return time_parts[0]
 
 
 def season_name(season_number: int) -> str:

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -28,3 +28,19 @@ class UserDateTemplateTagTests(SimpleTestCase):
             ).render(Context({"request": request, "value": value}))
 
         self.assertEqual(rendered, "20.01.2025|20.01.2025 12:30|12:30")
+
+    def test_time_tag_uses_time_token_when_datetime_format_starts_with_time(self):
+        user = SimpleNamespace(
+            is_authenticated=True,
+            settings=SimpleNamespace(
+                date_format="d-m-Y",
+                datetime_format="H:i d-m-Y",
+            ),
+        )
+        request = SimpleNamespace(user=user)
+
+        rendered = Template(
+            "{% load dates %}{% user_time value %}"
+        ).render(Context({"request": request, "value": time(21, 30)}))
+
+        self.assertEqual(rendered, "21:30")

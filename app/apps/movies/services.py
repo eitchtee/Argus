@@ -640,6 +640,7 @@ def mark_seen(user, movie: Movie) -> UserMovie:
 
 def unmark_seen(user, movie: Movie) -> UserMovie:
     user_movie, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
+    watched_at = user_movie.seen_at
     user_movie.is_seen = False
     user_movie.seen_at = None
     user_movie.tier = None
@@ -654,6 +655,12 @@ def unmark_seen(user, movie: Movie) -> UserMovie:
             "watchlist_added_at",
             "updated_at",
         ]
+    )
+    record_intent(
+        user,
+        TraktSyncIntent.Kind.MOVIE_HISTORY,
+        movie_payload(movie, watched_at=watched_at),
+        desired=False,
     )
     record_intent(
         user,

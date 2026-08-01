@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
+from django.utils.formats import get_format
 from django.utils import translation
 
 from apps.catalog.localization import (
@@ -163,3 +164,41 @@ class UserDateFormatTests(SimpleTestCase):
         )()
 
         self.assertEqual(datetime_format_for_user(user), "Y-m-d h:i A")
+
+    def test_custom_datetime_format_extracts_time_when_it_is_first(self):
+        user = type(
+            "UserStub",
+            (object,),
+            {
+                "settings": type(
+                    "SettingsStub",
+                    (object,),
+                    {"datetime_format": "H:i d-m-Y"},
+                )(),
+            },
+        )()
+
+        from apps.catalog.localization import time_format_for_user
+
+        self.assertEqual(time_format_for_user(user), "H:i")
+
+    def test_automatic_time_format_uses_the_active_locale_time_format(self):
+        user = type(
+            "UserStub",
+            (object,),
+            {
+                "settings": type(
+                    "SettingsStub",
+                    (object,),
+                    {"datetime_format": "SHORT_DATETIME_FORMAT"},
+                )(),
+            },
+        )()
+
+        from apps.catalog.localization import time_format_for_user
+
+        with translation.override("vi"):
+            self.assertEqual(
+                time_format_for_user(user),
+                get_format("TIME_FORMAT", use_l10n=True),
+            )

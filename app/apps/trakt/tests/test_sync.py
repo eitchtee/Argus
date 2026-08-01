@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.movies.models import Movie, UserMovie
+from apps.movies.services import unmark_seen
 from apps.catalog.providers.exceptions import ProviderError
 from apps.trakt.changes import record_intent
 from apps.trakt.client import TraktSnapshot
@@ -361,6 +362,60 @@ class TraktSyncTests(TestCase):
         movies, shows = client.history_calls[0]
         self.assertEqual(movies[0]["ids"]["trakt"], 5500)
         self.assertFalse(shows)
+
+    def test_local_unwatch_removes_movie_from_trakt(self):
+        self.account.initial_sync_complete = True
+        self.account.save(update_fields=["initial_sync_complete"])
+        movie = Movie.objects.create(
+            external_id="550",
+            trakt_id="5500",
+            title="Fight Club",
+        )
+        UserMovie.objects.create(
+            user=self.user,
+            movie=movie,
+            is_seen=True,
+            seen_at=timezone.now() - timedelta(hours=2),
+        )
+        unmark_seen(self.user, movie)
+        client = FakeTraktClient(
+            TraktSnapshot(
+                watchlist_movies=[{"movie": {"ids": {"trakt": 5500}}}],
+                watchlist_shows=[],
+                watched_movies=[
+                    {
+                        "watched_at": timezone.now().isoformat(),
+                        "movie": {"ids": {"trakt": 5500}},
+                    }
+                ],
+                watched_shows=[],
+                dropped_shows=[],
+            )
+        )
+
+        sync_account(self.account.id, client_factory=client_factory(client))
+
+        self.assertEqual(len(client.history_remove_calls), 1)
+        movies, shows = client.history_remove_calls[0]
+        self.assertEqual(movies[0]["ids"]["trakt"], 5500)
+        self.assertFalse(shows)
+        self.assertFalse(UserMovie.objects.get(user=self.user, movie=movie).is_seen)
+        intent = TraktSyncIntent.objects.get(
+            user=self.user,
+            kind=TraktSyncIntent.Kind.MOVIE_HISTORY,
+        )
+        self.assertFalse(intent.desired)
+
+        client.snapshot = TraktSnapshot([], [], [], [], [])
+        sync_account(self.account.id, client_factory=client_factory(client))
+
+        self.assertEqual(len(client.history_remove_calls), 1)
+        self.assertFalse(
+            TraktSyncIntent.objects.filter(
+                user=self.user,
+                kind=TraktSyncIntent.Kind.MOVIE_HISTORY,
+            ).exists()
+        )
 
     def test_local_watched_episode_is_sent_after_initial_sync_when_trakt_does_not_have_it(self):
         self.account.initial_sync_complete = True

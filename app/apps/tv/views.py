@@ -610,6 +610,9 @@ def _build_show_context(user, external_id, provider="tvdb"):
         show.airs_timezone,
         show.next_air_date or show.last_air_date or show.first_aired,
     )
+    next_air_date = show.next_air_date
+    if next_air_date and air_time_context["airs_date"]:
+        next_air_date = air_time_context["airs_date"]
 
     return {
         "normalized_status": show.normalized_status,
@@ -630,7 +633,7 @@ def _build_show_context(user, external_id, provider="tvdb"):
         "trakt_id": show.trakt_id,
         "trailer_url": show.trailer_url,
         "average_runtime": show.average_runtime,
-        "next_air_date": show.next_air_date,
+        "next_air_date": next_air_date,
         "last_air_date": show.last_air_date,
         "cast": show.cast,
         "tracked": tracked,
@@ -697,6 +700,7 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
         "external_id": external_id,
         "provider": provider,
         "provider_label": provider.upper(),
+        "sync_status": show.sync_status if show is not None else None,
         "seasons": seasons,
         "tracked": tracked,
         "show_fully_watched": (
@@ -823,6 +827,13 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
     last_air_date = _parse_iso_date(detail.last_air_date)
     release_date = _parse_iso_date(detail.release_date)
     air_time = _parse_iso_time(detail.airs_time)
+    air_time_context = _air_time_context(
+        air_time,
+        detail.airs_timezone,
+        next_air_date or last_air_date or release_date,
+    )
+    if next_air_date and air_time_context["airs_date"]:
+        next_air_date = air_time_context["airs_date"]
 
     return {
         "external_id": detail.external_id,
@@ -878,11 +889,7 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
             tvdb_id=detail.tvdb_id,
             trakt_id=getattr(detail, "trakt_id", None),
         ),
-        **_air_time_context(
-            air_time,
-            detail.airs_timezone,
-            next_air_date or last_air_date or release_date,
-        ),
+        **air_time_context,
         **_tracking_state_from_ids(
             user,
             "tv",
@@ -1050,11 +1057,11 @@ def _parse_iso_time(value):
         return None
 
 
-def _convert_air_time_to_user_timezone(
+def _convert_air_datetime_to_user_timezone(
     air_time: time | None,
     source_timezone: str | None,
     reference_date: date | None = None,
-) -> time | None:
+) -> datetime | None:
     if air_time is None:
         return None
 
@@ -1068,7 +1075,20 @@ def _convert_air_time_to_user_timezone(
         air_time,
         tzinfo=source_tz,
     )
-    return timezone.localtime(aired_at).time().replace(tzinfo=None)
+    return timezone.localtime(aired_at)
+
+
+def _convert_air_time_to_user_timezone(
+    air_time: time | None,
+    source_timezone: str | None,
+    reference_date: date | None = None,
+) -> time | None:
+    converted = _convert_air_datetime_to_user_timezone(
+        air_time,
+        source_timezone,
+        reference_date,
+    )
+    return converted.time().replace(tzinfo=None) if converted else None
 
 
 def _episode_air_status(air_date: date | None, today: date | None = None) -> str:
@@ -1088,12 +1108,14 @@ def _air_time_context(
     except (TypeError, ValueError, ZoneInfoNotFoundError):
         source_timezone = "UTC"
 
+    converted = _convert_air_datetime_to_user_timezone(
+        air_time,
+        source_timezone,
+        reference_date,
+    )
     return {
-        "airs_time": _convert_air_time_to_user_timezone(
-            air_time,
-            source_timezone,
-            reference_date,
-        ),
+        "airs_date": converted.date() if converted else None,
+        "airs_time": converted.time().replace(tzinfo=None) if converted else None,
         "airs_timezone": timezone.get_current_timezone_name(),
         "airs_source_time": air_time,
         "airs_source_timezone": source_timezone,

@@ -1,7 +1,18 @@
 {% load i18n %}
 
 <div class="space-y-4">
-  {% if show.seasons %}
+  {% if show.sync_status == 'pending' and not show.seasons %}
+  <div id="show-episodes-poll"
+       class="episodes-loading__state"
+       role="status"
+       hx-get="{% url 'tv-detail-episodes' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+       hx-trigger="every 2s"
+       hx-target="#show-episodes-content"
+       hx-swap="innerHTML">
+    <span class="loading loading-spinner loading-md" aria-hidden="true"></span>
+    <span>{% trans "Loading episodes" %}…</span>
+  </div>
+  {% elif show.seasons %}
   <div class="detail-episode-summary" aria-label="{% trans 'Episode summary' %}">
     <span class="detail-summary-item detail-summary-item--aired">
       <i class="fa-solid fa-circle-check" aria-hidden="true"></i>

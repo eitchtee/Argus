@@ -95,22 +95,43 @@ class TVTranslationTaskTests(TransactionTestCase):
         self.assertEqual(result, show)
 
     @patch("apps.tv.tasks.tv_services.track_show", create=True)
-    def test_track_show_task_reloads_models_and_delegates(self, track_show):
+    @patch("apps.tv.tasks.hydrate_show_translations")
+    @patch("apps.tv.tasks.tv_services.import_show")
+    def test_track_show_task_imports_metadata_without_reapplying_tracking(
+        self,
+        import_show,
+        hydrate_show_translations,
+        track_show,
+    ):
         from apps.tv.tasks import track_show as track_show_task
 
         user = get_user_model().objects.create_user("tracked@example.com")
         show = Show.objects.create(provider="tmdb", external_id="1399", name="Show")
-        track_show.return_value = "tracked"
+        UserShow.objects.create(
+            user=user,
+            show=show,
+            status=UserShow.Status.PAUSED,
+            on_watchlist=False,
+        )
+        import_show.return_value = show
+        hydrate_show_translations.defer.return_value = 41
 
         result = track_show_task.func(user.id, show.id)
 
-        track_show.assert_called_once_with(
-            user,
+        track_show.assert_not_called()
+        import_show.assert_called_once_with(
             "1399",
             provider="tmdb",
-            force_hydrate=True,
+            language="en-US",
         )
-        self.assertEqual(result, "tracked")
+        hydrate_show_translations.defer.assert_called_once_with(show_id=show.id)
+        self.assertEqual(
+            result,
+            {"item_id": show.id, "translation_task_id": 41},
+        )
+        state = UserShow.objects.get(user=user, show=show)
+        self.assertEqual(state.status, UserShow.Status.PAUSED)
+        self.assertFalse(state.on_watchlist)
 
     @patch("apps.tv.tasks.tv_services.switch_show_provider", create=True)
     def test_switch_show_provider_task_reloads_user_and_delegates(self, switch_show_provider):
