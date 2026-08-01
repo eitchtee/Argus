@@ -1,15 +1,29 @@
 {% load static %}
-<link rel="apple-touch-icon" sizes="57x57" href="{% static 'img/favicon/apple-icon-57x57.png' %}">
-<link rel="apple-touch-icon" sizes="60x60" href="{% static 'img/favicon/apple-icon-60x60.png' %}">
-<link rel="apple-touch-icon" sizes="72x72" href="{% static 'img/favicon/apple-icon-72x72.png' %}">
-<link rel="apple-touch-icon" sizes="76x76" href="{% static 'img/favicon/apple-icon-76x76.png' %}">
-<link rel="apple-touch-icon" sizes="114x114" href="{% static 'img/favicon/apple-icon-114x114.png' %}">
-<link rel="apple-touch-icon" sizes="120x120" href="{% static 'img/favicon/apple-icon-120x120.png' %}">
-<link rel="apple-touch-icon" sizes="144x144" href="{% static 'img/favicon/apple-icon-144x144.png' %}">
-<link rel="apple-touch-icon" sizes="152x152" href="{% static 'img/favicon/apple-icon-152x152.png' %}">
-<link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/favicon/apple-icon-180x180.png' %}">
-<link rel="icon" type="image/png" sizes="192x192"  href="{% static 'img/favicon/android-icon-192x192.png' %}">
-<link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/favicon/favicon-32x32.png' %}">
-<link rel="icon" type="image/png" sizes="96x96" href="{% static 'img/favicon/favicon-96x96.png' %}">
-<link rel="icon" type="image/png" sizes="16x16" href="{% static 'img/favicon/favicon-16x16.png' %}">
-<meta name="msapplication-TileImage" content="{% static 'img/favicon/ms-icon-144x144.png' %}">
+{% static 'img/brand/argus-logo-light.svg' as argus_light_svg %}
+{% static 'img/brand/argus-logo-dark.svg' as argus_dark_svg %}
+{% static 'img/favicon/argus-light-16x16.png' as argus_light_16 %}
+{% static 'img/favicon/argus-dark-16x16.png' as argus_dark_16 %}
+{% static 'img/favicon/argus-light-32x32.png' as argus_light_32 %}
+{% static 'img/favicon/argus-dark-32x32.png' as argus_dark_32 %}
+{% static 'img/favicon/argus-light-96x96.png' as argus_light_96 %}
+{% static 'img/favicon/argus-dark-96x96.png' as argus_dark_96 %}
+{% static 'img/favicon/argus-light-144x144.png' as argus_light_144 %}
+{% static 'img/favicon/argus-dark-144x144.png' as argus_dark_144 %}
+{% static 'img/favicon/argus-light-180x180.png' as argus_light_180 %}
+{% static 'img/favicon/argus-dark-180x180.png' as argus_dark_180 %}
+{% static 'img/favicon/argus-light-192x192.png' as argus_light_192 %}
+{% static 'img/favicon/argus-dark-192x192.png' as argus_dark_192 %}
+
+<link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: light)" href="{{ argus_light_svg }}">
+<link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: dark)" href="{{ argus_dark_svg }}">
+<link rel="icon" type="image/png" sizes="16x16" media="(prefers-color-scheme: light)" href="{{ argus_light_16 }}">
+<link rel="icon" type="image/png" sizes="16x16" media="(prefers-color-scheme: dark)" href="{{ argus_dark_16 }}">
+<link rel="icon" type="image/png" sizes="32x32" media="(prefers-color-scheme: light)" href="{{ argus_light_32 }}">
+<link rel="icon" type="image/png" sizes="32x32" media="(prefers-color-scheme: dark)" href="{{ argus_dark_32 }}">
+<link rel="icon" type="image/png" sizes="96x96" media="(prefers-color-scheme: light)" href="{{ argus_light_96 }}">
+<link rel="icon" type="image/png" sizes="96x96" media="(prefers-color-scheme: dark)" href="{{ argus_dark_96 }}">
+<link rel="icon" type="image/png" sizes="192x192" media="(prefers-color-scheme: light)" href="{{ argus_light_192 }}">
+<link rel="icon" type="image/png" sizes="192x192" media="(prefers-color-scheme: dark)" href="{{ argus_dark_192 }}">
+<link rel="apple-touch-icon" sizes="180x180" media="(prefers-color-scheme: light)" href="{{ argus_light_180 }}">
+<link rel="apple-touch-icon" sizes="180x180" media="(prefers-color-scheme: dark)" href="{{ argus_dark_180 }}">
+<meta name="msapplication-TileImage" content="{{ argus_dark_144 }}">

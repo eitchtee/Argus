@@ -4,8 +4,12 @@ var staticCacheName = "django-pwa-v" + new Date().getTime();
 var filesToCache = [
     '/offline/',
     '/static/css/django-pwa-app.css',
-    '/static/img/favicon/android-icon-192x192.png',
-    '/static/img/favicon/apple-icon-180x180.png',
+    '/static/img/brand/argus-logo-light.svg',
+    '/static/img/brand/argus-logo-dark.svg',
+    '/static/img/favicon/argus-light-192x192.png',
+    '/static/img/favicon/argus-dark-192x192.png',
+    '/static/img/favicon/argus-light-180x180.png',
+    '/static/img/favicon/argus-dark-180x180.png',
     '/static/img/pwa/splash-640x1136.png',
     '/static/img/pwa/splash-750x1334.png',
 ];

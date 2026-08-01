@@ -492,10 +492,10 @@ PWA_APP_ORIENTATION = "any"
 PWA_APP_START_URL = "/"
 PWA_APP_STATUS_BAR_COLOR = "default"
 PWA_APP_ICONS = [
-    {"src": "/static/img/favicon/android-icon-192x192.png", "sizes": "192x192"}
+    {"src": "/static/img/favicon/argus-dark-192x192.png", "sizes": "192x192"}
 ]
 PWA_APP_ICONS_APPLE = [
-    {"src": "/static/img/favicon/apple-icon-180x180.png", "sizes": "180x180"}
+    {"src": "/static/img/favicon/argus-dark-180x180.png", "sizes": "180x180"}
 ]
 PWA_APP_SPLASH_SCREEN = [
     {

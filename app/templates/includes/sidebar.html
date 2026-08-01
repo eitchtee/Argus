@@ -6,7 +6,7 @@
   <div class="flex items-center justify-between px-4 py-4 border-b border-base-300 lg:border-none">
     <a href="{% url 'index' %}" hx-boost="true"
        class="flex items-center gap-3 rounded-box px-2 py-1 transition hover:bg-base-100">
-      <span class="logo"></span>
+      <span class="logo" aria-hidden="true"></span>
       <span class="text-xl font-bold">{% settings "SITE_TITLE" %}</span>
     </a>
     <div class="flex items-center gap-1">

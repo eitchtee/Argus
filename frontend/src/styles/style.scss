@@ -55,22 +55,11 @@ div:where(.swal2-container) {
 }
 
 .logo {
-  /* Set the background-color to DaisyUI CSS variable */
-  background-color: var(--color-primary);
+  background-image: url('/static/img/brand/argus-logo-dark.svg');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
 
-  /* Use SVG file as the mask */
-  mask-image: url('/static/img/logo-icon.svg');
-  -webkit-mask-image: url('/static/img/logo-icon.svg');
-
-  /* Set mask properties to size it correctly */
-  mask-size: contain;
-  -webkit-mask-size: contain;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
-  mask-position: center;
-  -webkit-mask-position: center;
-
-  /* Give the element a size */
   width: 30px;
   height: 30px;
 
@@ -78,6 +67,10 @@ div:where(.swal2-container) {
     width: 40px;
     height: 40px;
   }
+}
+
+[data-theme="argus_light"] .logo {
+  background-image: url('/static/img/brand/argus-logo-light.svg');
 }
 
 [x-cloak] {
