@@ -15,7 +15,7 @@ def index(request):
     context = {
         "watch_something_movies": [
             LocalizedRecord(movie, language)
-            for movie in get_watch_something(request.user)
+            for movie in get_watch_something(request.user, count=6)
         ]
     }
     return render(request, "home/fragments/watch_something.html", context)

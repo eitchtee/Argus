@@ -7,20 +7,26 @@
     <div class="absolute inset-0 bg-base-100/85"></div>
     {% endif %}
     <div class="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[14rem_minmax(0,1fr)] lg:p-9">
-      <figure class="media-poster h-fit self-start mx-auto w-full max-w-xs lg:mx-0 lg:w-56">
-        {% if show.poster_url %}
-        <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="aspect-2/3 w-full rounded-box object-cover" loading="eager">
-        {% else %}
-        <div class="flex aspect-2/3 items-center justify-center rounded-box bg-base-200 text-base-content/30">
-          <i class="fa-solid fa-tv text-4xl" aria-hidden="true"></i>
-        </div>
-        {% endif %}
-      </figure>
+      <div class="media-poster-stack">
+        <figure class="media-poster h-fit self-start">
+          {% if show.poster_url %}
+          <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="aspect-2/3 w-full object-cover" loading="eager">
+          {% else %}
+          <div class="flex aspect-2/3 items-center justify-center bg-base-200 text-base-content/30">
+            <i class="fa-solid fa-tv text-4xl" aria-hidden="true"></i>
+          </div>
+          {% endif %}
+        </figure>
+        {% include "tv/fragments/actions.html" %}
+      </div>
 
       <div class="min-w-0 space-y-6">
         {% if show.normalized_status %}
         <div class="detail-eyebrow">
-          <span class="badge badge-outline">{{ show.normalized_status }}</span>
+          <span class="media-status {% if show.normalized_status == 'Ended' %}media-status--success{% elif show.normalized_status == 'Continuing' %}media-status--info{% else %}media-status--warning{% endif %}">
+            <i class="fa-solid {% if show.normalized_status == 'Ended' %}fa-circle-check{% elif show.normalized_status == 'Continuing' %}fa-circle-play{% else %}fa-calendar-days{% endif %}" aria-hidden="true"></i>
+            {{ show.normalized_status }}
+          </span>
         </div>
         {% endif %}
 
@@ -90,8 +96,6 @@
       </div>
     </div>
   </section>
-
-  {% include "tv/fragments/actions.html" %}
 
   {% if show.cast %}
   <section class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="show-cast-heading">

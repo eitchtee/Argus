@@ -38,6 +38,45 @@ class ShowDetailViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
+    def test_actions_are_attached_to_the_show_poster_in_a_card(self):
+        Show.objects.create(external_id="123", name="Foo")
+
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
+        content = response.content.decode()
+
+        poster_stack = content.index('<div class="media-poster-stack">')
+        actions_card = content.index(
+            '<div id="show-actions" class="media-poster-actions"'
+        )
+        details = content.index('<div class="min-w-0 space-y-6">')
+
+        self.assertLess(poster_stack, actions_card)
+        self.assertLess(actions_card, details)
+        self.assertContains(response, 'data-tippy-content="Track show"')
+        self.assertContains(response, 'class="join media-action-join join-horizontal"')
+        self.assertContains(
+            response,
+            'class="btn btn-sm join-item media-action-button btn-primary"',
+        )
+        self.assertNotContains(response, 'class="fab"')
+        self.assertNotContains(response, 'class="tooltip')
+        self.assertNotContains(response, "data-tip=")
+        self.assertNotContains(response, "btn-outline")
+        self.assertNotContains(response, "btn-circle")
+
+    def test_renders_status_badge_with_shared_status_styling(self):
+        Show.objects.create(
+            external_id="123",
+            name="Foo",
+            normalized_status=Show.NormalizedStatus.ENDED,
+        )
+
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, 'class="media-status media-status--success"')
+        self.assertContains(response, "Ended")
+        self.assertContains(response, "fa-circle-check")
+
     @patch("apps.tv.views._build_show_context")
     def test_boosted_page_shell_defers_show_context(self, build_show_context_mock):
         response = self.client.get(
@@ -110,6 +149,42 @@ class ShowDetailViewTests(TestCase):
             language="eng",
             provider="tvdb",
         )
+
+    @patch("apps.tv.views.get_show_episodes")
+    def test_preview_specials_follow_the_show_specials_user_setting(
+        self,
+        get_show_episodes_mock,
+    ):
+        get_show_episodes_mock.return_value = [
+            EpisodeDTO(
+                season_number=0,
+                episode_number=1,
+                name="Special episode",
+            ),
+            EpisodeDTO(
+                season_number=1,
+                episode_number=1,
+                name="Regular episode",
+            ),
+        ]
+
+        hidden_response = self.client.get(
+            "/tv/123/episodes/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertNotContains(hidden_response, "Special episode")
+        self.assertContains(hidden_response, "Regular episode")
+
+        self.user.settings.show_specials = True
+        self.user.settings.save(update_fields=["show_specials"])
+
+        shown_response = self.client.get(
+            "/tv/123/episodes/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(shown_response, "Special episode")
 
     def test_pending_episode_fragment_polls_until_metadata_import_finishes(self):
         Show.objects.create(
@@ -337,6 +412,46 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "Season 2")
         self.assertContains(response, "Tomorrow")
 
+    def test_specials_follow_the_show_specials_user_setting(self):
+        show = Show.objects.create(external_id="123", name="Foo")
+        specials = Season.objects.create(show=show, season_number=0, name="Specials")
+        regular_season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        Episode.objects.create(
+            show=show,
+            season=specials,
+            season_number=0,
+            episode_number=1,
+            name="Special episode",
+        )
+        Episode.objects.create(
+            show=show,
+            season=regular_season,
+            season_number=1,
+            episode_number=1,
+            name="Regular episode",
+        )
+
+        hidden_response = self.client.get(
+            "/tv/123/episodes/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertNotContains(hidden_response, "Specials")
+        self.assertNotContains(hidden_response, "Special episode")
+        self.assertContains(hidden_response, "Season 1")
+        self.assertContains(hidden_response, "Regular episode")
+
+        self.user.settings.show_specials = True
+        self.user.settings.save(update_fields=["show_specials"])
+
+        shown_response = self.client.get(
+            "/tv/123/episodes/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(shown_response, "Specials")
+        self.assertContains(shown_response, "Special episode")
+
     def test_cloaks_collapsed_season_content_until_alpine_initializes(self):
         show = Show.objects.create(external_id="123", name="Foo")
         season = Season.objects.create(show=show, season_number=1, name="Season 1")
@@ -456,7 +571,7 @@ class ShowDetailViewTests(TestCase):
         self.assertNotContains(response, 'aria-label="Track show"')
         self.assertRegex(
             response.content.decode(),
-            r'<div id="show-actions" class="fab">\s*<div class="tooltip',
+            r'<div id="show-actions" class="media-poster-actions"[^>]*>\s*<div class="join media-action-join join-horizontal">\s*<button',
         )
 
     def test_switch_action_uses_reverse_provider(self):
@@ -811,6 +926,9 @@ class SeasonWatchedViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "1/1")
+        self.assertContains(response, 'data-tippy-content="Mark season unwatched"')
+        self.assertNotContains(response, 'class="tooltip')
+        self.assertNotContains(response, "data-tip=")
         self.assertTrue(
             UserEpisode.objects.filter(user=self.user, episode=self.episode).exists()
         )
@@ -823,6 +941,9 @@ class SeasonWatchedViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-tippy-content="Mark season watched"')
+        self.assertNotContains(response, 'class="tooltip')
+        self.assertNotContains(response, "data-tip=")
         self.assertFalse(
             UserEpisode.objects.filter(user=self.user, episode=self.episode).exists()
         )

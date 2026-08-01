@@ -1,13 +1,15 @@
 {% load i18n %}
 {% trans "Mark unwatched" as mark_unwatched_label %}
 {% trans "Mark watched" as mark_watched_label %}
+{% trans "Episode actions" as episode_actions_label %}
 
-<div id="episode-watched-button" class="fab">
-  <div class="tooltip tooltip-left" data-tip="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}">
+<div id="episode-watched-button" class="media-poster-actions" role="group" aria-label="{{ episode_actions_label }}">
+  <div class="join media-action-join join-horizontal">
     <button type="button"
             aria-label="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
+            data-tippy-content="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
             aria-pressed="{{ watched|yesno:'true,false' }}"
-            class="btn btn-lg btn-circle btn-success"
+            class="btn btn-sm join-item media-action-button btn-success"
             hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'tv-episode-detail-watched' external_id=show_external_id episode_id=episode_id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
             hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this">
       <i class="fa-solid fa-{% if watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>

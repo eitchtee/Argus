@@ -69,6 +69,8 @@ class MovieDetailViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fight Club")
         self.assertContains(response, "Upcoming")
+        self.assertContains(response, 'class="media-status media-status--warning"')
+        self.assertContains(response, "fa-calendar-days")
         self.assertNotContains(response, "Completed")
         self.assertContains(response, "A movie about a fight club.")
         self.assertContains(response, 'aria-label="Add to watchlist"')
@@ -111,7 +113,7 @@ class MovieDetailViewTests(TestCase):
         self.assertNotContains(response, 'aria-label="Add to watchlist"')
         self.assertRegex(
             response.content.decode(),
-            r'<div id="movie-actions" class="fab">\s*<div class="tooltip',
+            r'<div id="movie-actions" class="media-poster-actions"[^>]*>\s*<div class="join media-action-join join-horizontal">\s*<button',
         )
 
     def test_switch_action_uses_reverse_provider(self):
@@ -420,25 +422,52 @@ class MovieWatchedViewTests(TestCase):
     },
     DJANGO_VITE_DEV_MODE=True,
 )
-class MovieFabViewTests(TestCase):
+class MovieActionCardViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
             "user@example.com", password="password"
         )
         self.client.login(username="user@example.com", password="password")
 
-    def test_untracked_movie_renders_single_fab_action(self):
+    def test_untracked_movie_renders_single_action_card_button(self):
         Movie.objects.create(external_id="550", title="Fight Club")
 
         response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'id="movie-actions"')
-        self.assertContains(response, 'class="fab"')
+        self.assertContains(response, 'class="media-poster-actions"')
         self.assertContains(response, 'aria-label="Add to watchlist"')
+        self.assertContains(response, 'class="join media-action-join join-horizontal"')
+        self.assertContains(
+            response,
+            'class="btn btn-sm join-item media-action-button btn-primary"',
+        )
+        self.assertContains(response, 'data-tippy-content="Add to watchlist"')
         self.assertNotContains(response, 'aria-label="Refresh metadata"')
-        self.assertNotContains(response, 'aria-label="Movie actions"')
+        self.assertContains(response, 'aria-label="Movie actions"')
 
-    def test_watchlisted_movie_renders_watch_menu(self):
+    def test_actions_are_attached_to_the_movie_poster_in_a_card(self):
+        Movie.objects.create(external_id="550", title="Fight Club")
+
+        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        content = response.content.decode()
+
+        poster_stack = content.index('<div class="media-poster-stack">')
+        actions_card = content.index(
+            '<div id="movie-actions" class="media-poster-actions"'
+        )
+        details = content.index('<div class="min-w-0 space-y-6">')
+
+        self.assertLess(poster_stack, actions_card)
+        self.assertLess(actions_card, details)
+        self.assertContains(response, 'data-tippy-content="Add to watchlist"')
+        self.assertNotContains(response, 'class="fab"')
+        self.assertNotContains(response, 'class="tooltip')
+        self.assertNotContains(response, "data-tip=")
+        self.assertNotContains(response, "btn-outline")
+        self.assertNotContains(response, "btn-circle")
+
+    def test_watchlisted_movie_renders_action_card(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
 
@@ -452,7 +481,7 @@ class MovieFabViewTests(TestCase):
         self.assertContains(response, 'hx-swap="none"')
         self.assertNotContains(response, 'aria-label="Add to watchlist"')
 
-    def test_watched_movie_renders_watched_menu(self):
+    def test_watched_movie_renders_action_card(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
 

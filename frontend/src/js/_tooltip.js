@@ -6,6 +6,8 @@ function initiateTooltips() {
     delegate(document.body, {
         target: '[data-tippy-content]',
         theme: "wygiwyh",
+        placement: 'top',
+        appendTo: () => document.body,
         zIndex: 1089,
         content(reference) {
             return reference.getAttribute('data-tippy-content');

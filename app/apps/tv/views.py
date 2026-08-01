@@ -660,6 +660,7 @@ def _build_show_context(user, external_id, provider="tvdb"):
 
 def _build_show_episodes_context(user, external_id, provider="tvdb"):
     language = metadata_language_for_user(user, provider)
+    show_specials = user.settings.show_specials
     show = Show.objects.filter(provider=provider, external_id=external_id).first()
 
     if show is not None:
@@ -673,6 +674,9 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
                 "episode_id", flat=True
             )
         )
+        season_queryset = Season.objects.filter(show=show, episodes__isnull=False)
+        if not show_specials:
+            season_queryset = season_queryset.filter(season_number__gt=0)
         seasons = [
             _season_context(
                 season,
@@ -681,11 +685,7 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
                 tracked,
                 language,
             )
-            for season in (
-                Season.objects.filter(show=show, episodes__isnull=False)
-                .distinct()
-                .order_by("season_number")
-            )
+            for season in season_queryset.distinct().order_by("season_number")
         ]
     else:
         episodes = get_show_episodes(
@@ -693,7 +693,12 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
             language=language,
             provider=provider,
         )
-        seasons = _preview_seasons(episodes, language, PROVIDER_DEFAULT_LANGUAGES[provider])
+        seasons = _preview_seasons(
+            episodes,
+            language,
+            PROVIDER_DEFAULT_LANGUAGES[provider],
+            show_specials=show_specials,
+        )
         tracked = False
 
     return {
@@ -902,13 +907,15 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
     }
 
 
-def _preview_seasons(episodes, language, default_language):
+def _preview_seasons(episodes, language, default_language, *, show_specials=False):
     episodes_by_season: dict[int, list] = {}
     for episode in episodes:
         episodes_by_season.setdefault(episode.season_number, []).append(episode)
 
     seasons = []
     for season_number in sorted(episodes_by_season):
+        if season_number == 0 and not show_specials:
+            continue
         episode_rows = []
         aired_count = 0
         season_episodes = sorted(

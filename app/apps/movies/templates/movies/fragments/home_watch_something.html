@@ -1,9 +1,9 @@
 {% load i18n %}
 {% if movies %}
-<div class="flex gap-4 overflow-x-auto pb-2">
+<div class="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-6 lg:overflow-visible">
   {% for movie in movies %}
-  <div class="w-[20%] md:w-[40%] lg:w-[10%] shrink-0">
-    <c-movies.movie-poster :movie="movie" show_release_date="true" />
+  <div class="w-[20%] shrink-0 md:w-[40%] lg:min-w-0 lg:w-auto">
+    <c-movies.movie-poster :movie="movie" />
   </div>
   {% endfor %}
 </div>

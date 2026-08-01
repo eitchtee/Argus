@@ -1,22 +1,21 @@
-{% load dates i18n %}
-
 <a href="{% url 'movie-detail' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML"
    data-name="{{ movie.title }}"
-   class="group card overflow-hidden border border-base-300 bg-base-200/60 transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
-  <figure class="aspect-[2/3] overflow-hidden bg-base-300">
+   class="poster-card">
+  <figure class="poster-card__figure">
     {% if movie.poster_url %}
     <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" loading="lazy"
-         class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
+         class="poster-card__image">
     {% else %}
-    <div class="flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
+    <div class="poster-card__fallback flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
       <i class="fa-solid fa-film text-4xl"></i>
     </div>
     {% endif %}
+    <div class="poster-card__gradient" aria-hidden="true"></div>
+    <div class="poster-card__copy">
+      <h2 class="poster-card__title" title="{{ movie.title }}">{{ movie.title }}</h2>
+      {% if movie.release_date %}
+      <div class="poster-card__year tabular-nums">{{ movie.release_date.year }}</div>
+      {% endif %}
+    </div>
   </figure>
-  <div class="card-body p-3">
-    <h2 class="truncate text-sm font-semibold" title="{{ movie.title }}">{{ movie.title }}</h2>
-    {% if show_release_date %}
-    <div class="mt-1 text-xs text-subtle">{% if movie.release_date %}{% user_date movie.release_date %}{% else %}{% trans "TBA" %}{% endif %}</div>
-    {% endif %}
-  </div>
 </a>

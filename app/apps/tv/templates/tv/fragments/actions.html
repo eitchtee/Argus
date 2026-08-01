@@ -17,63 +17,54 @@
   {% trans "Mark show watched" as show_watched_label %}
 {% endif %}
 
-<div id="show-actions" class="fab">
+<div id="show-actions" class="media-poster-actions" role="group" aria-label="{{ show_actions_label }}">
+  <div class="join media-action-join join-horizontal">
   {% if show.tracked_on_other_provider %}
-  <div class="tooltip tooltip-left" data-tip="{{ switch_to_label }} {{ show.provider|upper }}">
     <button type="button" aria-label="{{ switch_to_label }} {{ show.provider|upper }}"
-            class="btn btn-lg btn-circle btn-primary"
+            data-tippy-content="{{ switch_to_label }} {{ show.provider|upper }}"
+            class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'tv-detail-switch' external_id=show.external_id %}?provider={{ show.provider }}&from_provider={{ show.tracked_provider }}&from_external_id={{ show.tracked_external_id }}{% if show.imdb_id %}&target_imdb_id={{ show.imdb_id }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-right-left" aria-hidden="true"></i>
       <span class="sr-only">{% trans "Tracked on another provider" %}</span>
     </button>
-  </div>
   {% elif not show.tracking_status %}
-  <div class="tooltip tooltip-left" data-tip="{{ track_show_label }}">
     <button type="button" aria-label="{{ track_show_label }}"
-            class="btn btn-lg btn-circle btn-primary"
+            data-tippy-content="{{ track_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
     </button>
-  </div>
   {% else %}
-  <button type="button" tabindex="0" role="button" aria-haspopup="true"
-          aria-label="{{ show_actions_label }}" class="btn btn-lg btn-circle btn-primary">
-    <i class="fa-solid fa-bars" aria-hidden="true"></i>
-  </button>
-
     {% if show.tracking_status %}
-  <div class="tooltip tooltip-left" data-tip="{{ refresh_metadata_label }}">
     <button type="button" aria-label="{{ refresh_metadata_label }}"
-            class="btn btn-lg btn-circle btn-info btn-outline"
+            data-tippy-content="{{ refresh_metadata_label }}"
+            class="btn btn-sm join-item media-action-button btn-info"
             hx-post="{% url 'tv-detail-refresh' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-swap="none" hx-disabled-elt="this">
       <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
     </button>
-  </div>
     {% endif %}
 
     {% if show.tracking_status == "tracked" %}
-  <div class="tooltip tooltip-left" data-tip="{{ pause_show_label }}">
     <button type="button" aria-label="{{ pause_show_label }}"
-            class="btn btn-lg btn-circle btn-warning btn-outline"
+            data-tippy-content="{{ pause_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-warning"
             hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-pause" aria-hidden="true"></i>
     </button>
-  </div>
-  <div class="tooltip tooltip-left" data-tip="{{ drop_show_label }}">
     <button type="button" aria-label="{{ drop_show_label }}"
-            class="btn btn-lg btn-circle btn-warning btn-outline"
+            data-tippy-content="{{ drop_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-warning"
             hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
     </button>
-  </div>
-  <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
     <button type="button" aria-label="{{ delete_show_label }}"
-            class="btn btn-lg btn-circle btn-error"
+            data-tippy-content="{{ delete_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-error"
             hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-trigger="confirmed" hx-disabled-elt="this"
             _="on click
@@ -90,37 +81,33 @@
                   trigger confirmed">
       <i class="fa-solid fa-trash" aria-hidden="true"></i>
     </button>
-  </div>
       {% if show.tracked and show.has_episodes %}
-  <div class="tooltip tooltip-left" data-tip="{{ show_watched_label }}">
     <button type="button" aria-label="{{ show_watched_label }}"
-            class="btn btn-lg btn-circle btn-success"
+            data-tippy-content="{{ show_watched_label }}"
+            class="btn btn-sm join-item media-action-button btn-success"
             hx-{% if show.show_fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-watched' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-{% if show.show_fully_watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
     </button>
-  </div>
       {% endif %}
     {% elif show.tracking_status == "paused" %}
-  <div class="tooltip tooltip-left" data-tip="{{ resume_show_label }}">
     <button type="button" aria-label="{{ resume_show_label }}"
-            class="btn btn-lg btn-circle btn-primary"
+            data-tippy-content="{{ resume_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-play" aria-hidden="true"></i>
     </button>
-  </div>
-  <div class="tooltip tooltip-left" data-tip="{{ drop_show_label }}">
     <button type="button" aria-label="{{ drop_show_label }}"
-            class="btn btn-lg btn-circle btn-warning btn-outline"
+            data-tippy-content="{{ drop_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-warning"
             hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
     </button>
-  </div>
-  <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
     <button type="button" aria-label="{{ delete_show_label }}"
-            class="btn btn-lg btn-circle btn-error"
+            data-tippy-content="{{ delete_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-error"
             hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-trigger="confirmed" hx-disabled-elt="this"
             _="on click
@@ -137,27 +124,24 @@
                   trigger confirmed">
       <i class="fa-solid fa-trash" aria-hidden="true"></i>
     </button>
-  </div>
     {% else %}
-  <div class="tooltip tooltip-left" data-tip="{{ resume_show_label }}">
     <button type="button" aria-label="{{ resume_show_label }}"
-            class="btn btn-lg btn-circle btn-primary"
+            data-tippy-content="{{ resume_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-play" aria-hidden="true"></i>
     </button>
-  </div>
-  <div class="tooltip tooltip-left" data-tip="{{ pause_show_label }}">
     <button type="button" aria-label="{{ pause_show_label }}"
-            class="btn btn-lg btn-circle btn-warning btn-outline"
+            data-tippy-content="{{ pause_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-warning"
             hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-pause" aria-hidden="true"></i>
     </button>
-  </div>
-  <div class="tooltip tooltip-left" data-tip="{{ delete_show_label }}">
     <button type="button" aria-label="{{ delete_show_label }}"
-            class="btn btn-lg btn-circle btn-error"
+            data-tippy-content="{{ delete_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-error"
             hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-trigger="confirmed" hx-disabled-elt="this"
             _="on click
@@ -174,7 +158,7 @@
                   trigger confirmed">
       <i class="fa-solid fa-trash" aria-hidden="true"></i>
     </button>
-  </div>
     {% endif %}
   {% endif %}
+  </div>
 </div>

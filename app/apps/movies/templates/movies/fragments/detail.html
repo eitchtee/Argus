@@ -7,20 +7,26 @@
     <div class="absolute inset-0 bg-base-100/85"></div>
     {% endif %}
     <div class="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[14rem_minmax(0,1fr)] lg:p-9">
-      <figure class="media-poster h-fit self-start mx-auto w-full max-w-xs lg:mx-0 lg:w-56">
-        {% if movie.poster_url %}
-        <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="aspect-[2/3] w-full rounded-box object-cover" loading="eager">
-        {% else %}
-        <div class="flex aspect-[2/3] items-center justify-center rounded-box bg-base-200 text-base-content/30">
-          <i class="fa-solid fa-film text-4xl" aria-hidden="true"></i>
-        </div>
-        {% endif %}
-      </figure>
+      <div class="media-poster-stack">
+        <figure class="media-poster h-fit self-start">
+          {% if movie.poster_url %}
+          <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="aspect-[2/3] w-full object-cover" loading="eager">
+          {% else %}
+          <div class="flex aspect-[2/3] items-center justify-center bg-base-200 text-base-content/30">
+            <i class="fa-solid fa-film text-4xl" aria-hidden="true"></i>
+          </div>
+          {% endif %}
+        </figure>
+        {% include "movies/fragments/actions.html" %}
+      </div>
 
       <div class="min-w-0 space-y-6">
         {% if movie.normalized_status %}
         <div class="detail-eyebrow">
-          <span class="badge badge-outline">{{ movie.normalized_status }}</span>
+          <span class="media-status {% if movie.normalized_status == 'Released' %}media-status--success{% elif movie.normalized_status == 'Canceled' %}media-status--error{% elif movie.normalized_status == 'Upcoming' %}media-status--warning{% else %}media-status--neutral{% endif %}">
+            <i class="fa-solid {% if movie.normalized_status == 'Released' %}fa-circle-check{% elif movie.normalized_status == 'Canceled' %}fa-circle-xmark{% elif movie.normalized_status == 'Upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
+            {{ movie.normalized_status }}
+          </span>
         </div>
         {% endif %}
 
@@ -83,8 +89,6 @@
       </div>
     </div>
   </section>
-
-  {% include "movies/fragments/actions.html" %}
 
   {% if movie.cast %}
   <section class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="movie-cast-heading">

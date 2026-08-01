@@ -209,6 +209,95 @@
         @apply border border-base-300 bg-base-100 shadow-sm transition duration-200 hover:border-primary/50 hover:shadow-md;
     }
 
+    .poster-card {
+        @apply card overflow-hidden border border-base-300 bg-base-200/60;
+        transition: border-color 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .poster-card:hover,
+    .poster-card:focus-visible {
+        @apply border-primary/50 shadow-lg;
+    }
+
+    .poster-card:focus-visible {
+        @apply outline outline-2 outline-offset-2 outline-primary;
+    }
+
+    .poster-card__figure {
+        @apply relative aspect-[2/3] overflow-hidden bg-base-300;
+    }
+
+    .poster-card__image {
+        @apply h-full w-full object-cover;
+    }
+
+    .poster-card__gradient {
+        @apply pointer-events-none absolute inset-x-0 bottom-0 z-[1];
+        height: 4.75rem;
+        background: linear-gradient(to top, rgb(0 0 0 / 0.9), rgb(0 0 0 / 0.52) 62%, transparent);
+        transition: height 220ms cubic-bezier(0.22, 1, 0.36, 1), background 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .poster-card__figure:hover .poster-card__gradient,
+    .poster-card:focus-visible .poster-card__gradient {
+        height: 9rem;
+        background: linear-gradient(to top, rgb(0 0 0 / 0.93), rgb(0 0 0 / 0.65) 58%, rgb(0 0 0 / 0.12) 88%, transparent);
+    }
+
+    .poster-card__copy {
+        @apply pointer-events-none absolute inset-x-0 bottom-0 z-[2] p-3 text-left;
+    }
+
+    .poster-card__title {
+        @apply m-0 block w-full overflow-hidden text-sm font-semibold leading-5 text-white drop-shadow-md;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 1;
+        max-height: 1.25rem;
+        overflow-wrap: anywhere;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        transition: max-height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .poster-card__figure:hover .poster-card__title,
+    .poster-card:focus-visible .poster-card__title {
+        display: block;
+        -webkit-line-clamp: unset;
+        max-height: 10rem;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    .poster-card__progress-meta {
+        @apply mt-1 flex items-center gap-2 text-white drop-shadow-md;
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transition: max-height 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
+    }
+
+    .poster-card__figure:hover .poster-card__progress-meta,
+    .poster-card:focus-visible .poster-card__progress-meta {
+        max-height: 1.25rem;
+        opacity: 1;
+    }
+
+    .poster-card__year {
+        @apply mt-1 block text-xs font-medium text-white/75 drop-shadow-md;
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transition: max-height 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
+    }
+
+    .poster-card__figure:hover .poster-card__year,
+    .poster-card:focus-visible .poster-card__year {
+        max-height: 1.25rem;
+        opacity: 1;
+    }
+
     .upcoming-episode-group.has-additional > .upcoming-episode-group-main.media-card {
         border-bottom-left-radius: 0;
         border-bottom-right-radius: 0;
@@ -247,6 +336,48 @@
 
     .media-poster {
         @apply self-start overflow-hidden rounded-box border border-base-300 bg-base-200 shadow-lg;
+    }
+
+    .media-poster-stack {
+        @apply mx-auto h-fit w-full max-w-xs self-start overflow-hidden rounded-box border border-base-300 bg-base-200 shadow-lg lg:mx-0 lg:w-56;
+    }
+
+    .media-poster-stack .media-poster {
+        @apply h-fit w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none;
+    }
+
+    .media-poster-stack .media-poster img,
+    .media-poster-stack .media-poster > div {
+        @apply block w-full rounded-none;
+    }
+
+    .episode-media-stack {
+        @apply h-fit overflow-hidden rounded-box border border-base-300 bg-base-200 shadow-lg;
+    }
+
+    .episode-media-stack .episode-media {
+        @apply h-fit w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none;
+    }
+
+    .episode-media-stack .episode-media img,
+    .episode-media-stack .episode-media > div {
+        @apply block w-full rounded-none;
+    }
+
+    .media-poster-actions {
+        @apply flex flex-wrap items-center justify-center gap-2 border-t border-base-300 bg-base-200 p-3;
+    }
+
+    .media-action-button {
+        transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .media-action-button:active {
+        transform: scale(0.96);
+    }
+
+    .media-action-button:focus-visible {
+        @apply outline outline-2 outline-offset-2 outline-primary;
     }
 
     .detail-eyebrow {
@@ -329,6 +460,12 @@
         transform: translateY(-1px);
     }
 
+    .detail-link:disabled,
+    .detail-link:disabled:hover {
+        @apply cursor-not-allowed border-base-300 bg-base-200 text-base-content/35;
+        transform: none;
+    }
+
     .detail-link:active {
         transform: scale(0.96);
     }
@@ -407,20 +544,33 @@
         @apply rounded-box bg-base-200/45;
     }
 
+    .media-status,
     .episode-status {
         @apply inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] whitespace-nowrap;
     }
 
+    .media-status--success,
     .episode-status--aired {
-        @apply bg-success/12 text-success;
+        @apply bg-success text-success-content;
     }
 
+    .media-status--warning,
+    .episode-status--finale {
+        @apply bg-warning text-warning-content;
+    }
+
+    .media-status--info,
     .episode-status--upcoming {
-        @apply bg-info/12 text-info;
+        @apply bg-info text-info-content;
     }
 
+    .media-status--neutral,
     .episode-status--tba {
-        @apply bg-base-200 text-base-content/65;
+        @apply bg-base-200 text-base-content;
+    }
+
+    .media-status--error {
+        @apply bg-error text-error-content;
     }
 
     .episodes-loading {
@@ -474,12 +624,19 @@
 
 @media (prefers-reduced-motion: reduce) {
     .detail-link,
-    .provider-logo {
+    .provider-logo,
+    .media-action-button,
+    .poster-card,
+    .poster-card__gradient,
+    .poster-card__title,
+    .poster-card__progress-meta,
+    .poster-card__year {
         transition-duration: 0.01ms;
     }
 
     .detail-link:hover,
-    .detail-link:active {
+    .detail-link:active,
+    .media-action-button:active {
         transform: none;
     }
 

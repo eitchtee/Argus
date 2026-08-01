@@ -3,33 +3,46 @@
 <div class="media-detail space-y-6">
   <nav class="surface-card flex items-center justify-between gap-3 rounded-box p-3 sm:p-4" aria-label="{% trans 'Episode navigation' %}">
     {% if previous_episode %}
-    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=previous_episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" hx-boost="true" class="detail-link">
+    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=previous_episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" hx-boost="true" class="detail-link" aria-label="{% trans 'Previous' %}">
       <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span class="hidden sm:inline">{% trans "Previous" %}</span>
     </a>
     {% else %}
-    <span></span>
+    <button type="button" class="detail-link" disabled aria-label="{% trans 'Previous' %}">
+      <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span class="hidden sm:inline">{% trans "Previous" %}</span>
+    </button>
     {% endif %}
     <a href="{% url 'tv-detail' external_id=show.external_id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" hx-boost="true" class="max-w-[50%] truncate text-center text-sm font-semibold link link-hover">{{ show.name }}</a>
     {% if next_episode %}
-    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=next_episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" hx-boost="true" class="detail-link">
+    <a href="{% url 'tv-episode-detail' external_id=show.external_id episode_id=next_episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" hx-boost="true" class="detail-link" aria-label="{% trans 'Next' %}">
       <span class="hidden sm:inline">{% trans "Next" %}</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
     </a>
     {% else %}
-    <span></span>
+    <button type="button" class="detail-link" disabled aria-label="{% trans 'Next' %}">
+      <span class="hidden sm:inline">{% trans "Next" %}</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+    </button>
     {% endif %}
   </nav>
 
-  <section class="surface-card overflow-hidden rounded-box">
-    <div class="grid gap-7 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:p-9">
-      <figure class="overflow-hidden rounded-box border border-base-300 bg-base-200">
-        {% if episode.still_path %}
-        <img src="{{ episode.still_path }}" alt="{{ episode.name }}" class="aspect-video w-full object-cover" loading="eager">
-        {% else %}
-        <div class="flex aspect-video items-center justify-center text-base-content/30">
-          <i class="fa-solid fa-image text-4xl" aria-hidden="true"></i>
-        </div>
+  <section class="media-hero">
+    {% if show.backdrop_url %}
+    <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('{{ show.backdrop_url }}');"></div>
+    <div class="absolute inset-0 bg-base-100/85"></div>
+    {% endif %}
+    <div class="relative grid gap-7 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:p-9">
+      <div class="episode-media-stack">
+        <figure class="episode-media overflow-hidden rounded-box border border-base-300 bg-base-200">
+          {% if episode.still_path %}
+          <img src="{{ episode.still_path }}" alt="{{ episode.name }}" class="aspect-video w-full object-cover" loading="eager">
+          {% else %}
+          <div class="flex aspect-video items-center justify-center text-base-content/30">
+            <i class="fa-solid fa-image text-4xl" aria-hidden="true"></i>
+          </div>
+          {% endif %}
+        </figure>
+        {% if tracked %}
+        {% include "tv/fragments/episode_detail_watched_button.html" with tracked=tracked watched=watched show_external_id=show.external_id show_provider=show_provider episode_id=episode.id %}
         {% endif %}
-      </figure>
+      </div>
 
       <div class="min-w-0 space-y-6">
         <div class="detail-eyebrow">
@@ -37,7 +50,12 @@
             <i class="fa-solid {% if episode.air_status == 'aired' %}fa-circle-check{% elif episode.air_status == 'upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
             {% if episode.air_status == "aired" %}{% trans "Aired" %}{% elif episode.air_status == "upcoming" %}{% trans "Upcoming" %}{% else %}{% trans "TBA" %}{% endif %}
           </span>
-          {% if episode.finale_type %}<span class="badge badge-warning">{{ episode.get_finale_type_display }} {% trans "Finale" %}</span>{% endif %}
+          {% if episode.finale_type %}
+          <span class="episode-status episode-status--finale">
+            <i class="fa-solid fa-flag-checkered" aria-hidden="true"></i>
+            {% if episode.finale_type == "series" %}{% trans "Series Finale" %}{% else %}{% trans "Season Finale" %}{% endif %}
+          </span>
+          {% endif %}
         </div>
 
         <div class="space-y-3">
@@ -75,10 +93,6 @@
       </div>
     </div>
   </section>
-
-  {% if tracked %}
-  {% include "tv/fragments/episode_detail_watched_button.html" with tracked=tracked watched=watched show_external_id=show.external_id show_provider=show_provider episode_id=episode.id %}
-  {% endif %}
 
   {% include "catalog/fragments/provider_source.html" with provider=show_provider %}
 </div>

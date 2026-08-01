@@ -34,7 +34,15 @@ class EpisodeDetailWatchedViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Mark unwatched")
-        self.assertContains(response, 'class="fab"')
+        self.assertContains(response, 'class="media-poster-actions"')
+        self.assertContains(response, 'class="join media-action-join join-horizontal"')
+        self.assertContains(
+            response,
+            'class="btn btn-sm join-item media-action-button btn-success"',
+        )
+        self.assertContains(response, 'data-tippy-content="Mark unwatched"')
+        self.assertNotContains(response, 'class="tooltip')
+        self.assertNotContains(response, "data-tip=")
         self.assertContains(response, "fa-eye-slash")
         self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=self.episode).exists())
 
@@ -47,7 +55,15 @@ class EpisodeDetailWatchedViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Mark watched")
-        self.assertContains(response, 'class="fab"')
+        self.assertContains(response, 'class="media-poster-actions"')
+        self.assertContains(response, 'class="join media-action-join join-horizontal"')
+        self.assertContains(
+            response,
+            'class="btn btn-sm join-item media-action-button btn-success"',
+        )
+        self.assertContains(response, 'data-tippy-content="Mark watched"')
+        self.assertNotContains(response, 'class="tooltip')
+        self.assertNotContains(response, "data-tip=")
         self.assertContains(response, "fa-eye")
         self.assertFalse(UserEpisode.objects.filter(user=self.user, episode=self.episode).exists())
 
