@@ -50,6 +50,26 @@ class TraktExportParserTests(SimpleTestCase):
         self.assertEqual(snapshot.watchlist_shows[0]["type"], "show")
         self.assertEqual(snapshot.watched_shows, [])
 
+    def test_load_trakt_export_includes_hidden_progress_shows_as_dropped(self):
+        hidden_shows = [
+            {
+                "hidden_at": "2024-09-04T23:30:35Z",
+                "type": "show",
+                "show": {"ids": {"trakt": 204068}},
+            }
+        ]
+
+        snapshot = load_trakt_export(
+            archive_with(
+                **{
+                    "hidden-progress-watched.json": hidden_shows,
+                    "watched-shows.json": [],
+                }
+            )
+        )
+
+        self.assertEqual(snapshot.dropped_shows, hidden_shows)
+
     def test_load_trakt_export_rejects_an_archive_without_supported_data(self):
         stream = archive_with(**{"ratings-movies-1.json": []})
 
@@ -149,6 +169,29 @@ class TraktExportImportTests(TestCase):
         self.assertEqual(report.episodes_marked, 1)
         self.assertFalse(UserMovie.objects.filter(user=self.other_user).exists())
         self.assertFalse(UserShow.objects.filter(user=self.other_user).exists())
+
+    def test_import_marks_hidden_progress_shows_as_dropped(self):
+        stream = archive_with(
+            **{
+                "hidden-progress-watched.json": [
+                    {
+                        "hidden_at": "2024-09-04T23:30:35Z",
+                        "type": "show",
+                        "show": {
+                            "title": "Watched Show",
+                            "ids": {"trakt": 3},
+                        },
+                    }
+                ],
+                "watched-shows.json": [],
+            }
+        )
+
+        import_trakt_export(self.user, stream)
+
+        show_state = UserShow.objects.get(user=self.user, show=self.show)
+        self.assertEqual(show_state.status, UserShow.Status.DROPPED)
+        self.assertFalse(show_state.on_watchlist)
 
     @patch("apps.trakt.sync._apply_remote_shows", side_effect=RuntimeError("broken"))
     def test_import_rolls_back_partial_state_when_reconciliation_fails(

@@ -50,6 +50,7 @@ def load_trakt_export(stream) -> TraktSnapshot:
         watched_movies = _read_split_arrays(archive, members["watched_movies"])
         watched_history = _read_split_arrays(archive, members["watched_history"])
         watched_shows = _read_array(archive, "watched-shows.json")
+        dropped_shows = _read_array(archive, "hidden-progress-watched.json")
         watchlist = _read_array(archive, "lists-watchlist.json")
 
     watchlist_movies = []
@@ -68,7 +69,7 @@ def load_trakt_export(stream) -> TraktSnapshot:
         watchlist_shows=watchlist_shows,
         watched_movies=watched_movies,
         watched_shows=[item for item in watched_shows if isinstance(item, dict)],
-        dropped_shows=[],
+        dropped_shows=[item for item in dropped_shows if isinstance(item, dict)],
         watched_episodes=[item for item in watched_history if isinstance(item, dict)],
     )
 
@@ -132,7 +133,13 @@ def _ensure_supported_data(
         for info in archive.infolist()
         if PurePosixPath(info.filename).name == info.filename
     }
-    if root_names.isdisjoint({"watched-shows.json", "lists-watchlist.json"}):
+    if root_names.isdisjoint(
+        {
+            "hidden-progress-watched.json",
+            "watched-shows.json",
+            "lists-watchlist.json",
+        }
+    ):
         raise TraktExportError("The ZIP does not contain supported Trakt export data.")
 
 
