@@ -367,15 +367,27 @@ class TVDBProvider(BaseProvider):
     def _translations_from_data(self, data: dict) -> dict[str, dict[str, str]]:
         translations: dict[str, dict[str, str]] = {}
 
-        def add_translation(language: str | None, **values: str | None) -> None:
+        def add_translation(
+            language: str | None,
+            *,
+            primary: bool = False,
+            **values: str | None,
+        ) -> None:
             if not language:
                 return
             translated = self._non_empty_values(**values)
-            if translated:
-                translations.setdefault(language, {}).update(translated)
+            if not translated:
+                return
+            current = translations.setdefault(language, {})
+            if primary:
+                current.update(translated)
+            else:
+                for key, value in translated.items():
+                    current.setdefault(key, value)
 
         add_translation(
             "eng",
+            primary=True,
             title=data.get("name"),
             overview=data.get("overview"),
             tagline=data.get("tagline"),
@@ -384,12 +396,14 @@ class TVDBProvider(BaseProvider):
         for item in translation_data.get("nameTranslations", []):
             add_translation(
                 item.get("language"),
+                primary=item.get("isPrimary") is True,
                 title=item.get("name"),
                 tagline=item.get("tagline"),
             )
         for item in translation_data.get("overviewTranslations", []):
             add_translation(
                 item.get("language"),
+                primary=item.get("isPrimary") is True,
                 overview=item.get("overview"),
                 tagline=item.get("tagline"),
             )

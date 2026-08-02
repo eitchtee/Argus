@@ -525,6 +525,24 @@ class TVDBProviderTests(SimpleTestCase):
         )
         self.assertIn("meta=translations", opener.requests[0][0].full_url)
 
+    def test_fetch_detail_keeps_primary_english_name_when_alias_shares_language(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_series_extended.json")
+        payload["data"]["name"] = "Friends"
+        payload["data"]["translations"] = {
+            "nameTranslations": [
+                {"language": "eng", "name": "Friends", "isPrimary": True},
+                {"language": "eng", "name": "Six of One"},
+            ]
+        }
+        opener = SequenceOpener([payload])
+        provider = TVDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("79168", language="eng")
+
+        self.assertEqual(detail.title, "Friends")
+        self.assertEqual(detail.translations["eng"]["title"], "Friends")
+
     def test_fetch_detail_merges_requested_series_translation(self):
         cache.set("catalog:tvdb:token", "existing-token")
         opener = SequenceOpener(
