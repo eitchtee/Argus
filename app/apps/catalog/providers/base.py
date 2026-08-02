@@ -34,6 +34,18 @@ class CastMemberDTO:
 
 
 @dataclass(frozen=True)
+class ArtworkDTO:
+    kind: str
+    image_url: str
+    language: str | None = None
+    width: int | None = None
+    height: int | None = None
+    score: float | None = None
+    remote_id: str | None = None
+    is_default: bool = False
+
+
+@dataclass(frozen=True)
 class DetailDTO:
     provider: str
     external_id: str
@@ -43,6 +55,7 @@ class DetailDTO:
     tagline: str = ""
     poster_path: str | None = None
     backdrop_path: str | None = None
+    artworks: list[ArtworkDTO] | None = None
     release_date: str | None = None
     runtime: int | None = None
     status: str = ""

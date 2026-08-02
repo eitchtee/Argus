@@ -70,6 +70,10 @@ class TVTranslationTaskTests(TransactionTestCase):
             [call.kwargs["language"] for call in import_show.call_args_list],
             ["eng", "por"],
         )
+        self.assertEqual(
+            [call.kwargs["sync_artworks"] for call in import_show.call_args_list],
+            [True, False],
+        )
         provider.fetch_detail.assert_called_once_with(
             "123",
             language="eng",

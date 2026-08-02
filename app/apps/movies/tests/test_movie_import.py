@@ -1,7 +1,9 @@
+from unittest.mock import Mock
+
 from django.test import TestCase
 
-from apps.catalog.models import Genre, SyncStatus
-from apps.catalog.providers.base import CastMemberDTO, DetailDTO, GenreDTO
+from apps.catalog.models import Genre, MediaArtwork, SyncStatus
+from apps.catalog.providers.base import ArtworkDTO, CastMemberDTO, DetailDTO, GenreDTO
 from apps.catalog.providers.exceptions import ProviderError
 from apps.movies.models import Movie
 from apps.movies.services import import_movie
@@ -71,6 +73,106 @@ class MovieImportTests(TestCase):
 
         self.assertEqual(movie.title, "Fight Club")
         self.assertEqual(movie.translations["en-US"]["title"], "Fight Club")
+
+    def test_import_movie_preserves_legacy_artwork_on_incomplete_response(self):
+        Movie.objects.create(
+            external_id="550",
+            title="Fight Club",
+            poster_path="/old-poster.jpg",
+            backdrop_path="/old-background.jpg",
+        )
+        provider = FakeProvider(
+            movie_detail(
+                poster_path="/new-poster.jpg",
+                backdrop_path="/new-background.jpg",
+                artworks=None,
+            )
+        )
+
+        imported = import_movie(
+            "tmdb",
+            "550",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(imported.poster_path, "/old-poster.jpg")
+        self.assertEqual(imported.backdrop_path, "/old-background.jpg")
+
+    def test_import_movie_seeds_legacy_artwork_on_incomplete_response(self):
+        provider = FakeProvider(movie_detail(artworks=None))
+
+        import_movie(
+            "tmdb",
+            "550",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(
+            set(
+                MediaArtwork.objects.values_list("kind", "is_default")
+            ),
+            {
+                (MediaArtwork.Kind.POSTER, True),
+                (MediaArtwork.Kind.BACKGROUND, True),
+            },
+        )
+
+    def test_non_default_import_seeds_provider_default_artwork(self):
+        provider = Mock()
+        provider.fetch_detail.side_effect = [
+            movie_detail(
+                title="Clube da Luta",
+                poster_path="/localized-poster.jpg",
+                backdrop_path="/localized-background.jpg",
+                artworks=[
+                    ArtworkDTO(
+                        kind="poster",
+                        image_url="https://image.tmdb.org/t/p/original/localized-poster.jpg",
+                        language="pt",
+                    )
+                ],
+            ),
+            movie_detail(
+                poster_path="/default-poster.jpg",
+                backdrop_path="/default-background.jpg",
+                artworks=[
+                    ArtworkDTO(
+                        kind="poster",
+                        image_url="https://image.tmdb.org/t/p/original/default-poster.jpg",
+                        language="en",
+                        is_default=True,
+                    ),
+                    ArtworkDTO(
+                        kind="background",
+                        image_url="https://image.tmdb.org/t/p/original/default-background.jpg",
+                        is_default=True,
+                    ),
+                ],
+            ),
+        ]
+
+        imported = import_movie(
+            "tmdb",
+            "550",
+            language="pt-BR",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(imported.poster_path, "/default-poster.jpg")
+        self.assertTrue(
+            MediaArtwork.objects.filter(
+                provider="tmdb",
+                media_type="movie",
+                external_id="550",
+                kind="poster",
+                image_url="https://image.tmdb.org/t/p/original/default-poster.jpg",
+                is_default=True,
+            ).exists()
+        )
+        self.assertEqual(
+            [call.kwargs["language"] for call in provider.fetch_detail.call_args_list],
+            ["pt-BR", "en-US"],
+        )
 
     def test_import_movie_merges_movie_and_genre_translations(self):
         provider = FakeProvider(

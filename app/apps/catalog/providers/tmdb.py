@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -6,6 +7,7 @@ from urllib.request import Request, urlopen
 from django.conf import settings
 
 from apps.catalog.providers.base import (
+    ArtworkDTO,
     BaseProvider,
     CastMemberDTO,
     DetailDTO,
@@ -16,6 +18,23 @@ from apps.catalog.providers.base import (
     SeasonDTO,
 )
 from apps.catalog.providers.exceptions import AuthError, NotFound, ProviderError, RateLimited
+
+
+def _merge_artwork(artworks_by_key: dict[tuple[str, str], ArtworkDTO], artwork: ArtworkDTO):
+    key = (artwork.kind, artwork.image_url)
+    previous = artworks_by_key.get(key)
+    if previous is None:
+        artworks_by_key[key] = artwork
+        return
+    artworks_by_key[key] = replace(
+        previous,
+        language=previous.language or artwork.language,
+        width=previous.width or artwork.width,
+        height=previous.height or artwork.height,
+        score=previous.score if previous.score is not None else artwork.score,
+        remote_id=previous.remote_id or artwork.remote_id,
+        is_default=previous.is_default or artwork.is_default,
+    )
 
 
 class TMDBProvider(BaseProvider):
@@ -38,6 +57,7 @@ class TMDBProvider(BaseProvider):
         self.opener = opener
         self.timeout = timeout
         self._tv_summary_cache: dict[tuple[str, str], dict] = {}
+        self._images_cache: dict[tuple[str, str], dict | None] = {}
 
     def search(
         self,
@@ -90,6 +110,20 @@ class TMDBProvider(BaseProvider):
                 "append_to_response": "credits,external_ids,videos,translations",
             },
         )
+        images_key = (media_type, str(external_id))
+        if images_key not in self._images_cache:
+            try:
+                self._images_cache[images_key] = self._get_json(
+                    f"/{media_type}/{external_id}/images",
+                    {},
+                )
+            except ProviderError:
+                # The detail response still contains the canonical images.
+                # Keep metadata sync usable and let the artwork sync seed those
+                # defaults when the optional image collection is unavailable.
+                self._images_cache[images_key] = None
+        images_payload = self._images_cache[images_key]
+        images_available = images_payload is not None
 
         is_tv = media_type == "tv"
         external_ids = payload.get("external_ids") or {}
@@ -125,6 +159,11 @@ class TMDBProvider(BaseProvider):
             tagline=payload.get("tagline") or "",
             poster_path=payload.get("poster_path"),
             backdrop_path=payload.get("backdrop_path"),
+            artworks=(
+                self._artworks_from_payload(images_payload, payload)
+                if images_available
+                else None
+            ),
             release_date=(
                 payload.get("release_date")
                 or payload.get("first_air_date")
@@ -163,6 +202,47 @@ class TMDBProvider(BaseProvider):
             ],
             translations=translations,
         )
+
+    def _artworks_from_payload(self, images_payload: dict, detail_payload: dict) -> list[ArtworkDTO]:
+        artworks_by_key = {}
+        defaults = {
+            "poster": detail_payload.get("poster_path"),
+            "background": detail_payload.get("backdrop_path"),
+        }
+
+        for kind, payload_key in (("poster", "posters"), ("background", "backdrops")):
+            for image in images_payload.get(payload_key, []):
+                file_path = image.get("file_path")
+                if not file_path:
+                    continue
+                image_url = self._image_url(file_path, "original")
+                artwork = ArtworkDTO(
+                    kind=kind,
+                    image_url=image_url,
+                    language=image.get("iso_639_1"),
+                    width=image.get("width"),
+                    height=image.get("height"),
+                    score=image.get("vote_average"),
+                    remote_id=file_path,
+                    is_default=file_path == defaults[kind],
+                )
+                _merge_artwork(artworks_by_key, artwork)
+
+        for kind, file_path in defaults.items():
+            if not file_path:
+                continue
+            image_url = self._image_url(file_path, "original")
+            _merge_artwork(
+                artworks_by_key,
+                ArtworkDTO(
+                    kind=kind,
+                    image_url=image_url,
+                    remote_id=file_path,
+                    is_default=True,
+                ),
+            )
+
+        return list(artworks_by_key.values())
 
     def fetch_seasons(self, external_id: str, *, language: str) -> list[SeasonDTO]:
         payload = self._get_tv_summary(external_id, language)

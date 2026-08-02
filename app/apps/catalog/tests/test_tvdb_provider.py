@@ -263,6 +263,41 @@ class TVDBProviderTests(SimpleTestCase):
             "https://artworks.thetvdb.com/poster-eng.jpg",
         )
 
+    def test_fetch_movie_detail_collects_translation_languages(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = {
+            "status": "success",
+            "data": {
+                "id": 42,
+                "name": "Cape Fear",
+                "overview": "A movie.",
+                "translations": {
+                    "nameTranslations": [
+                        {"language": "por", "name": "Cabo do Medo"},
+                    ],
+                    "overviewTranslations": [
+                        {
+                            "language": "por",
+                            "overview": "Um filme.",
+                            "tagline": "O medo está de volta.",
+                        },
+                    ],
+                },
+            },
+        }
+        provider = TVDBProvider(opener=SequenceOpener([payload]))
+
+        detail = provider.fetch_detail("42", language="eng", media_type="movie")
+
+        self.assertEqual(
+            detail.translations["por"],
+            {
+                "title": "Cabo do Medo",
+                "overview": "Um filme.",
+                "tagline": "O medo está de volta.",
+            },
+        )
+
     def test_cached_token_avoids_login_call(self):
         cache.set("catalog:tvdb:token", "existing-token")
         opener = SequenceOpener(
@@ -323,6 +358,95 @@ class TVDBProviderTests(SimpleTestCase):
                 "overview": "Nine noble families fight for control.",
             },
         )
+
+    def test_fetch_detail_collects_every_poster_and_background(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_series_extended.json")
+        payload["data"]["artworks"] = [
+            {
+                "id": 11,
+                "type": 2,
+                "language": "eng",
+                "image": "https://artworks.thetvdb.com/poster-eng.jpg",
+                "score": 100,
+            },
+            {
+                "id": 12,
+                "type": 2,
+                "language": "por",
+                "image": "https://artworks.thetvdb.com/poster-por.jpg",
+                "score": 500,
+            },
+            {
+                "id": 13,
+                "type": 3,
+                "language": None,
+                "image": "https://artworks.thetvdb.com/background.jpg",
+                "score": 200,
+            },
+        ]
+        opener = SequenceOpener([payload])
+        provider = TVDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("121361", language="eng")
+
+        self.assertEqual(
+            [(art.kind, art.language, art.is_default) for art in detail.artworks],
+            [
+                ("poster", None, True),
+                ("poster", "eng", False),
+                ("poster", "por", False),
+                ("background", None, True),
+            ],
+        )
+        self.assertEqual(detail.artworks[2].remote_id, "12")
+
+    def test_primary_image_path_is_not_used_as_artwork_remote_id(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_series_extended.json")
+        payload["data"]["image"] = "banners/" + ("poster-" + "x" * 80) + ".jpg"
+        payload["data"]["artworks"] = []
+        provider = TVDBProvider(opener=SequenceOpener([payload]))
+
+        detail = provider.fetch_detail("121361", language="eng")
+
+        self.assertIsNone(detail.artworks[0].remote_id)
+
+    def test_artwork_duplicates_merge_metadata_without_crossing_kinds(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        provider = TVDBProvider(opener=SequenceOpener([]))
+
+        artworks = provider._artworks_from_data(
+            {
+                "image": "https://artworks.thetvdb.com/shared.jpg",
+                "artworks": [
+                    {"type": 2, "image": "https://artworks.thetvdb.com/shared.jpg"},
+                    {
+                        "type": 2,
+                        "image": "https://artworks.thetvdb.com/shared.jpg",
+                        "language": "por",
+                        "width": 1000,
+                        "height": 1500,
+                        "score": 7.5,
+                        "id": 12,
+                    },
+                    {
+                        "type": 3,
+                        "image": "https://artworks.thetvdb.com/shared.jpg",
+                        "width": 1920,
+                    },
+                ],
+            }
+        )
+
+        self.assertEqual(
+            [(art.kind, art.image_url.rsplit("/", 1)[-1]) for art in artworks],
+            [("poster", "shared.jpg"), ("background", "shared.jpg")],
+        )
+        self.assertEqual(artworks[0].language, "por")
+        self.assertEqual(artworks[0].width, 1000)
+        self.assertEqual(artworks[0].remote_id, "12")
+        self.assertEqual(artworks[1].width, 1920)
 
     def test_fetch_detail_selects_poster_in_requested_language(self):
         cache.set("catalog:tvdb:token", "existing-token")

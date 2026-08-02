@@ -37,6 +37,10 @@ class MovieTaskTests(TransactionTestCase):
             [call.kwargs["language"] for call in import_movie.call_args_list],
             ["en-US", "pt-BR"],
         )
+        self.assertEqual(
+            [call.kwargs["sync_artworks"] for call in import_movie.call_args_list],
+            [True, False],
+        )
 
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")

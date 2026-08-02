@@ -1,11 +1,20 @@
 from datetime import time
 
+from unittest.mock import Mock
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.catalog.models import Genre, SyncStatus
-from apps.catalog.providers.base import CastMemberDTO, DetailDTO, EpisodeDTO, GenreDTO, SeasonDTO
+from apps.catalog.models import Genre, MediaArtwork, SyncStatus
+from apps.catalog.providers.base import (
+    ArtworkDTO,
+    CastMemberDTO,
+    DetailDTO,
+    EpisodeDTO,
+    GenreDTO,
+    SeasonDTO,
+)
 from apps.catalog.providers.exceptions import ProviderError
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 from apps.tv.services import import_show
@@ -171,6 +180,96 @@ class ShowImportTests(TestCase):
 
         self.assertEqual(show.name, "The Series")
         self.assertEqual(show.translations["eng"]["name"], "The Series")
+
+    def test_import_show_preserves_legacy_artwork_on_incomplete_response(self):
+        Show.objects.create(
+            external_id="121361",
+            name="Game of Thrones",
+            poster_path="https://artworks.thetvdb.com/old-poster.jpg",
+            backdrop_path="https://artworks.thetvdb.com/old-background.jpg",
+        )
+        provider = FakeProvider(
+            detail=show_detail(
+                poster_path="https://artworks.thetvdb.com/new-poster.jpg",
+                backdrop_path="https://artworks.thetvdb.com/new-background.jpg",
+                artworks=None,
+            )
+        )
+
+        imported = import_show(
+            "121361",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(
+            imported.poster_path,
+            "https://artworks.thetvdb.com/old-poster.jpg",
+        )
+        self.assertEqual(
+            imported.backdrop_path,
+            "https://artworks.thetvdb.com/old-background.jpg",
+        )
+
+    def test_non_default_import_seeds_provider_default_artwork(self):
+        provider = Mock()
+        provider.fetch_detail.side_effect = [
+            show_detail(
+                title="A Guerra dos Tronos",
+                poster_path="https://artworks.thetvdb.com/localized-poster.jpg",
+                backdrop_path="https://artworks.thetvdb.com/localized-background.jpg",
+                artworks=[
+                    ArtworkDTO(
+                        kind="poster",
+                        image_url="https://artworks.thetvdb.com/localized-poster.jpg",
+                        language="por",
+                    )
+                ],
+            ),
+            show_detail(
+                poster_path="https://artworks.thetvdb.com/default-poster.jpg",
+                backdrop_path="https://artworks.thetvdb.com/default-background.jpg",
+                artworks=[
+                    ArtworkDTO(
+                        kind="poster",
+                        image_url="https://artworks.thetvdb.com/default-poster.jpg",
+                        language="eng",
+                        is_default=True,
+                    ),
+                    ArtworkDTO(
+                        kind="background",
+                        image_url="https://artworks.thetvdb.com/default-background.jpg",
+                        is_default=True,
+                    ),
+                ],
+            ),
+        ]
+        provider.fetch_episodes.return_value = []
+        provider.fetch_seasons.return_value = []
+
+        imported = import_show(
+            "121361",
+            language="por",
+            provider_getter=lambda _name: provider,
+        )
+
+        self.assertEqual(
+            imported.poster_path,
+            "https://artworks.thetvdb.com/default-poster.jpg",
+        )
+        self.assertTrue(
+            MediaArtwork.objects.filter(
+                provider="tvdb",
+                media_type="tv",
+                external_id="121361",
+                kind="poster",
+                image_url="https://artworks.thetvdb.com/default-poster.jpg",
+                is_default=True,
+            ).exists()
+        )
+        self.assertEqual(
+            [call.kwargs["language"] for call in provider.fetch_detail.call_args_list],
+            ["por", "eng"],
+        )
 
     def test_import_show_reconciles_stale_episodes_and_seasons_preserving_watched_state(self):
         provider = FakeProvider(

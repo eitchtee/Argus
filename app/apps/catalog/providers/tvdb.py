@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
@@ -7,6 +8,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from apps.catalog.providers.base import (
+    ArtworkDTO,
     BaseProvider,
     CastMemberDTO,
     DetailDTO,
@@ -107,6 +109,23 @@ _AIR_TIMEZONES_BY_COUNTRY = {
     "nga": "Africa/Lagos",
     "ken": "Africa/Nairobi",
 }
+
+
+def _merge_artwork(artworks_by_key: dict[tuple[str, str], ArtworkDTO], artwork: ArtworkDTO):
+    key = (artwork.kind, artwork.image_url)
+    previous = artworks_by_key.get(key)
+    if previous is None:
+        artworks_by_key[key] = artwork
+        return
+    artworks_by_key[key] = replace(
+        previous,
+        language=previous.language or artwork.language,
+        width=previous.width or artwork.width,
+        height=previous.height or artwork.height,
+        score=previous.score if previous.score is not None else artwork.score,
+        remote_id=previous.remote_id or artwork.remote_id,
+        is_default=previous.is_default or artwork.is_default,
+    )
 
 
 class TVDBProvider(BaseProvider):
@@ -232,7 +251,7 @@ class TVDBProvider(BaseProvider):
         data = payload.get("data", {})
         status = data.get("status") or {}
         network = data.get("originalNetwork") or data.get("network") or {}
-        translations = self._series_translations(data)
+        translations = self._translations_from_data(data)
         if language != "eng" and language not in translations:
             try:
                 translated_payload = self._get_json(
@@ -257,6 +276,7 @@ class TVDBProvider(BaseProvider):
             overview=data.get("overview") or "",
             poster_path=self._poster_from_artworks(data, language) or data.get("image"),
             backdrop_path=self._backdrop_from_artworks(data),
+            artworks=self._artworks_from_data(data),
             release_date=data.get("firstAired") or None,
             status=status.get("name") or "",
             network=network.get("name"),
@@ -304,13 +324,7 @@ class TVDBProvider(BaseProvider):
         data = payload.get("data") or {}
         status = data.get("status") or {}
         status_name = status.get("name") if isinstance(status, dict) else status
-        translations = {
-            "eng": self._non_empty_values(
-                title=data.get("name"),
-                overview=data.get("overview"),
-                tagline=data.get("tagline"),
-            )
-        }
+        translations = self._translations_from_data(data)
 
         return DetailDTO(
             provider=self.name,
@@ -322,6 +336,7 @@ class TVDBProvider(BaseProvider):
             poster_path=self._poster_from_artworks(data, language)
             or self._artwork_url(data.get("image")),
             backdrop_path=self._backdrop_from_artworks(data),
+            artworks=self._artworks_from_data(data),
             release_date=data.get("releaseDate") or data.get("firstAired") or None,
             runtime=data.get("runtime") or data.get("runtimeMinutes"),
             status=status_name or "",
@@ -349,7 +364,7 @@ class TVDBProvider(BaseProvider):
             translations={code: values for code, values in translations.items() if values},
         )
 
-    def _series_translations(self, data: dict) -> dict[str, dict[str, str]]:
+    def _translations_from_data(self, data: dict) -> dict[str, dict[str, str]]:
         translations: dict[str, dict[str, str]] = {}
 
         def add_translation(language: str | None, **values: str | None) -> None:
@@ -363,12 +378,21 @@ class TVDBProvider(BaseProvider):
             "eng",
             title=data.get("name"),
             overview=data.get("overview"),
+            tagline=data.get("tagline"),
         )
         translation_data = data.get("translations") or {}
         for item in translation_data.get("nameTranslations", []):
-            add_translation(item.get("language"), title=item.get("name"))
+            add_translation(
+                item.get("language"),
+                title=item.get("name"),
+                tagline=item.get("tagline"),
+            )
         for item in translation_data.get("overviewTranslations", []):
-            add_translation(item.get("language"), overview=item.get("overview"))
+            add_translation(
+                item.get("language"),
+                overview=item.get("overview"),
+                tagline=item.get("tagline"),
+            )
 
         return translations
 
@@ -390,6 +414,58 @@ class TVDBProvider(BaseProvider):
             return None
         best = max(backgrounds, key=lambda a: a.get("score", 0))
         return best.get("image")
+
+    def _artworks_from_data(self, data: dict) -> list[ArtworkDTO]:
+        artworks_by_key = {}
+        primary_poster = self._artwork_url(data.get("image"))
+
+        if primary_poster:
+            _merge_artwork(
+                artworks_by_key,
+                ArtworkDTO(
+                    kind="poster",
+                    image_url=primary_poster,
+                    is_default=True,
+                ),
+            )
+
+        backgrounds = [
+            artwork
+            for artwork in data.get("artworks", [])
+            if artwork.get("type") == 3 and artwork.get("image")
+        ]
+        default_background = max(
+            backgrounds,
+            key=lambda artwork: artwork.get("score") or 0,
+            default=None,
+        )
+
+        for artwork in data.get("artworks", []):
+            image = artwork.get("image")
+            artwork_type = artwork.get("type")
+            if not image or artwork_type not in {2, 3}:
+                continue
+            kind = "poster" if artwork_type == 2 else "background"
+            image_url = self._artwork_url(image)
+            _merge_artwork(
+                artworks_by_key,
+                ArtworkDTO(
+                    kind=kind,
+                    image_url=image_url,
+                    language=artwork.get("language"),
+                    width=artwork.get("width"),
+                    height=artwork.get("height"),
+                    score=artwork.get("score"),
+                    remote_id=(
+                        str(artwork["id"])
+                        if artwork.get("id") is not None
+                        else None
+                    ),
+                    is_default=artwork is default_background,
+                ),
+            )
+
+        return list(artworks_by_key.values())
 
     def _poster_from_artworks(self, data: dict, language: str) -> str | None:
         posters = [

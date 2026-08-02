@@ -5,7 +5,8 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
-from apps.catalog.models import Genre, SyncStatus
+from apps.catalog.models import Genre, MediaArtwork, SyncStatus
+from apps.catalog.artwork import sync_media_artworks
 from apps.catalog.localization import (
     PROVIDER_DEFAULT_LANGUAGES,
     merge_translation_maps,
@@ -59,12 +60,15 @@ def import_movie(
     external_id: str,
     *,
     language: str | None = None,
+    sync_artworks: bool | None = None,
     provider_getter=get_provider,
 ) -> Movie:
     if provider not in PROVIDER_DEFAULT_LANGUAGES:
         raise ValueError(f"Unsupported provider: {provider}")
 
     language = language or PROVIDER_DEFAULT_LANGUAGES[provider]
+    if sync_artworks is None:
+        sync_artworks = language == PROVIDER_DEFAULT_LANGUAGES[provider]
     provider_client = provider_getter(provider)
 
     try:
@@ -73,6 +77,20 @@ def import_movie(
             language=language,
             media_type="movie",
         )
+        default_artwork_detail = None
+        if (
+            language != PROVIDER_DEFAULT_LANGUAGES[provider]
+            and not MediaArtwork.objects.filter(
+                provider=provider,
+                media_type=MediaArtwork.MediaType.MOVIE,
+                external_id=str(external_id),
+            ).exists()
+        ):
+            default_artwork_detail = provider_client.fetch_detail(
+                external_id,
+                language=PROVIDER_DEFAULT_LANGUAGES[provider],
+                media_type="movie",
+            )
     except ProviderError:
         Movie.objects.filter(provider=provider, external_id=external_id).update(
             sync_status=SyncStatus.ERROR,
@@ -100,34 +118,49 @@ def import_movie(
                 {PROVIDER_DEFAULT_LANGUAGES[provider]: {"title": base_title}},
             )
             default_text = translations[PROVIDER_DEFAULT_LANGUAGES[provider]]
+        movie_defaults = {
+            "imdb_id": detail.imdb_id,
+            "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
+            "tvdb_id": detail.tvdb_id or (external_id if provider == "tvdb" else None),
+            "trakt_id": detail.trakt_id or (existing_movie.trakt_id if existing_movie else None),
+            "director": detail.director or "",
+            "trailer_url": detail.trailer_url,
+            "cast": [dataclasses.asdict(member) for member in detail.cast],
+            "title": base_title,
+            "original_title": detail.original_title,
+            "overview": default_text.get("overview", detail.overview),
+            "tagline": default_text.get("tagline", detail.tagline),
+            "translations": translations,
+            "release_date": _parse_date(detail.release_date),
+            "runtime": detail.runtime,
+            "status": detail.status,
+            "normalized_status": normalize_movie_status(detail.status),
+            "vote_average": detail.vote_average,
+            "vote_count": detail.vote_count,
+            "last_synced_at": timezone.now(),
+            "sync_status": SyncStatus.OK,
+        }
+        artwork_detail = detail if sync_artworks else default_artwork_detail
+        if artwork_detail is not None:
+            if (
+                artwork_detail.artworks is not None
+                or existing_movie is None
+                or not existing_movie.poster_path
+            ):
+                movie_defaults["poster_path"] = artwork_detail.poster_path
+            if (
+                artwork_detail.artworks is not None
+                or existing_movie is None
+                or not existing_movie.backdrop_path
+            ):
+                movie_defaults["backdrop_path"] = artwork_detail.backdrop_path
         movie, _created = Movie.objects.update_or_create(
             provider=provider,
             external_id=external_id,
-            defaults={
-                "imdb_id": detail.imdb_id,
-                "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
-                "tvdb_id": detail.tvdb_id or (external_id if provider == "tvdb" else None),
-                "trakt_id": detail.trakt_id or (existing_movie.trakt_id if existing_movie else None),
-                "director": detail.director or "",
-                "trailer_url": detail.trailer_url,
-                "cast": [dataclasses.asdict(member) for member in detail.cast],
-                "title": base_title,
-                "original_title": detail.original_title,
-                "overview": default_text.get("overview", detail.overview),
-                "tagline": default_text.get("tagline", detail.tagline),
-                "translations": translations,
-                "poster_path": detail.poster_path,
-                "backdrop_path": detail.backdrop_path,
-                "release_date": _parse_date(detail.release_date),
-                "runtime": detail.runtime,
-                "status": detail.status,
-                "normalized_status": normalize_movie_status(detail.status),
-                "vote_average": detail.vote_average,
-                "vote_count": detail.vote_count,
-                "last_synced_at": timezone.now(),
-                "sync_status": SyncStatus.OK,
-            },
+            defaults=movie_defaults,
         )
+        if artwork_detail is not None:
+            sync_media_artworks(artwork_detail, media_type="movie")
 
         genres = []
         for genre in detail.genres:

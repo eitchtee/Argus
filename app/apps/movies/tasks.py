@@ -58,16 +58,21 @@ def hydrate_movie_translations(movie_id: int):
     provider = get_provider(movie.provider)
     failures = []
     result = movie
-    for option in provider.list_languages():
+    default_language = PROVIDER_DEFAULT_LANGUAGES[movie.provider]
+    languages = dict.fromkeys(
+        [default_language, *(option.code for option in provider.list_languages())]
+    )
+    for language in languages:
         try:
             result = movie_services.import_movie(
                 movie.provider,
                 movie.external_id,
-                language=option.code,
+                language=language,
+                sync_artworks=language == default_language,
                 provider_getter=lambda _name: provider,
             )
         except ProviderError:
-            failures.append(option.code)
+            failures.append(language)
     if failures:
         raise ProviderError(
             f"Movie translation hydration failed for: {', '.join(failures)}"

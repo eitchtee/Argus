@@ -7,7 +7,8 @@ from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.utils import timezone
 
-from apps.catalog.models import Genre, SyncStatus
+from apps.catalog.artwork import sync_media_artworks
+from apps.catalog.models import Genre, MediaArtwork, SyncStatus
 from apps.catalog.localization import (
     PROVIDER_DEFAULT_LANGUAGES,
     episode_name,
@@ -66,12 +67,15 @@ def import_show(
     base_detail=None,
     base_episodes=None,
     base_seasons=None,
+    sync_artworks: bool | None = None,
 ) -> Show:
     if provider not in PROVIDER_DEFAULT_LANGUAGES:
         raise ValueError(f"Unsupported provider: {provider}")
 
     default_language = PROVIDER_DEFAULT_LANGUAGES[provider]
     language = language or default_language
+    if sync_artworks is None:
+        sync_artworks = language == default_language
     provider_client = provider_getter(provider)
 
     try:
@@ -84,6 +88,20 @@ def import_show(
                 media_type="tv",
             )
         )
+        default_artwork_detail = None
+        if language != default_language:
+            if base_detail is not None:
+                default_artwork_detail = base_detail
+            elif not MediaArtwork.objects.filter(
+                provider=provider,
+                media_type=MediaArtwork.MediaType.TV,
+                external_id=str(external_id),
+            ).exists():
+                default_artwork_detail = provider_client.fetch_detail(
+                    external_id,
+                    language=default_language,
+                    media_type="tv",
+                )
         episodes = (
             base_episodes
             if base_episodes is not None
@@ -176,34 +194,49 @@ def import_show(
                 show_translations,
                 {default_language: {"overview": base_overview}},
             )
+        show_defaults = {
+            "name": base_name,
+            "overview": base_overview,
+            "translations": show_translations,
+            "first_aired": first_aired,
+            "status": detail.status,
+            "normalized_status": normalized_status,
+            "network": detail.network,
+            "imdb_id": detail.imdb_id,
+            "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
+            "tvdb_id": detail.tvdb_id or (external_id if provider == "tvdb" else None),
+            "trakt_id": detail.trakt_id or (existing_show.trakt_id if existing_show else None),
+            "trailer_url": detail.trailer_url,
+            "cast": [dataclasses.asdict(member) for member in detail.cast],
+            "average_runtime": detail.average_runtime,
+            "next_air_date": _parse_date(detail.next_air_date),
+            "last_air_date": _parse_date(detail.last_air_date),
+            "airs_time": airs_time,
+            "airs_timezone": airs_timezone,
+            "last_synced_at": timezone.now(),
+            "sync_status": SyncStatus.OK,
+        }
+        artwork_detail = detail if sync_artworks else default_artwork_detail
+        if artwork_detail is not None:
+            if (
+                artwork_detail.artworks is not None
+                or existing_show is None
+                or not existing_show.poster_path
+            ):
+                show_defaults["poster_path"] = artwork_detail.poster_path
+            if (
+                artwork_detail.artworks is not None
+                or existing_show is None
+                or not existing_show.backdrop_path
+            ):
+                show_defaults["backdrop_path"] = artwork_detail.backdrop_path
         show, _created = Show.objects.update_or_create(
             provider=provider,
             external_id=detail.external_id,
-            defaults={
-                "name": base_name,
-                "overview": base_overview,
-                "translations": show_translations,
-                "poster_path": detail.poster_path,
-                "backdrop_path": detail.backdrop_path,
-                "first_aired": first_aired,
-                "status": detail.status,
-                "normalized_status": normalized_status,
-                "network": detail.network,
-                "imdb_id": detail.imdb_id,
-                "tmdb_id": detail.tmdb_id or (external_id if provider == "tmdb" else None),
-                "tvdb_id": detail.tvdb_id or (external_id if provider == "tvdb" else None),
-                "trakt_id": detail.trakt_id or (existing_show.trakt_id if existing_show else None),
-                "trailer_url": detail.trailer_url,
-                "cast": [dataclasses.asdict(member) for member in detail.cast],
-                "average_runtime": detail.average_runtime,
-                "next_air_date": _parse_date(detail.next_air_date),
-                "last_air_date": _parse_date(detail.last_air_date),
-                "airs_time": airs_time,
-                "airs_timezone": airs_timezone,
-                "last_synced_at": timezone.now(),
-                "sync_status": SyncStatus.OK,
-            },
+            defaults=show_defaults,
         )
+        if artwork_detail is not None:
+            sync_media_artworks(artwork_detail, media_type="tv")
 
         genres = []
         for genre in detail.genres:
@@ -351,6 +384,7 @@ def hydrate_show_translations_sync(show_id: int) -> Show:
                 base_detail=detail,
                 base_episodes=base_episodes,
                 base_seasons=base_seasons,
+                sync_artworks=language == default_language,
             )
         except ProviderError:
             failures.append(language)

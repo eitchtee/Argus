@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -56,3 +57,94 @@ class Genre(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class MediaArtwork(models.Model):
+    class MediaType(models.TextChoices):
+        MOVIE = "movie", "Movie"
+        TV = "tv", "TV"
+
+    class Kind(models.TextChoices):
+        POSTER = "poster", "Poster"
+        BACKGROUND = "background", "Background"
+
+    provider = models.CharField(max_length=16)
+    media_type = models.CharField(max_length=8, choices=MediaType.choices)
+    external_id = models.CharField(max_length=32)
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    image_url = models.CharField(max_length=500)
+    language = models.CharField(max_length=16, null=True, blank=True)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    score = models.FloatField(null=True, blank=True)
+    remote_id = models.CharField(max_length=64, null=True, blank=True)
+    is_default = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "provider",
+                    "media_type",
+                    "external_id",
+                    "kind",
+                    "image_url",
+                ],
+                name="catalog_media_artwork_identity_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["provider", "media_type", "external_id", "kind"],
+                name="catart_lookup_idx",
+            ),
+        ]
+        ordering = ("-is_default", "-score", "id")
+
+    def __str__(self):
+        return f"{self.provider}:{self.media_type}:{self.external_id} {self.kind}"
+
+
+class UserMediaArtworkPreference(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="media_artwork_preferences",
+    )
+    provider = models.CharField(max_length=16)
+    media_type = models.CharField(max_length=8, choices=MediaArtwork.MediaType.choices)
+    external_id = models.CharField(max_length=32)
+    language = models.CharField(max_length=16, null=True, blank=True)
+    poster_artwork = models.ForeignKey(
+        MediaArtwork,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="poster_preferences",
+    )
+    background_artwork = models.ForeignKey(
+        MediaArtwork,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="background_preferences",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "provider", "media_type", "external_id"],
+                name="catalog_user_media_artwork_pref_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["user", "media_type", "provider", "external_id"],
+                name="catuserart_lookup_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user} - {self.provider}:{self.media_type}:{self.external_id}"

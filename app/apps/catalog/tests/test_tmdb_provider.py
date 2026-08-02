@@ -45,6 +45,18 @@ class SequenceOpener:
         return FakeResponse(self.payloads.pop(0))
 
 
+class ImagesFailingOpener:
+    def __init__(self, detail_payload):
+        self.detail_payload = detail_payload
+        self.requests = []
+
+    def __call__(self, request, timeout):
+        self.requests.append((request, timeout))
+        if "/images" in request.full_url:
+            raise HTTPError(request.full_url, 500, "Images unavailable", {}, None)
+        return FakeResponse(self.detail_payload)
+
+
 def load_fixture(name):
     return json.loads((FIXTURE_DIR / name).read_text())
 
@@ -118,6 +130,68 @@ class TMDBProviderTests(SimpleTestCase):
             requested_url,
         )
         self.assertIn("language=en-US", requested_url)
+
+    def test_fetch_detail_collects_all_posters_and_backgrounds(self):
+        detail_payload = load_fixture("tmdb_movie_detail.json")
+        images_payload = load_fixture("tmdb_movie_images.json")
+        opener = SequenceOpener([detail_payload, images_payload])
+        provider = TMDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("550", language="pt-BR")
+
+        self.assertEqual(
+            [(art.kind, art.language, art.is_default) for art in detail.artworks],
+            [
+                ("poster", "en", True),
+                ("poster", "pt", False),
+                ("background", None, True),
+                ("background", None, False),
+            ],
+        )
+        self.assertEqual(
+            detail.artworks[1].image_url,
+            "https://image.tmdb.org/t/p/original/pt-poster.jpg",
+        )
+        self.assertIn("/movie/550/images", opener.requests[1][0].full_url)
+        self.assertNotIn("language=", opener.requests[1][0].full_url)
+
+    def test_fetch_detail_keeps_legacy_artwork_when_images_request_fails(self):
+        payload = load_fixture("tmdb_movie_detail.json")
+        opener = ImagesFailingOpener(payload)
+        provider = TMDBProvider(opener=opener)
+
+        detail = provider.fetch_detail("550", language="en-US")
+
+        self.assertIsNone(detail.artworks)
+
+    def test_artwork_duplicates_merge_metadata_without_crossing_kinds(self):
+        provider = TMDBProvider(opener=FakeOpener({}))
+
+        artworks = provider._artworks_from_payload(
+            {
+                "posters": [
+                    {"file_path": "/shared.jpg"},
+                    {
+                        "file_path": "/shared.jpg",
+                        "iso_639_1": "pt",
+                        "width": 1000,
+                        "height": 1500,
+                        "vote_average": 7.5,
+                    },
+                ],
+                "backdrops": [{"file_path": "/shared.jpg", "width": 1920}],
+            },
+            {"poster_path": "/shared.jpg", "backdrop_path": "/shared.jpg"},
+        )
+
+        self.assertEqual(
+            [(art.kind, art.image_url.rsplit("/", 1)[-1]) for art in artworks],
+            [("poster", "shared.jpg"), ("background", "shared.jpg")],
+        )
+        self.assertEqual(artworks[0].language, "pt")
+        self.assertEqual(artworks[0].width, 1000)
+        self.assertTrue(artworks[0].is_default)
+        self.assertEqual(artworks[1].width, 1920)
 
     def test_search_normalizes_tv_results(self):
         opener = FakeOpener(

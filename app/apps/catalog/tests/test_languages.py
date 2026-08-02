@@ -3,7 +3,13 @@ from unittest.mock import Mock, patch
 from django.core.cache import cache
 from django.test import TestCase
 
-from apps.catalog.languages import get_language_choices, language_catalog_cache_key
+from apps.catalog.languages import (
+    get_language_choices,
+    language_catalog_cache_key,
+    language_base_code,
+    language_codes_match,
+    language_display_name,
+)
 from apps.catalog.providers.base import LanguageOptionDTO
 from apps.catalog.tasks import refresh_language_catalog
 
@@ -36,6 +42,20 @@ class LanguageCatalogTests(TestCase):
         self.assertEqual(first, (("en-US", "English (United States)"),))
         self.assertEqual(second, first)
         refresh.defer.assert_called_once_with(provider_name="tmdb")
+
+    def test_display_name_normalizes_provider_language_codes(self):
+        self.assertEqual(language_display_name("por"), "Portuguese")
+        self.assertEqual(language_display_name("fra"), "French")
+        self.assertEqual(language_display_name("pt-BR"), "Brazilian Portuguese")
+        self.assertEqual(
+            language_display_name("en-US", "English (United States)"),
+            "English (United States)",
+        )
+        self.assertTrue(language_codes_match("por", "pt"))
+        self.assertTrue(language_codes_match("eng", "en-US"))
+        self.assertFalse(language_codes_match("pt-BR", "pt-PT"))
+        self.assertEqual(language_base_code("en-GB"), "en")
+        self.assertEqual(language_base_code("por"), "pt")
 
     @patch("apps.catalog.tasks.get_provider")
     def test_refresh_task_stores_normalized_choices_and_english_default(self, get_provider):
