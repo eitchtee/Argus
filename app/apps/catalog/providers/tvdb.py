@@ -558,7 +558,7 @@ class TVDBProvider(BaseProvider):
 
     def fetch_episodes(self, external_id: str, *, language: str) -> list[EpisodeDTO]:
         payload = self._get_json(
-            f"/series/{external_id}/episodes/default/{language}"
+            f"/series/{external_id}/episodes/official/{language}"
         )
         data = payload.get("data", {})
         episodes = data.get("episodes", data if isinstance(data, list) else [])

@@ -609,10 +609,66 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(episodes[0].finale_type, "series")
         self.assertIsNone(episodes[1].finale_type)
         self.assertEqual(episodes[1].season_number, 0)
-        self.assertIn("/series/121361/episodes/default", opener.requests[0][0].full_url)
+        self.assertIn("/series/121361/episodes/official", opener.requests[0][0].full_url)
         self.assertEqual(
             episodes[0].translations["eng"],
             {"name": "Winter Is Coming", "overview": "Episode overview."},
+        )
+
+    def test_fetch_episodes_uses_tvdb_aired_order(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener(
+            [
+                {
+                    "status": "success",
+                    "data": {
+                        "episodes": [
+                            {
+                                "seasonNumber": 1,
+                                "number": 1,
+                                "name": "2017: Wiley Giraffe Blower",
+                                "aired": "2017-12-13",
+                            },
+                            {
+                                "seasonNumber": 1,
+                                "number": 2,
+                                "name": "2017: I've Sinned Again",
+                                "aired": "2017-12-20",
+                            },
+                            {
+                                "seasonNumber": 2,
+                                "number": 1,
+                                "name": "2022: The Alpine Darling",
+                                "aired": "2022-06-23",
+                            },
+                            {
+                                "seasonNumber": 3,
+                                "number": 1,
+                                "name": "2024: Spider In My Pocket",
+                                "aired": "2024-01-14",
+                            },
+                            {
+                                "seasonNumber": 4,
+                                "number": 1,
+                                "name": "2025: Put That on My Gravestone",
+                                "aired": "2025-12-22",
+                            },
+                        ]
+                    },
+                }
+            ]
+        )
+        provider = TVDBProvider(opener=opener)
+
+        episodes = provider.fetch_episodes("391042", language="eng")
+
+        self.assertEqual(
+            [(episode.season_number, episode.episode_number) for episode in episodes],
+            [(1, 1), (1, 2), (2, 1), (3, 1), (4, 1)],
+        )
+        self.assertIn(
+            "/series/391042/episodes/official/eng",
+            opener.requests[0][0].full_url,
         )
 
     def test_fetch_episodes_uses_requested_language_batch(self):
@@ -627,7 +683,7 @@ class TVDBProviderTests(SimpleTestCase):
             episodes[0].translations["por"],
             {"name": "O Inverno Está Chegando", "overview": "Resumo do episódio."},
         )
-        self.assertIn("/series/121361/episodes/default/por", opener.requests[0][0].full_url)
+        self.assertIn("/series/121361/episodes/official/por", opener.requests[0][0].full_url)
 
     def test_fetch_episodes_expands_relative_still_urls(self):
         cache.set("catalog:tvdb:token", "existing-token")
