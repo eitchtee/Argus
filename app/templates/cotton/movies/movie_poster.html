@@ -1,21 +1,25 @@
-<a href="{% url 'movie-detail' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML"
-   data-name="{{ movie.title }}"
-   class="poster-card">
-  <figure class="poster-card__figure">
-    {% if movie.poster_url %}
-    <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" loading="lazy"
-         class="poster-card__image">
-    {% else %}
-    <div class="poster-card__fallback flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
-      <i class="fa-solid fa-film text-4xl"></i>
-    </div>
-    {% endif %}
-    <div class="poster-card__gradient" aria-hidden="true"></div>
-    <div class="poster-card__copy">
-      <h2 class="poster-card__title" title="{{ movie.title }}">{{ movie.title }}</h2>
-      {% if movie.release_date %}
-      <div class="poster-card__year tabular-nums">{{ movie.release_date.year }}</div>
+<div data-name="{{ movie.title }}" class="poster-card">
+  <a href="{% url 'movie-detail' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML"
+     class="poster-card__link">
+    <figure class="poster-card__figure">
+      {% if movie.poster_url %}
+      <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" loading="lazy"
+           class="poster-card__image">
+      {% else %}
+      <div class="poster-card__fallback flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
+        <i class="fa-solid fa-film text-4xl"></i>
+      </div>
       {% endif %}
-    </div>
-  </figure>
-</a>
+      <div class="poster-card__gradient" aria-hidden="true"></div>
+      <div class="poster-card__copy">
+        <h2 class="poster-card__title" title="{{ movie.title }}">{{ movie.title }}</h2>
+        {% if movie.release_date %}
+        <div class="poster-card__year tabular-nums">{{ movie.release_date.year }}</div>
+        {% endif %}
+      </div>
+    </figure>
+  </a>
+  <div class="poster-card__watch-action">
+    {% include "movies/fragments/poster_watched_button.html" with movie=movie watched=watched only %}
+  </div>
+</div>

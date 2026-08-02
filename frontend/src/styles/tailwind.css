@@ -210,16 +210,20 @@
     }
 
     .poster-card {
-        @apply card overflow-hidden border border-base-300 bg-base-200/60;
+        @apply card relative overflow-hidden border border-base-300 bg-base-200/60;
         transition: border-color 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .poster-card:hover,
-    .poster-card:focus-visible {
+    .poster-card:focus-within {
         @apply border-primary/50 shadow-lg;
     }
 
-    .poster-card:focus-visible {
+    .poster-card__link {
+        @apply block;
+    }
+
+    .poster-card__link:focus-visible {
         @apply outline outline-2 outline-offset-2 outline-primary;
     }
 
@@ -238,10 +242,36 @@
         transition: height 220ms cubic-bezier(0.22, 1, 0.36, 1), background 220ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .poster-card__figure:hover .poster-card__gradient,
-    .poster-card:focus-visible .poster-card__gradient {
+    .poster-card:hover .poster-card__gradient,
+    .poster-card:focus-within .poster-card__gradient {
         height: 9rem;
         background: linear-gradient(to top, rgb(0 0 0 / 0.93), rgb(0 0 0 / 0.65) 58%, rgb(0 0 0 / 0.12) 88%, transparent);
+    }
+
+    .poster-card__watch-action {
+        @apply pointer-events-none absolute inset-0 z-[3] flex items-center justify-center;
+        opacity: 0;
+        transform: scale(0.85);
+        transition: opacity 150ms ease, transform 180ms cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .poster-card:hover .poster-card__watch-action,
+    .poster-card:focus-within .poster-card__watch-action {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    .poster-card__watch-button {
+        @apply pointer-events-auto shadow-xl shadow-success/25;
+        transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .poster-card__watch-button:active {
+        transform: scale(0.96);
+    }
+
+    .poster-card__watch-button:focus-visible {
+        @apply outline outline-2 outline-offset-2 outline-success;
     }
 
     .poster-card__copy {
@@ -378,6 +408,68 @@
 
     .media-action-button:focus-visible {
         @apply outline outline-2 outline-offset-2 outline-primary;
+    }
+
+    .artwork-picker-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(7.25rem, 1fr));
+        gap: 0.75rem;
+        padding: 0.25rem;
+    }
+
+    .artwork-picker-grid--background {
+        grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    }
+
+    .artwork-picker-card {
+        @apply relative flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-box border border-base-300 bg-base-200 p-1 text-left;
+        transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .artwork-picker-card:hover {
+        @apply border-primary/60;
+        transform: translateY(-2px);
+    }
+
+    .artwork-picker-card:has(input:focus-visible) {
+        @apply outline outline-2 outline-offset-2 outline-primary;
+    }
+
+    .artwork-picker-card:has(input:checked) {
+        @apply border-primary bg-primary/10 ring-2 ring-primary/35;
+    }
+
+    .artwork-picker-card::after {
+        content: "✓";
+        @apply pointer-events-none absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-content;
+        opacity: 0;
+        transform: scale(0.25);
+        transition: opacity 140ms ease, transform 140ms cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .artwork-picker-card:has(input:checked)::after {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    .artwork-picker-card__image {
+        @apply aspect-[2/3] w-full rounded-[calc(var(--radius-box)-0.25rem)] bg-base-300 object-cover;
+    }
+
+    .artwork-picker-card--wide .artwork-picker-card__image {
+        @apply aspect-video;
+    }
+
+    .artwork-picker-card__image--empty {
+        @apply flex items-center justify-center text-xl text-base-content/35;
+    }
+
+    .artwork-picker-card__title {
+        @apply mt-2 truncate px-1 text-xs font-semibold;
+    }
+
+    .artwork-picker-card__meta {
+        @apply truncate px-1 pb-1 text-[0.65rem] text-base-content/55;
     }
 
     .detail-eyebrow {
@@ -627,6 +719,8 @@
     .provider-logo,
     .media-action-button,
     .poster-card,
+    .poster-card__watch-action,
+    .poster-card__watch-button,
     .poster-card__gradient,
     .poster-card__title,
     .poster-card__progress-meta,
@@ -636,7 +730,8 @@
 
     .detail-link:hover,
     .detail-link:active,
-    .media-action-button:active {
+    .media-action-button:active,
+    .poster-card__watch-button:active {
         transform: none;
     }
 

@@ -6,14 +6,14 @@
     <input type="search" placeholder="{% trans 'Search watched movies' %}"
            aria-label="{% trans 'Search watched movies' %}" autocomplete="off"
            _="on input
-                show <a/> in #movies-watched-grid
+                show <.poster-card/> in #movies-watched-grid
                 when its dataset.name.toLowerCase() contains my value.toLowerCase()" />
   </label>
 </div>
 
 <div id="movies-watched-grid" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
   {% for movie in movies %}
-  <c-movies.movie-poster :movie="movie" />
+  <c-movies.movie-poster :movie="movie" :watched="True" />
   {% endfor %}
 </div>
 {% else %}

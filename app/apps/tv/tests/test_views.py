@@ -2,11 +2,49 @@ from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 
 from apps.catalog.models import SyncStatus
 from apps.catalog.providers.base import CastMemberDTO, DetailDTO, EpisodeDTO
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+
+
+class WatchlistArtworkQueryTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            "watchlist@example.com",
+            password="password",
+        )
+        self.client.login(username="watchlist@example.com", password="password")
+
+    def test_watchlist_artwork_queries_do_not_grow_per_show(self):
+        for index in range(12):
+            show = Show.objects.create(
+                external_id=str(index + 1),
+                name=f"Show {index:02d}",
+            )
+            UserShow.objects.create(user=self.user, show=show)
+            season = Season.objects.create(show=show, season_number=1, name="Season 1")
+            Episode.objects.create(
+                show=show,
+                season=season,
+                season_number=1,
+                episode_number=1,
+                name="Pilot",
+                air_date=date.today() + timedelta(days=1),
+            )
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(
+                "/tv/watchlist/?condition=watching",
+                HTTP_HX_REQUEST="true",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Show 00")
+        self.assertLessEqual(len(queries), 15)
 
 
 @override_settings(
@@ -57,6 +95,12 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(
             response,
             'class="btn btn-sm join-item media-action-button btn-primary"',
+        )
+        self.assertRegex(
+            content,
+            r'<div class="join media-action-join join-horizontal">(?s:.*?)'
+            r'<button[^>]+aria-label="Edit artwork and language"[^>]*'
+            r'class="btn btn-sm join-item media-action-button btn-ghost"',
         )
         self.assertNotContains(response, 'class="fab"')
         self.assertNotContains(response, 'class="tooltip')

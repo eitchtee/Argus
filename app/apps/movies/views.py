@@ -6,11 +6,16 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
+from apps.catalog.artwork import (
+    localized_media_records,
+    media_artwork_overrides,
+    media_language_for_user,
+)
+from apps.catalog.models import SyncStatus
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.links import build_external_links
 from apps.catalog.localization import (
-    LocalizedRecord,
     PROVIDER_DEFAULT_LANGUAGES,
     metadata_language_for_user,
     resolve_field,
@@ -27,7 +32,6 @@ from apps.movies.services import (
     get_watched_movies,
     get_watchlist_movies,
     delete_movie_data,
-    import_movie,
     mark_seen,
     normalize_movie_status,
     remove_from_watchlist,
@@ -36,7 +40,6 @@ from apps.movies.services import (
     refresh_movie,
     unmark_seen,
 )
-from apps.movies.tasks import hydrate_movie_translations
 
 
 @htmx_login_required
@@ -62,13 +65,10 @@ def movie_watchlist(request):
         request,
         "movies/fragments/watchlist.html",
         {
-            "movies": [
-                LocalizedRecord(
-                    movie,
-                    metadata_language_for_user(request.user, movie.provider),
-                )
-                for movie in get_watchlist_movies(request.user)
-            ]
+            "movies": localized_media_records(
+                get_watchlist_movies(request.user),
+                request.user,
+            ),
         },
     )
 
@@ -83,13 +83,10 @@ def movie_watched_list(request):
         request,
         "movies/fragments/watched.html",
         {
-            "movies": [
-                LocalizedRecord(
-                    movie,
-                    metadata_language_for_user(request.user, movie.provider),
-                )
-                for movie in get_watched_movies(request.user)
-            ]
+            "movies": localized_media_records(
+                get_watched_movies(request.user),
+                request.user,
+            ),
         },
     )
 
@@ -110,6 +107,7 @@ def movie_track(request, external_id):
         movie_state = {
             "external_id": user_movie.movie.external_id,
             "provider": user_movie.movie.provider,
+            "can_customize": True,
             "on_watchlist": user_movie.on_watchlist,
             "is_seen": user_movie.is_seen,
         }
@@ -123,6 +121,7 @@ def movie_track(request, external_id):
         movie_state = {
             "external_id": external_id,
             "provider": provider,
+            "can_customize": movie is not None,
             "on_watchlist": False,
             "is_seen": is_seen,
         }
@@ -192,25 +191,61 @@ def movie_watched(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
-    provider = _provider_from_request(request, "tmdb")
-    movie = import_movie(
-        provider,
-        external_id,
-        language=metadata_language_for_user(request.user, provider),
+    movie_state = _toggle_movie_watched(request, external_id)
+    return render(request, "movies/fragments/actions.html", {"movie": movie_state})
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST", "DELETE"])
+def movie_poster_watched(request, external_id):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    movie_state = _toggle_movie_watched(request, external_id)
+    return render(
+        request,
+        "movies/fragments/poster_watched_button.html",
+        {"movie": movie_state, "watched": movie_state["is_seen"]},
     )
-    hydrate_movie_translations.defer(movie_id=movie.id)
+
+
+def _toggle_movie_watched(request, external_id):
+    provider = _provider_from_request(request, "tmdb")
     if request.method == "POST":
+        movie, _created = Movie.objects.get_or_create(
+            provider=provider,
+            external_id=external_id,
+            defaults={
+                "title": external_id,
+                "sync_status": SyncStatus.PENDING,
+            },
+        )
         user_movie = mark_seen(request.user, movie)
+        if movie.sync_status != SyncStatus.OK or movie.last_synced_at is None:
+            refresh_movie(request.user, movie)
     else:
+        movie = Movie.objects.filter(
+            provider=provider,
+            external_id=external_id,
+        ).first()
+        if movie is None:
+            return {
+                "external_id": external_id,
+                "provider": provider,
+                "can_customize": False,
+                "on_watchlist": False,
+                "is_seen": False,
+            }
         user_movie = unmark_seen(request.user, movie)
 
-    movie_state = {
+    return {
         "external_id": movie.external_id,
         "provider": movie.provider,
+        "can_customize": True,
         "on_watchlist": user_movie.on_watchlist,
         "is_seen": user_movie.is_seen,
     }
-    return render(request, "movies/fragments/actions.html", {"movie": movie_state})
 
 
 @only_htmx
@@ -232,6 +267,7 @@ def movie_delete(request, external_id):
             "movie": {
                 "external_id": external_id,
                 "provider": provider,
+                "can_customize": movie is not None,
                 "on_watchlist": False,
                 "is_seen": False,
             }
@@ -244,6 +280,7 @@ def _build_movie_context(user, external_id, provider="tmdb"):
     movie = Movie.objects.filter(provider=provider, external_id=external_id).first()
 
     if movie is not None:
+        language = media_language_for_user(user, movie)
         tracking_state = _refresh_movie_identity(user, movie, language)
         user_movie = UserMovie.objects.filter(user=user, movie=movie).first()
         title = resolve_field(movie, "title", language)
@@ -265,8 +302,8 @@ def _build_movie_context(user, external_id, provider="tmdb"):
             "imdb_id": movie.imdb_id,
             "cast": movie.cast,
             "genres": [resolve_field(genre, "name", language) for genre in movie.genres.all()],
-            "poster_url": movie.poster_url,
-            "backdrop_url": movie.backdrop_url,
+            **media_artwork_overrides(user, movie, language=language),
+            "can_customize": True,
             "tmdb_id": movie.tmdb_id,
             "tvdb_id": movie.tvdb_id,
             "trakt_id": movie.trakt_id,
@@ -330,6 +367,7 @@ def _build_movie_context(user, external_id, provider="tmdb"):
         ],
         "poster_url": build_poster_url(detail.poster_path),
         "backdrop_url": build_backdrop_url(detail.backdrop_path),
+        "can_customize": False,
         "tmdb_id": detail.tmdb_id,
         "tvdb_id": detail.tvdb_id,
         "trakt_id": getattr(detail, "trakt_id", None),

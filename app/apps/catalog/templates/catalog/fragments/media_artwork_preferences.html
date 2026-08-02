@@ -1,0 +1,130 @@
+{% load i18n %}
+
+<dialog id="media-artwork-modal" open class="modal modal-bottom sm:modal-middle" _="install init_tom_select">
+  <div class="modal-box max-w-6xl border border-base-300 bg-base-100 p-0 shadow-2xl">
+    <form method="dialog" class="contents">
+      <button type="submit" class="btn btn-circle btn-ghost absolute right-3 top-3 z-10" aria-label="{% trans 'Close' %}">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
+    </form>
+
+    <form method="post"
+          hx-post="{% url 'media-artwork-preferences' media_type=media_type external_id=media.external_id %}?provider={{ provider }}"
+          hx-swap="none"
+          class="space-y-7 p-5 sm:p-7">
+      {% csrf_token %}
+      <header class="max-w-2xl space-y-2 pr-10">
+        <p class="detail-eyebrow"><i class="fa-solid fa-wand-magic-sparkles text-primary" aria-hidden="true"></i>{% trans "Personalize this media" %}</p>
+        <h2 class="text-2xl font-bold tracking-tight">{% if media_type == "movie" %}{{ media.title }}{% else %}{{ media.name }}{% endif %}</h2>
+        <p class="text-sm leading-6 text-base-content/65">{% trans "These choices apply only to your profile. Automatic uses your profile language and the provider's default artwork." %}</p>
+      </header>
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-error" role="alert">
+        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+        <div>{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+      </div>
+      {% endif %}
+
+      <div class="max-w-sm space-y-2">
+        <label for="id_artwork_language" class="label pb-0">
+          <span class="label-text font-semibold">{{ form.language.label }}</span>
+        </label>
+        <select id="id_artwork_language" name="language" class="select select-bordered w-full">
+          {% for value, label in form.language.field.choices %}
+          <option value="{{ value }}" {% if form.language.value|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if form.language.errors %}<p class="text-sm text-error">{{ form.language.errors|join:", " }}</p>{% endif %}
+        <p class="text-xs text-base-content/55">{% trans "Current effective language:" %} {{ effective_language }}</p>
+      </div>
+
+      <section class="artwork-picker-collapse collapse collapse-arrow border border-base-300 bg-base-100"
+               x-data="{ expanded: true }"
+               :class="{ 'collapse-open': expanded }">
+        <button type="button"
+                class="collapse-title flex items-center gap-2 pr-12 text-lg font-semibold"
+                @click="expanded = ! expanded"
+                :aria-expanded="expanded"
+                aria-controls="poster-picker-content">
+          <i class="fa-solid fa-image text-primary" aria-hidden="true"></i>
+          <span>{% trans "Poster" %}</span>
+        </button>
+        <div id="poster-picker-content"
+             class="collapse-content space-y-3 pt-0"
+             x-show="expanded"
+             x-collapse
+             x-cloak>
+          <p class="text-sm text-base-content/60">{% trans "Pick any provider poster, including cosmetic variants." %}</p>
+          <div class="artwork-picker-grid">
+            <label class="artwork-picker-card">
+              <input type="radio" name="poster_artwork_id" value="" class="sr-only" {% if not form.poster_artwork_id.value %}checked{% endif %}>
+              <div class="artwork-picker-card__image artwork-picker-card__image--empty"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></div>
+              <span class="artwork-picker-card__title">{% trans "Automatic" %}</span>
+              <span class="artwork-picker-card__meta">{% trans "Profile language" %}</span>
+            </label>
+            {% for artwork in poster_artworks %}
+            <label class="artwork-picker-card">
+              <input type="radio" name="poster_artwork_id" value="{{ artwork.id }}" class="sr-only" {% if form.poster_artwork_id.value|stringformat:"s" == artwork.id|stringformat:"s" %}checked{% endif %}>
+              <img src="{{ artwork.image_url }}" alt="{% trans 'Poster option' %}" class="artwork-picker-card__image" loading="lazy">
+              <span class="artwork-picker-card__title">{% if artwork.language %}{{ artwork.language }}{% else %}{% trans "Cosmetic" %}{% endif %}{% if artwork.is_default %} · {% trans "Default" %}{% endif %}</span>
+              <span class="artwork-picker-card__meta">{% if artwork.width and artwork.height %}{{ artwork.width }}×{{ artwork.height }}{% endif %}</span>
+            </label>
+            {% empty %}
+            <p class="text-sm text-base-content/60">{% trans "No poster artwork is available yet." %}</p>
+            {% endfor %}
+          </div>
+          {% if form.poster_artwork_id.errors %}<p class="text-sm text-error">{{ form.poster_artwork_id.errors|join:", " }}</p>{% endif %}
+        </div>
+      </section>
+
+      <section class="artwork-picker-collapse collapse collapse-arrow border border-base-300 bg-base-100"
+               x-data="{ expanded: true }"
+               :class="{ 'collapse-open': expanded }">
+        <button type="button"
+                class="collapse-title flex items-center gap-2 pr-12 text-lg font-semibold"
+                @click="expanded = ! expanded"
+                :aria-expanded="expanded"
+                aria-controls="background-picker-content">
+          <i class="fa-solid fa-panorama text-primary" aria-hidden="true"></i>
+          <span>{% trans "Background" %}</span>
+        </button>
+        <div id="background-picker-content"
+             class="collapse-content space-y-3 pt-0"
+             x-show="expanded"
+             x-collapse
+             x-cloak>
+          <p class="text-sm text-base-content/60">{% trans "This image is used on the detail page and for every episode of a TV show." %}</p>
+          <div class="artwork-picker-grid artwork-picker-grid--background">
+            <label class="artwork-picker-card artwork-picker-card--wide">
+              <input type="radio" name="background_artwork_id" value="" class="sr-only" {% if not form.background_artwork_id.value %}checked{% endif %}>
+              <div class="artwork-picker-card__image artwork-picker-card__image--empty"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></div>
+              <span class="artwork-picker-card__title">{% trans "Automatic" %}</span>
+              <span class="artwork-picker-card__meta">{% trans "Provider default" %}</span>
+            </label>
+            {% for artwork in background_artworks %}
+            <label class="artwork-picker-card artwork-picker-card--wide">
+              <input type="radio" name="background_artwork_id" value="{{ artwork.id }}" class="sr-only" {% if form.background_artwork_id.value|stringformat:"s" == artwork.id|stringformat:"s" %}checked{% endif %}>
+              <img src="{{ artwork.image_url }}" alt="{% trans 'Background option' %}" class="artwork-picker-card__image" loading="lazy">
+              <span class="artwork-picker-card__title">{% if artwork.language %}{{ artwork.language }}{% else %}{% trans "Cosmetic" %}{% endif %}{% if artwork.is_default %} · {% trans "Default" %}{% endif %}</span>
+              <span class="artwork-picker-card__meta">{% if artwork.width and artwork.height %}{{ artwork.width }}×{{ artwork.height }}{% endif %}</span>
+            </label>
+            {% empty %}
+            <p class="text-sm text-base-content/60">{% trans "No background artwork is available yet." %}</p>
+            {% endfor %}
+          </div>
+          {% if form.background_artwork_id.errors %}<p class="text-sm text-error">{{ form.background_artwork_id.errors|join:", " }}</p>{% endif %}
+        </div>
+      </section>
+
+      <footer class="modal-action border-t border-base-300 pt-5">
+        <button type="button" class="btn btn-ghost" onclick="this.closest('dialog').close()">{% trans "Cancel" %}</button>
+        <button type="submit" class="btn btn-primary" hx-disabled-elt="this">
+          <i class="fa-solid fa-check" aria-hidden="true"></i>
+          {% trans "Save choices" %}
+        </button>
+      </footer>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>{% trans "Close" %}</button></form>
+</dialog>

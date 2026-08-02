@@ -10,5 +10,6 @@ urlpatterns = [
     path("movies/<str:external_id>/refresh/", views.movie_refresh, name="movie-detail-refresh"),
     path("movies/<str:external_id>/switch/", views.movie_switch, name="movie-detail-switch"),
     path("movies/<str:external_id>/watched/", views.movie_watched, name="movie-detail-watched"),
+    path("movies/<str:external_id>/watched/poster/", views.movie_poster_watched, name="movie-poster-watched"),
     path("movies/<str:external_id>/delete/", views.movie_delete, name="movie-detail-delete"),
 ]

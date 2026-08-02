@@ -1,11 +1,17 @@
 from django.conf import settings
-from django.http import HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import render
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
-from apps.catalog.forms import SearchForm
+from apps.catalog.artwork import (
+    media_language_for_user,
+    save_media_artwork_preferences,
+)
+from apps.catalog.forms import MediaArtworkPreferenceForm, SearchForm
+from apps.catalog.languages import language_display_name
 from apps.catalog.localization import metadata_language_for_user
+from apps.catalog.models import MediaArtwork, UserMediaArtworkPreference
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.services import (
     SEARCH_TYPE_PROVIDERS,
@@ -100,6 +106,104 @@ def track(request):
         "error": error if item is None else None,
     }
     return render(request, "catalog/fragments/result_card.html", context)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["GET", "POST"])
+def media_artwork_preferences(request, media_type, external_id):
+    provider = request.GET.get("provider", request.POST.get("provider", "")).strip().lower()
+    if media_type not in MediaArtwork.MediaType.values:
+        return HttpResponseBadRequest("Invalid media artwork request.")
+    provider = provider or SEARCH_TYPE_PROVIDERS[media_type]
+    if provider not in SUPPORTED_PROVIDERS:
+        return HttpResponseBadRequest("Invalid media artwork request.")
+
+    media = _get_media_item(media_type, provider, external_id)
+    if media is None:
+        return HttpResponseBadRequest("Media item is not available for customization.")
+
+    identity = {
+        "provider": provider,
+        "media_type": media_type,
+        "external_id": str(external_id),
+    }
+    preference = UserMediaArtworkPreference.objects.filter(
+        user=request.user,
+        **identity,
+    ).select_related("poster_artwork", "background_artwork").first()
+    artworks = list(MediaArtwork.objects.filter(**identity))
+    if request.method == "POST":
+        if settings.DEMO and not request.user.is_superuser:
+            return HttpResponseForbidden("Demo mode is read-only.")
+        form = MediaArtworkPreferenceForm(
+            media=media,
+            user=request.user,
+            artworks=artworks,
+            preference=preference,
+            data=request.POST,
+        )
+        if form.is_valid():
+            try:
+                save_media_artwork_preferences(
+                    request.user,
+                    media=media,
+                    language=form.cleaned_data["language"],
+                    poster_artwork_id=(
+                        form.cleaned_data["poster_artwork_id"].id
+                        if form.cleaned_data["poster_artwork_id"]
+                        else None
+                    ),
+                    background_artwork_id=(
+                        form.cleaned_data["background_artwork_id"].id
+                        if form.cleaned_data["background_artwork_id"]
+                        else None
+                    ),
+                )
+            except ValueError as exc:
+                form.add_error(None, str(exc))
+            else:
+                return HttpResponse(status=204, headers={"HX-Refresh": "true"})
+    else:
+        form = MediaArtworkPreferenceForm(
+            media=media,
+            user=request.user,
+            artworks=artworks,
+            preference=preference,
+        )
+
+    return render(
+        request,
+        "catalog/fragments/media_artwork_preferences.html",
+        {
+            "media": media,
+            "media_type": media_type,
+            "provider": provider,
+            "preference": preference,
+            "effective_language": language_display_name(
+                media_language_for_user(request.user, media)
+            ),
+            "poster_artworks": [
+                artwork for artwork in artworks if artwork.kind == MediaArtwork.Kind.POSTER
+            ],
+            "background_artworks": [
+                artwork
+                for artwork in artworks
+                if artwork.kind == MediaArtwork.Kind.BACKGROUND
+            ],
+            "form": form,
+        },
+    )
+
+
+def _get_media_item(media_type, provider, external_id):
+    if media_type == MediaArtwork.MediaType.MOVIE:
+        from apps.movies.models import Movie
+
+        return Movie.objects.filter(provider=provider, external_id=external_id).first()
+    from apps.tv.models import Show
+
+    return Show.objects.filter(provider=provider, external_id=external_id).first()
 
 
 def _find_tracked_item(

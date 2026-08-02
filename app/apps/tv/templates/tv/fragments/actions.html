@@ -11,6 +11,7 @@
 {% trans "Cancel" as cancel_label %}
 {% trans "Switch to" as switch_to_label %}
 {% trans "Refresh metadata" as refresh_metadata_label %}
+{% trans "Edit artwork and language" as edit_artwork_label %}
 {% if show.show_fully_watched %}
   {% trans "Mark show unwatched" as show_watched_label %}
 {% else %}
@@ -160,5 +161,15 @@
     </button>
     {% endif %}
   {% endif %}
+    {% if show.can_customize %}
+    <button type="button" aria-label="{{ edit_artwork_label }}"
+            data-tippy-content="{{ edit_artwork_label }}"
+            class="btn btn-sm join-item media-action-button btn-ghost"
+            hx-get="{% url 'media-artwork-preferences' media_type='tv' external_id=show.external_id %}?provider={{ show.provider }}"
+            hx-target="#show-artwork-modal" hx-swap="innerHTML">
+      <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+      <span class="sr-only">{{ edit_artwork_label }}</span>
+    </button>
+    {% endif %}
   </div>
 </div>

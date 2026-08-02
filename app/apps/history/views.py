@@ -5,7 +5,8 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_http_methods
 
-from apps.catalog.localization import LocalizedRecord, metadata_language_for_user
+from apps.catalog.artwork import localized_media_record, localized_media_records
+from apps.catalog.localization import LocalizedRecord
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.common.htmx import is_htmx_fragment_request
@@ -72,6 +73,21 @@ def _history_fragment_response(request):
 
 def _history_context(request):
     page = get_history_page(request.user, request.GET.get("page", 1))
+    entries = list(page.object_list)
+    movies = [entry.record.movie for entry in entries if entry.kind == "movie"]
+    shows = [
+        entry.record.episode.show
+        for entry in entries
+        if entry.kind == "episode"
+    ]
+    localized_movies = {
+        record.source.pk: record
+        for record in localized_media_records(movies, request.user)
+    }
+    localized_shows = {
+        record.source.pk: record
+        for record in localized_media_records(shows, request.user)
+    }
     return {
         "page_obj": page,
         "page_range": page.paginator.get_elided_page_range(
@@ -80,24 +96,36 @@ def _history_context(request):
             on_ends=1,
         ),
         "entries": [
-            _history_entry_context(request, entry)
-            for entry in page.object_list
+            _history_entry_context(
+                request,
+                entry,
+                localized_movies=localized_movies,
+                localized_shows=localized_shows,
+            )
+            for entry in entries
         ],
     }
 
 
-def _history_entry_context(request, entry):
+def _history_entry_context(
+    request,
+    entry,
+    *,
+    localized_movies=None,
+    localized_shows=None,
+):
     if entry.kind == "movie":
         movie = entry.record.movie
-        localized_movie = LocalizedRecord(
-            movie,
-            metadata_language_for_user(request.user, movie.provider),
+        localized_movie = (
+            localized_movies.get(movie.pk)
+            if localized_movies is not None
+            else localized_media_record(movie, request.user)
         )
         return {
             "kind": "movie",
             "title": localized_movie.title,
             "media_label": _("Movie"),
-            "poster_url": movie.poster_url,
+            "poster_url": localized_movie.poster_url,
             "icon": "fa-film",
             "detail_url": _provider_url(
                 reverse("movie-detail", kwargs={"external_id": movie.external_id}),
@@ -115,8 +143,12 @@ def _history_entry_context(request, entry):
 
     episode = entry.record.episode
     show = episode.show
-    language = metadata_language_for_user(request.user, show.provider)
-    localized_show = LocalizedRecord(show, language)
+    localized_show = (
+        localized_shows.get(show.pk)
+        if localized_shows is not None
+        else localized_media_record(show, request.user)
+    )
+    language = localized_show.language
     localized_episode = LocalizedRecord(episode, language)
     episode_label = f"S{episode.season_number:02d}E{episode.episode_number:02d}"
     return {
@@ -125,7 +157,7 @@ def _history_entry_context(request, entry):
         "media_label": _("Episode"),
         "episode_name": localized_episode.name,
         "episode_label": episode_label,
-        "poster_url": show.poster_url,
+        "poster_url": localized_show.poster_url,
         "icon": "fa-tv",
         "detail_url": _provider_url(
             reverse(

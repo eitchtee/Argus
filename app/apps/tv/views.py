@@ -12,6 +12,12 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
+from apps.catalog.artwork import (
+    localized_media_record,
+    localized_media_records,
+    media_artwork_overrides,
+    media_language_for_user,
+)
 from apps.catalog.localization import (
     LocalizedRecord,
     episode_name,
@@ -115,14 +121,12 @@ def watchlist(request):
     }
     if is_htmx_fragment_request(request):
         filtered_show_ids = set(watchlist_filter.qs.values_list("pk", flat=True))
-        context["shows"] = [
-            LocalizedRecord(
-                show,
-                metadata_language_for_user(request.user, show.provider),
-            )
+        shows = [
+            show
             for show in watchlist_filter.condition_shows
             if show.pk in filtered_show_ids
         ]
+        context["shows"] = localized_media_records(shows, request.user)
         return render(request, "tv/fragments/watchlist_grid.html", context)
     return render(request, "tv/pages/watchlist.html", context)
 
@@ -153,13 +157,7 @@ def watchlist_tab(request, section):
         request,
         "tv/fragments/watchlist_grid.html",
         {
-            "shows": [
-                LocalizedRecord(
-                    show,
-                    metadata_language_for_user(request.user, show.provider),
-                )
-                for show in shows
-            ]
+            "shows": localized_media_records(shows, request.user),
         },
     )
 
@@ -476,10 +474,19 @@ def episode_detail_watched(request, external_id, episode_id):
 @require_http_methods(["GET"])
 def home_watchlist(request):
     entries = get_watchlist(request.user)
+    localized_shows = _localized_show_map(
+        (entry.show for entry in entries),
+        request.user,
+    )
     return render(
         request,
         "tv/fragments/home_watchlist.html",
-        {"entries": [_localize_watchlist_entry(entry, request.user) for entry in entries]},
+        {
+            "entries": [
+                _localize_watchlist_entry(entry, request.user, localized_shows)
+                for entry in entries
+            ],
+        },
     )
 
 
@@ -516,60 +523,110 @@ def home_watchlist_episode_watched(request, episode_id):
 @require_http_methods(["GET"])
 def home_upcoming(request):
     entries = get_upcoming_episodes(request.user)
+    localized_shows = _localized_show_map(
+        (
+            episode.show
+            for entry in entries
+            for episode in [entry.episode, *[item.episode for item in entry.additional_episodes]]
+        ),
+        request.user,
+    )
     return render(
         request,
         "tv/fragments/home_upcoming.html",
-        {"entries": [_localize_upcoming_entry(entry, request.user) for entry in entries]},
+        {
+            "entries": [
+                _localize_upcoming_entry(entry, request.user, localized_shows)
+                for entry in entries
+            ]
+        },
     )
 
 
 def _localize_show(show, user):
-    return LocalizedRecord(show, metadata_language_for_user(user, show.provider))
+    return localized_media_record(show, user)
 
 
-def _localize_episode(episode, user):
-    language = metadata_language_for_user(user, episode.show.provider)
+def _localized_show_map(shows, user):
+    shows = list({show.pk: show for show in shows}.values())
+    return {
+        record.source.pk: record
+        for record in localized_media_records(shows, user)
+    }
+
+
+def _localize_episode(episode, user, localized_show=None):
+    language = (
+        localized_show.language
+        if localized_show is not None
+        else media_language_for_user(user, episode.show)
+    )
     return LocalizedRecord(
         episode,
         language,
         overrides={
             "name": resolve_field(episode, "name", language),
-            "show": LocalizedRecord(episode.show, language),
+            "show": localized_show or _localize_show(episode.show, user),
             "air_status": _episode_air_status(episode.air_date),
         },
     )
 
 
-def _localize_watchlist_entry(entry, user):
+def _localize_watchlist_entry(entry, user, localized_shows=None):
+    localized_show = (
+        localized_shows.get(entry.show.pk)
+        if localized_shows is not None
+        else None
+    )
+    localized_show = localized_show or _localize_show(entry.show, user)
     return replace(
         entry,
-        show=_localize_show(entry.show, user),
-        next_episode=_localize_episode(entry.next_episode, user),
+        show=localized_show,
+        next_episode=_localize_episode(entry.next_episode, user, localized_show),
     )
 
 
 def _localize_sections(sections, user):
+    entries = [
+        *sections.active,
+        *sections.not_seen_in_a_while,
+        *sections.not_started,
+    ]
+    localized_shows = _localized_show_map(
+        (entry.show for entry in entries),
+        user,
+    )
+
+    def localize(entry):
+        return _localize_watchlist_entry(entry, user, localized_shows)
+
     return replace(
         sections,
-        active=[_localize_watchlist_entry(entry, user) for entry in sections.active],
-        not_seen_in_a_while=[
-            _localize_watchlist_entry(entry, user)
-            for entry in sections.not_seen_in_a_while
-        ],
-        not_started=[
-            _localize_watchlist_entry(entry, user) for entry in sections.not_started
-        ],
+        active=[localize(entry) for entry in sections.active],
+        not_seen_in_a_while=[localize(entry) for entry in sections.not_seen_in_a_while],
+        not_started=[localize(entry) for entry in sections.not_started],
     )
 
 
-def _localize_upcoming_entry(entry, user):
+def _localize_upcoming_entry(entry, user, localized_shows=None):
+    localized_show = (
+        localized_shows.get(entry.episode.show.pk)
+        if localized_shows is not None
+        else None
+    )
     return replace(
         entry,
-        episode=_localize_episode(entry.episode, user),
+        episode=_localize_episode(entry.episode, user, localized_show),
         additional_episodes=[
             replace(
                 additional,
-                episode=_localize_episode(additional.episode, user),
+                episode=_localize_episode(
+                    additional.episode,
+                    user,
+                    localized_shows.get(additional.episode.show.pk)
+                    if localized_shows is not None
+                    else None,
+                ),
             )
             for additional in entry.additional_episodes
         ],
@@ -579,9 +636,20 @@ def _localize_upcoming_entry(entry, user):
 def _localize_upcoming_month(month, user):
     if month is None:
         return None
+    localized_shows = _localized_show_map(
+        (
+            episode.show
+            for entry in month.entries
+            for episode in [entry.episode, *[item.episode for item in entry.additional_episodes]]
+        ),
+        user,
+    )
     return replace(
         month,
-        entries=[_localize_upcoming_entry(entry, user) for entry in month.entries],
+        entries=[
+            _localize_upcoming_entry(entry, user, localized_shows)
+            for entry in month.entries
+        ],
     )
 
 
@@ -601,6 +669,7 @@ def _build_show_context(user, external_id, provider="tvdb"):
     if show is None:
         return _preview_show_context(user, external_id, language, provider)
 
+    language = media_language_for_user(user, show)
     tracking_state = _refresh_show_identity(user, show, language)
     user_show = UserShow.objects.filter(user=user, show=show).first()
     tracked = bool(user_show and user_show.status == UserShow.Status.TRACKED)
@@ -625,8 +694,8 @@ def _build_show_context(user, external_id, provider="tvdb"):
         "network": show.network,
         "release_date": show.first_aired,
         "genres": [resolve_field(genre, "name", language) for genre in show.genres.all()],
-        "poster_url": show.poster_url,
-        "backdrop_url": show.backdrop_url,
+        **media_artwork_overrides(user, show, language=language),
+        "can_customize": True,
         "imdb_id": show.imdb_id,
         "tmdb_id": show.tmdb_id,
         "tvdb_id": show.tvdb_id,
@@ -659,11 +728,11 @@ def _build_show_context(user, external_id, provider="tvdb"):
 
 
 def _build_show_episodes_context(user, external_id, provider="tvdb"):
-    language = metadata_language_for_user(user, provider)
     show_specials = user.settings.show_specials
     show = Show.objects.filter(provider=provider, external_id=external_id).first()
 
     if show is not None:
+        language = media_language_for_user(user, show)
         tracked = UserShow.objects.filter(
             user=user,
             show=show,
@@ -688,6 +757,7 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
             for season in season_queryset.distinct().order_by("season_number")
         ]
     else:
+        language = metadata_language_for_user(user, provider)
         episodes = get_show_episodes(
             external_id,
             language=language,
@@ -740,7 +810,7 @@ def _episode_counts(seasons):
 
 
 def _build_season_context(user, season: Season):
-    language = metadata_language_for_user(user, season.show.provider)
+    language = media_language_for_user(user, season.show)
     tracked = UserShow.objects.filter(
         user=user,
         show=season.show,
@@ -867,6 +937,7 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         ],
         "poster_url": _provider_poster_url(detail.poster_path, provider),
         "backdrop_url": _provider_backdrop_url(detail.backdrop_path, provider),
+        "can_customize": False,
         "imdb_id": detail.imdb_id,
         "tmdb_id": detail.tmdb_id,
         "tvdb_id": detail.tvdb_id,

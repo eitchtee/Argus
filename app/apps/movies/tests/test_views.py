@@ -2,7 +2,9 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
+from apps.catalog.models import SyncStatus
 from apps.catalog.providers.base import CastMemberDTO, DetailDTO
 from apps.movies.models import Movie, UserMovie
 
@@ -376,20 +378,25 @@ class MovieWatchedViewTests(TestCase):
         response = self.client.post("/movies/550/watched/")
         self.assertEqual(response.status_code, 403)
 
-    @patch("apps.movies.views.hydrate_movie_translations")
-    @patch("apps.movies.views.import_movie")
-    def test_post_marks_watched_without_prior_tracking(
+    @patch("apps.movies.views.refresh_movie")
+    @patch("apps.movies.views.import_movie", create=True)
+    def test_post_marks_watched_without_refreshing_synced_movie_metadata(
         self,
         import_movie_mock,
-        hydrate_movie_translations,
+        refresh_movie_mock,
     ):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        movie = Movie.objects.create(
+            external_id="550",
+            title="Fight Club",
+            sync_status=SyncStatus.OK,
+            last_synced_at=timezone.now(),
+        )
         import_movie_mock.return_value = movie
 
         response = self.client.post("/movies/550/watched/", HTTP_HX_REQUEST="true")
 
-        import_movie_mock.assert_called_once_with("tmdb", "550", language="en-US")
-        hydrate_movie_translations.defer.assert_called_once_with(movie_id=movie.id)
+        import_movie_mock.assert_not_called()
+        refresh_movie_mock.assert_not_called()
         self.assertContains(response, 'aria-label="Movie actions"')
         self.assertContains(response, 'aria-label="Mark unwatched"')
         self.assertContains(response, 'aria-label="Delete movie"')
@@ -397,11 +404,31 @@ class MovieWatchedViewTests(TestCase):
             UserMovie.objects.filter(user=self.user, movie=movie, is_seen=True).exists()
         )
 
-    @patch("apps.movies.views.import_movie")
-    def test_delete_marks_unwatched(self, import_movie_mock):
+    @patch("apps.movies.views.refresh_movie")
+    @patch("apps.movies.views.import_movie", create=True)
+    def test_post_creates_placeholder_and_queues_metadata_refresh_for_missing_movie(
+        self,
+        import_movie_mock,
+        refresh_movie_mock,
+    ):
+        import_movie_mock.side_effect = AssertionError(
+            "watched actions must not synchronously import metadata"
+        )
+
+        response = self.client.post("/movies/550/watched/", HTTP_HX_REQUEST="true")
+
+        movie = Movie.objects.get(provider="tmdb", external_id="550")
+        self.assertEqual(movie.title, "550")
+        self.assertEqual(movie.sync_status, SyncStatus.PENDING)
+        refresh_movie_mock.assert_called_once_with(self.user, movie)
+        self.assertTrue(
+            UserMovie.objects.filter(user=self.user, movie=movie, is_seen=True).exists()
+        )
+        self.assertContains(response, 'aria-label="Mark unwatched"')
+
+    def test_delete_marks_unwatched(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
-        import_movie_mock.return_value = movie
 
         response = self.client.delete("/movies/550/watched/", HTTP_HX_REQUEST="true")
 
@@ -461,6 +488,12 @@ class MovieActionCardViewTests(TestCase):
         self.assertLess(poster_stack, actions_card)
         self.assertLess(actions_card, details)
         self.assertContains(response, 'data-tippy-content="Add to watchlist"')
+        self.assertRegex(
+            content,
+            r'<div class="join media-action-join join-horizontal">(?s:.*?)'
+            r'<button[^>]+aria-label="Edit artwork and language"[^>]*'
+            r'class="btn btn-sm join-item media-action-button btn-ghost"',
+        )
         self.assertNotContains(response, 'class="fab"')
         self.assertNotContains(response, 'class="tooltip')
         self.assertNotContains(response, "data-tip=")
