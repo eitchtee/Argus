@@ -203,6 +203,7 @@ class TVDBProviderTests(SimpleTestCase):
                     "data": {
                         "id": 42,
                         "name": "A Movie",
+                        "originalLanguage": "eng",
                         "overview": "A movie.",
                         "releaseDate": "2020-01-02",
                         "image": "https://artworks.thetvdb.com/movie.jpg",
@@ -222,6 +223,8 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.provider, "tvdb")
         self.assertEqual(detail.external_id, "42")
         self.assertEqual(detail.title, "A Movie")
+        self.assertEqual(detail.original_title, "A Movie")
+        self.assertEqual(detail.original_language, "eng")
         self.assertEqual(detail.release_date, "2020-01-02")
         self.assertEqual(detail.imdb_id, "tt1234567")
         self.assertEqual(detail.tvdb_id, "42")
@@ -331,6 +334,8 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.external_id, "121361")
         self.assertEqual(detail.tvdb_id, "121361")
         self.assertEqual(detail.title, "Game of Thrones")
+        self.assertEqual(detail.original_title, "Game of Thrones")
+        self.assertEqual(detail.original_language, "eng")
         self.assertEqual(detail.overview, "Nine noble families fight for control.")
         self.assertEqual(detail.poster_path, "https://artworks.thetvdb.com/poster.jpg")
         self.assertEqual(detail.release_date, "2011-04-17")
@@ -542,6 +547,31 @@ class TVDBProviderTests(SimpleTestCase):
 
         self.assertEqual(detail.title, "Friends")
         self.assertEqual(detail.translations["eng"]["title"], "Friends")
+
+    def test_fetch_detail_uses_primary_original_language_title_over_localized_name(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_series_extended.json")
+        payload["data"]["name"] = "Money Heist"
+        payload["data"]["originalLanguage"] = "spa"
+        payload["data"]["translations"] = {
+            "nameTranslations": [
+                {"language": "eng", "name": "Money Heist", "isPrimary": True},
+                {
+                    "language": "spa",
+                    "name": "La casa de papel",
+                    "isPrimary": True,
+                    "isAlias": False,
+                },
+                {"language": "spa", "name": "Money Heist", "isAlias": True},
+            ]
+        }
+        provider = TVDBProvider(opener=SequenceOpener([payload]))
+
+        detail = provider.fetch_detail("121361", language="eng")
+
+        self.assertEqual(detail.title, "Money Heist")
+        self.assertEqual(detail.original_title, "La casa de papel")
+        self.assertEqual(detail.original_language, "spa")
 
     def test_fetch_detail_merges_requested_series_translation(self):
         cache.set("catalog:tvdb:token", "existing-token")

@@ -155,6 +155,7 @@ class TMDBProvider(BaseProvider):
                 or payload.get("original_name")
                 or ""
             ),
+            original_language=payload.get("original_language") or "",
             overview=payload.get("overview") or "",
             tagline=payload.get("tagline") or "",
             poster_path=payload.get("poster_path"),

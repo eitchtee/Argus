@@ -272,7 +272,8 @@ class TVDBProvider(BaseProvider):
             provider=self.name,
             external_id=str(data["id"]),
             title=data.get("name") or "",
-            original_title=data.get("name") or "",
+            original_title=self._original_title_from_data(data),
+            original_language=data.get("originalLanguage") or "",
             overview=data.get("overview") or "",
             poster_path=self._poster_from_artworks(data, language) or data.get("image"),
             backdrop_path=self._backdrop_from_artworks(data),
@@ -331,6 +332,7 @@ class TVDBProvider(BaseProvider):
             external_id=str(data.get("id") or external_id),
             title=data.get("name") or "",
             original_title=data.get("name") or "",
+            original_language=data.get("originalLanguage") or "",
             overview=data.get("overview") or "",
             tagline=data.get("tagline") or "",
             poster_path=self._poster_from_artworks(data, language)
@@ -363,6 +365,33 @@ class TVDBProvider(BaseProvider):
             ],
             translations={code: values for code, values in translations.items() if values},
         )
+
+    def _original_title_from_data(self, data: dict) -> str:
+        original_name = data.get("originalName")
+        if original_name:
+            return original_name
+
+        original_language = data.get("originalLanguage")
+        translation_data = data.get("translations") or {}
+        name_translations = (
+            translation_data.get("nameTranslations", [])
+            if isinstance(translation_data, dict)
+            else []
+        )
+        matching_translations = [
+            item
+            for item in name_translations
+            if item.get("language") == original_language
+            and item.get("name")
+            and item.get("isAlias") is not True
+        ]
+        for item in matching_translations:
+            if item.get("isPrimary") is True:
+                return item["name"]
+        if matching_translations:
+            return matching_translations[0]["name"]
+
+        return data.get("name") or ""
 
     def _translations_from_data(self, data: dict) -> dict[str, dict[str, str]]:
         translations: dict[str, dict[str, str]] = {}

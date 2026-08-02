@@ -51,6 +51,7 @@ class DetailDTO:
     external_id: str
     title: str
     original_title: str = ""
+    original_language: str = ""
     overview: str = ""
     tagline: str = ""
     poster_path: str | None = None

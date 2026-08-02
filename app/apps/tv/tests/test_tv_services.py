@@ -315,6 +315,8 @@ class TrackShowServiceTests(TestCase):
             tmdb_id="1399",
             trakt_id="9000",
             name="Game of Thrones",
+            original_title="La casa de papel",
+            original_language="spa",
             normalized_status=Show.NormalizedStatus.ENDED,
             airs_time=time(21, 0),
             airs_timezone="America/New_York",
@@ -349,6 +351,8 @@ class TrackShowServiceTests(TestCase):
         self.assertEqual(switched.seasons.count(), 1)
         self.assertEqual(switched.episodes.count(), 1)
         self.assertEqual(switched.trakt_id, "9000")
+        self.assertEqual(switched.original_title, "La casa de papel")
+        self.assertEqual(switched.original_language, "spa")
         self.assertEqual(
             switched.normalized_status,
             Show.NormalizedStatus.ENDED,

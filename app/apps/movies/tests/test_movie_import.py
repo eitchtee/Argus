@@ -31,6 +31,7 @@ def movie_detail(**overrides):
         "tvdb_id": "42",
         "title": "Fight Club",
         "original_title": "Fight Club",
+        "original_language": "en",
         "overview": "Overview",
         "tagline": "Mischief. Mayhem. Soap.",
         "poster_path": "/poster.jpg",
@@ -219,6 +220,7 @@ class MovieImportTests(TestCase):
         self.assertEqual(movie.tmdb_id, "550")
         self.assertEqual(movie.tvdb_id, "42")
         self.assertEqual(movie.title, "Fight Club")
+        self.assertEqual(movie.original_language, "en")
         self.assertEqual(movie.release_date.isoformat(), "1999-10-15")
         self.assertEqual(movie.runtime, 139)
         self.assertEqual(movie.sync_status, SyncStatus.OK)

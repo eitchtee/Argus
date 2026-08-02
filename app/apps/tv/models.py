@@ -15,6 +15,8 @@ class Show(ProviderBackedModel):
     provider = models.CharField(max_length=16, default="tvdb")
     trakt_id = models.CharField(max_length=32, null=True, blank=True, unique=True)
     name = models.CharField(max_length=255)
+    original_title = models.CharField(max_length=255, blank=True)
+    original_language = models.CharField(max_length=16, blank=True)
     overview = models.TextField(blank=True)
     translations = models.JSONField(default=dict, blank=True)
     poster_path = models.CharField(max_length=255, null=True, blank=True)

@@ -277,6 +277,8 @@ class MovieServiceTests(TestCase):
             tvdb_id="42",
             trakt_id="9000",
             title="Fight Club",
+            original_title="Fight Club",
+            original_language="en",
         )
         seen_at = timezone.now() - timedelta(days=2)
         added_at = timezone.now() - timedelta(days=5)
@@ -304,6 +306,8 @@ class MovieServiceTests(TestCase):
         self.assertEqual(target.external_id, "42")
         self.assertEqual(target.tmdb_id, "550")
         self.assertEqual(target.trakt_id, "9000")
+        self.assertEqual(target.original_title, "Fight Club")
+        self.assertEqual(target.original_language, "en")
         self.assertEqual(target.sync_status, SyncStatus.PENDING)
         moved = UserMovie.objects.get(user=self.user, movie=target)
         self.assertTrue(moved.on_watchlist)

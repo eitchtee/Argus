@@ -54,6 +54,7 @@ def show_detail(**overrides):
         "external_id": "121361",
         "title": "Game of Thrones",
         "original_title": "Game of Thrones",
+        "original_language": "eng",
         "overview": "Nine noble families fight for control.",
         "poster_path": "https://artworks.thetvdb.com/poster.jpg",
         "backdrop_path": None,
@@ -168,6 +169,7 @@ class ShowImportTests(TestCase):
             detail=show_detail(
                 title="A Série",
                 original_title="The Series",
+                original_language="eng",
                 translations={"por": {"title": "A Série"}},
             )
         )
@@ -179,6 +181,8 @@ class ShowImportTests(TestCase):
         )
 
         self.assertEqual(show.name, "The Series")
+        self.assertEqual(show.original_title, "The Series")
+        self.assertEqual(show.original_language, "eng")
         self.assertEqual(show.translations["eng"]["name"], "The Series")
 
     def test_import_show_preserves_legacy_artwork_on_incomplete_response(self):
@@ -427,6 +431,8 @@ class ShowImportTests(TestCase):
         self.assertEqual(show.provider, "tvdb")
         self.assertEqual(show.external_id, "121361")
         self.assertEqual(show.name, "Game of Thrones")
+        self.assertEqual(show.original_title, "Game of Thrones")
+        self.assertEqual(show.original_language, "eng")
         self.assertEqual(show.overview, "Nine noble families fight for control.")
         self.assertEqual(show.poster_path, "https://artworks.thetvdb.com/poster.jpg")
         self.assertEqual(show.first_aired.isoformat(), "2011-04-17")

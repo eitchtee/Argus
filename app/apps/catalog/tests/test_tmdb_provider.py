@@ -105,6 +105,8 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.tmdb_id, "550")
         self.assertEqual(detail.tvdb_id, "42")
         self.assertEqual(detail.title, "Fight Club")
+        self.assertEqual(detail.original_title, "Fight Club")
+        self.assertEqual(detail.original_language, "en")
         self.assertEqual(detail.poster_path, "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg")
         self.assertEqual(detail.release_date, "1999-10-15")
         self.assertEqual(detail.runtime, 139)
@@ -225,6 +227,7 @@ class TMDBProviderTests(SimpleTestCase):
                 "id": 1399,
                 "name": "Game of Thrones",
                 "original_name": "Game of Thrones",
+                "original_language": "en",
                 "overview": "A show.",
                 "first_air_date": "2011-04-17",
                 "episode_run_time": [57],
@@ -249,6 +252,8 @@ class TMDBProviderTests(SimpleTestCase):
 
         self.assertEqual(detail.provider, "tmdb")
         self.assertEqual(detail.title, "Game of Thrones")
+        self.assertEqual(detail.original_title, "Game of Thrones")
+        self.assertEqual(detail.original_language, "en")
         self.assertEqual(detail.release_date, "2011-04-17")
         self.assertEqual(detail.average_runtime, 57)
         self.assertEqual(detail.network, "HBO")

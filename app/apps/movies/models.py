@@ -19,6 +19,7 @@ class Movie(ProviderBackedModel):
     tvdb_id = models.CharField(max_length=32, null=True, blank=True)
     title = models.CharField(max_length=255)
     original_title = models.CharField(max_length=255, blank=True)
+    original_language = models.CharField(max_length=16, blank=True)
     overview = models.TextField(blank=True)
     tagline = models.CharField(max_length=255, blank=True)
     translations = models.JSONField(default=dict, blank=True)

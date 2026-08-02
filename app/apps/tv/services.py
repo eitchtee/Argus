@@ -196,6 +196,8 @@ def import_show(
             )
         show_defaults = {
             "name": base_name,
+            "original_title": detail.original_title,
+            "original_language": detail.original_language,
             "overview": base_overview,
             "translations": show_translations,
             "first_aired": first_aired,
@@ -908,6 +910,8 @@ def _show_switch_defaults(
 ) -> dict:
     return {
         "name": source.name,
+        "original_title": source.original_title,
+        "original_language": source.original_language,
         "overview": source.overview,
         "translations": source.translations,
         "poster_path": source.poster_url,
