@@ -485,17 +485,17 @@ CATALOG_ENDED_SHOW_SYNC_INTERVAL_DAYS = int(
 PWA_APP_NAME = SITE_TITLE
 PWA_APP_DESCRIPTION = "A self-hosted media tracker"
 PWA_APP_THEME_COLOR = "#2563eb"
-PWA_APP_BACKGROUND_COLOR = "#222222"
+PWA_APP_BACKGROUND_COLOR = "#ffffff"
 PWA_APP_DISPLAY = "standalone"
 PWA_APP_SCOPE = "/"
 PWA_APP_ORIENTATION = "any"
 PWA_APP_START_URL = "/"
 PWA_APP_STATUS_BAR_COLOR = "default"
 PWA_APP_ICONS = [
-    {"src": "/static/img/favicon/argus-dark-192x192.png", "sizes": "192x192"}
+    {"src": "/static/img/favicon/argus-light-192x192.png", "sizes": "192x192"}
 ]
 PWA_APP_ICONS_APPLE = [
-    {"src": "/static/img/favicon/argus-dark-180x180.png", "sizes": "180x180"}
+    {"src": "/static/img/favicon/argus-light-180x180.png", "sizes": "180x180"}
 ]
 PWA_APP_SPLASH_SCREEN = [
     {
