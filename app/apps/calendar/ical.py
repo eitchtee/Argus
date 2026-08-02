@@ -46,25 +46,27 @@ def _as_utc(value: datetime) -> datetime:
 
 def _summary(event: CalendarEvent) -> str:
     if event.kind == "movie":
-        return event.title
+        return f"📽️ {event.title}"
 
-    parts = [event.show_name, event.subtitle]
-    if event.title:
-        parts.append(event.title)
-    return " - ".join(parts)
+    parts = [part for part in (event.show_name, event.subtitle) if part]
+    return f"📺 {' '.join(parts)}"
 
 
 def _description(event: CalendarEvent) -> str:
     lines = []
+    if event.kind == "movie":
+        if event.overview:
+            lines.append(f"📄 {event.overview}")
+        if event.runtime:
+            lines.append(f"⏳ {event.runtime} minutes")
+        return "\n".join(lines)
+
+    if event.title:
+        lines.append(f"📛 {event.title}")
     if event.overview:
-        lines.append(event.overview)
-    if event.network:
-        lines.append(f"Network: {event.network}")
-    if event.director:
-        lines.append(f"Director: {event.director}")
-    if event.genres:
-        lines.append(f"Genres: {', '.join(event.genres)}")
+        lines.append(f"📄 {event.overview}")
     if event.runtime:
-        lines.append(f"Runtime: {event.runtime} minutes")
-    lines.append(f"Status: {event.status}")
+        lines.append(f"⏳ {event.runtime} minutes")
+    if event.network:
+        lines.append(f"📍 {event.network}")
     return "\n".join(lines)

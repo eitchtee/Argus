@@ -91,21 +91,89 @@ class ICalendarSerializerTests(SimpleTestCase):
         self.assertEqual(event.decoded("dtend"), date(2026, 7, 11))
 
     def test_escapes_and_folds_event_text(self):
-        ical = render_icalendar([
-            self.timed_event(
-                title="A, very; long\n title",
-                overview="\n".join(["A long overview"] * 20),
-            )
-        ])
+        ical = render_icalendar(
+            [
+                self.timed_event(
+                    title="A, very; long\n title",
+                    overview="\n".join(["A long overview"] * 20),
+                )
+            ]
+        )
 
         parsed = Calendar.from_ical(ical)
         event = next(component for component in parsed.walk("VEVENT"))
 
         self.assertEqual(
             str(event.decoded("summary")),
-            "Example Show - S01E01 - A, very; long\n title",
+            "📺 Example Show S01E01",
         )
-        self.assertLessEqual(max(len(line.encode("utf-8")) for line in ical.splitlines()), 75)
+        self.assertLessEqual(
+            max(len(line.encode("utf-8")) for line in ical.splitlines()), 75
+        )
+
+    def test_formats_tv_summary_without_episode_title(self):
+        ical = render_icalendar([self.timed_event(title="Beef")])
+
+        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
+
+        self.assertEqual(str(event.decoded("summary")), "📺 Example Show S01E01")
+
+    def test_formats_tv_description_with_available_fields(self):
+        ical = render_icalendar([self.timed_event()])
+
+        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
+
+        self.assertEqual(
+            str(event.decoded("description")),
+            "📛 Pilot\n📄 An episode overview.\n⏳ 60 minutes\n📍 Example Network",
+        )
+        self.assertNotIn("tracked", str(event.decoded("description")))
+
+    def test_omits_missing_tv_description_fields(self):
+        ical = render_icalendar(
+            [
+                self.timed_event(
+                    title="",
+                    overview="",
+                    runtime=None,
+                    network=None,
+                    status="paused",
+                )
+            ]
+        )
+
+        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
+
+        self.assertEqual(str(event.decoded("description")), "")
+
+    def test_formats_movie_summary_with_movie_emoji(self):
+        ical = render_icalendar([self.movie_event(title="Coyote vs. Acme")])
+
+        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
+
+        self.assertEqual(str(event.decoded("summary")), "📽️ Coyote vs. Acme")
+
+    def test_formats_movie_description_without_status_or_extra_metadata(self):
+        ical = render_icalendar([self.movie_event()])
+
+        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
+
+        self.assertEqual(
+            str(event.decoded("description")),
+            "📄 A movie overview.\n⏳ 120 minutes",
+        )
+        self.assertNotIn("Director", str(event.decoded("description")))
+        self.assertNotIn("Drama", str(event.decoded("description")))
+        self.assertNotIn("tracked", str(event.decoded("description")))
+
+    def test_omits_missing_movie_description_fields(self):
+        ical = render_icalendar(
+            [self.movie_event(overview="", runtime=None, status="paused")]
+        )
+
+        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
+
+        self.assertEqual(str(event.decoded("description")), "")
 
     def test_renders_movie_as_all_day_with_stable_movie_uid(self):
         ical = render_icalendar(
@@ -118,4 +186,4 @@ class ICalendarSerializerTests(SimpleTestCase):
         self.assertEqual(event.decoded("dtstart"), date(2026, 7, 10))
         self.assertEqual(event.decoded("dtend"), date(2026, 7, 11))
         self.assertEqual(str(event.decoded("uid")), "movie-1@argus")
-        self.assertIn("Movie Release", str(event.decoded("summary")))
+        self.assertEqual(str(event.decoded("summary")), "📽️ Movie Release")
