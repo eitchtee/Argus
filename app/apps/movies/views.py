@@ -48,9 +48,24 @@ from apps.movies.services import (
 @require_http_methods(["GET"])
 def movie_detail(request, external_id):
     provider = _provider_from_request(request, "tmdb")
-    if not is_htmx_fragment_request(request):
-        return render(request, "movies/pages/detail.html")
+    detail_content_url = reverse(
+        "movie-detail-content",
+        kwargs={"external_id": external_id},
+    )
+    if provider != "tmdb":
+        detail_content_url = f"{detail_content_url}?provider={provider}"
+    return render(
+        request,
+        "movies/pages/detail.html",
+        {"detail_content_url": detail_content_url},
+    )
 
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["GET"])
+def movie_detail_content(request, external_id):
+    provider = _provider_from_request(request, "tmdb")
     context = {
         "movie": _build_movie_context(request.user, external_id, provider),
     }

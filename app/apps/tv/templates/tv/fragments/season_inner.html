@@ -34,7 +34,7 @@
         <i class="fa-solid shrink-0 {% if episode.air_status == 'aired' %}fa-circle-check text-success{% elif episode.air_status == 'upcoming' %}fa-calendar-days text-info{% else %}fa-circle-question text-subtle{% endif %}" aria-hidden="true"></i>
         {% endif %}
         {% if episode.id %}
-        <a href="{% url 'tv-episode-detail' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" class="min-w-0 truncate text-sm font-medium link link-hover">{{ episode.episode_number }}. {{ episode.name }}</a>
+        <a href="{% url 'tv-episode-detail' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML" class="min-w-0 truncate text-sm font-medium link link-hover">{{ episode.episode_number }}. {{ episode.name }}</a>
         {% else %}
         <span class="min-w-0 truncate text-sm font-medium">{{ episode.episode_number }}. {{ episode.name }}</span>
         {% endif %}

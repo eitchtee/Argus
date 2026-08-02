@@ -5,7 +5,7 @@
 
 {% block content %}
 <div id="movie-content"
-     hx-get="{{ request.get_full_path }}"
+     hx-get="{{ detail_content_url }}"
      hx-trigger="load"
      hx-target="this"
      hx-swap="innerHTML"

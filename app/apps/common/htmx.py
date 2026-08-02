@@ -1,4 +1,6 @@
 def is_htmx_fragment_request(request):
-    return bool(request.headers.get("HX-Request")) and not bool(
-        request.headers.get("HX-Boosted")
+    return (
+        bool(request.headers.get("HX-Request"))
+        and not bool(request.headers.get("HX-Boosted"))
+        and not bool(request.headers.get("HX-History-Restore-Request"))
     )

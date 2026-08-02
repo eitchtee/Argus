@@ -327,7 +327,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
             poster_artwork=selected,
         )
 
-        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, selected.image_url)
 
@@ -379,7 +379,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
         )
 
         response = self.client.get(
-            f"/tv/123/episodes/{episode.id}/",
+            f"/tv/123/episodes/{episode.id}/content/",
             HTTP_HX_REQUEST="true",
         )
 

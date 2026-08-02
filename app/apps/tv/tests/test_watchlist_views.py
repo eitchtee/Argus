@@ -204,6 +204,18 @@ class WatchlistViewTests(TestCase):
         self.assertContains(response, 'hx-get="/tv/watchlist/"')
         self.assertNotContains(response, "My Show")
 
+    def test_history_restore_request_returns_page_shell_with_lazy_grid(self):
+        response = self.client.get(
+            reverse("tv-watchlist"),
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_HISTORY_RESTORE_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "tv/pages/watchlist.html")
+        self.assertContains(response, "<html")
+        self.assertContains(response, 'id="tv-watchlist-panel"')
+
     def test_watchlist_poster_boost_targets_the_page_body(self):
         response = self.client.get(
             reverse("tv-watchlist"),
@@ -226,6 +238,7 @@ class WatchlistViewTests(TestCase):
         self.assertContains(response, "0/1")
         self.assertContains(response, "progress-info")
         self.assertContains(response, f'href="{reverse("tv-detail", kwargs={"external_id": "1"})}"')
+        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
         self.assertNotContains(response, "<html")
 
     def test_completed_progress_uses_show_status_color(self):

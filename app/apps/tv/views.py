@@ -191,9 +191,24 @@ def up_next_episode_watched(request, episode_id):
 @require_http_methods(["GET"])
 def show_detail(request, external_id):
     provider = _provider_from_request(request)
-    if not is_htmx_fragment_request(request):
-        return render(request, "tv/pages/detail.html")
+    detail_content_url = reverse(
+        "tv-detail-content",
+        kwargs={"external_id": external_id},
+    )
+    if provider != "tvdb":
+        detail_content_url = f"{detail_content_url}?provider={provider}"
+    return render(
+        request,
+        "tv/pages/detail.html",
+        {"detail_content_url": detail_content_url},
+    )
 
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["GET"])
+def show_detail_content(request, external_id):
+    provider = _provider_from_request(request)
     context = {
         "show": _build_show_context(request.user, external_id, provider),
     }
@@ -390,9 +405,24 @@ def episode_watched(request, external_id, episode_id):
 @require_http_methods(["GET"])
 def episode_detail(request, external_id, episode_id):
     provider = _provider_from_request(request)
-    if not is_htmx_fragment_request(request):
-        return render(request, "tv/pages/episode_detail.html")
+    detail_content_url = reverse(
+        "tv-episode-detail-content",
+        kwargs={"external_id": external_id, "episode_id": episode_id},
+    )
+    if provider != "tvdb":
+        detail_content_url = f"{detail_content_url}?provider={provider}"
+    return render(
+        request,
+        "tv/pages/episode_detail.html",
+        {"detail_content_url": detail_content_url},
+    )
 
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["GET"])
+def episode_detail_content(request, external_id, episode_id):
+    provider = _provider_from_request(request)
     show = get_object_or_404(Show, provider=provider, external_id=external_id)
     episode = get_object_or_404(Episode, id=episode_id, show=show)
     tracked = UserShow.objects.filter(

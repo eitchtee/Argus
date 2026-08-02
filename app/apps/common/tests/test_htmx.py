@@ -19,3 +19,12 @@ class HtmxRequestTests(SimpleTestCase):
         self.assertTrue(is_htmx_fragment_request(fragment))
         self.assertFalse(is_htmx_fragment_request(boosted))
         self.assertFalse(is_htmx_fragment_request(ordinary))
+
+    def test_history_restore_requests_are_not_fragments(self):
+        history_restore = self.factory.get(
+            "/page/",
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_HISTORY_RESTORE_REQUEST="true",
+        )
+
+        self.assertFalse(is_htmx_fragment_request(history_restore))

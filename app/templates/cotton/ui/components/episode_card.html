@@ -22,10 +22,10 @@
   </figure>
   <div class="card-body flex-row items-center gap-2 py-4 min-w-0">
     <div class="min-w-0 flex-1">
-      <a href="{{ show_url }}" class="mb-2 block min-w-0 max-w-full">
+      <a href="{{ show_url }}" hx-boost="true" hx-target="body" hx-swap="innerHTML" class="mb-2 block min-w-0 max-w-full">
         <span class="badge badge-outline badge-sm min-w-0 max-w-full justify-start truncate border-[0.5px] py-2">{{ show_name }}</span>
       </a>
-      {% if title_url %}<a href="{{ title_url }}" class="block min-w-0">{% endif %}
+      {% if title_url %}<a href="{{ title_url }}" hx-boost="true" hx-target="body" hx-swap="innerHTML" class="block min-w-0">{% endif %}
         <div class="font-bold text-lg truncate">
           {{ season_episode_label }}
           {% if pending_text %}<span class="text-subtle text-xs font-normal ms-2">{{ pending_text }}</span>{% endif %}

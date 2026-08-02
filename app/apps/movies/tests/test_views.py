@@ -39,18 +39,22 @@ class MovieDetailViewTests(TestCase):
         self.assertIn("/login/", response["Location"])
 
     @patch("apps.movies.views._build_movie_context")
-    def test_boosted_page_shell_defers_movie_context(self, build_movie_context_mock):
+    def test_htmx_page_shell_defers_movie_context(self, build_movie_context_mock):
         response = self.client.get(
             "/movies/550/",
             HTTP_HX_REQUEST="true",
-            HTTP_HX_BOOSTED="true",
         )
 
         build_movie_context_mock.assert_not_called()
         self.assertContains(response, 'id="movie-content"')
-        self.assertContains(response, 'hx-get="/movies/550/"')
+        self.assertContains(response, 'hx-get="/movies/550/content/"')
         self.assertContains(response, 'hx-trigger="load"')
         self.assertNotContains(response, "Fight Club")
+
+    def test_movie_detail_content_requires_htmx(self):
+        response = self.client.get("/movies/550/content/")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_renders_from_db_when_movie_already_imported(self):
         Movie.objects.create(
@@ -66,7 +70,7 @@ class MovieDetailViewTests(TestCase):
         )
 
         with self.settings(TMDB_IMAGE_BASE_URL="https://image.tmdb.org/t/p/"):
-            response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+            response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fight Club")
@@ -86,7 +90,7 @@ class MovieDetailViewTests(TestCase):
     def test_detail_fragment_sets_movie_document_title(self):
         Movie.objects.create(external_id="550", title="Fight Club")
 
-        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "<title>Fight Club :: Movie :: Argus</title>")
 
@@ -94,7 +98,7 @@ class MovieDetailViewTests(TestCase):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
 
-        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Movie actions"')
         self.assertContains(response, 'aria-label="Remove from watchlist"')
@@ -114,7 +118,7 @@ class MovieDetailViewTests(TestCase):
         )
         UserMovie.objects.create(user=self.user, movie=source)
 
-        response = self.client.get("/movies/42/?provider=tvdb", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/42/content/?provider=tvdb", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "Tracked on another provider")
         self.assertContains(response, 'aria-label="Switch to TVDB"')
@@ -140,7 +144,7 @@ class MovieDetailViewTests(TestCase):
         )
         UserMovie.objects.create(user=self.user, movie=source)
 
-        response = self.client.get("/movies/550/?provider=tmdb", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/?provider=tmdb", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Switch to TMDB"')
 
@@ -165,7 +169,7 @@ class MovieDetailViewTests(TestCase):
             tvdb_id="42",
         )
 
-        response = self.client.get("/movies/42/?provider=tvdb", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/42/content/?provider=tvdb", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Switch to TVDB"')
         get_movie_detail_mock.assert_called_once_with(
@@ -179,7 +183,7 @@ class MovieDetailViewTests(TestCase):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=other_user, movie=movie, on_watchlist=True)
 
-        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Add to watchlist"')
 
@@ -195,7 +199,7 @@ class MovieDetailViewTests(TestCase):
             cast=[CastMemberDTO(name="Keanu Reeves", character="Neo", photo_url="/keanu.jpg")],
         )
 
-        response = self.client.get("/movies/603/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/603/content/", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "The Matrix")
@@ -213,7 +217,7 @@ class MovieDetailViewTests(TestCase):
             status="In Production",
         )
 
-        response = self.client.get("/movies/603/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/603/content/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "Upcoming")
         self.assertNotContains(response, "In Production")
@@ -228,7 +232,7 @@ class MovieDetailViewTests(TestCase):
         self.user.settings.tvdb_metadata_language = "eng"
         self.user.settings.save()
 
-        response = self.client.get("/movies/42/?provider=tvdb", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/42/content/?provider=tvdb", HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
         get_movie_detail_mock.assert_called_once_with(
@@ -466,7 +470,7 @@ class MovieActionCardViewTests(TestCase):
     def test_untracked_movie_renders_single_action_card_button(self):
         Movie.objects.create(external_id="550", title="Fight Club")
 
-        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'id="movie-actions"')
         self.assertContains(response, 'class="media-poster-actions"')
@@ -483,7 +487,7 @@ class MovieActionCardViewTests(TestCase):
     def test_actions_are_attached_to_the_movie_poster_in_a_card(self):
         Movie.objects.create(external_id="550", title="Fight Club")
 
-        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
         content = response.content.decode()
 
         poster_stack = content.index('<div class="media-poster-stack">')
@@ -511,7 +515,7 @@ class MovieActionCardViewTests(TestCase):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
 
-        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Movie actions"')
         self.assertContains(response, 'aria-label="Mark watched"')
@@ -525,7 +529,7 @@ class MovieActionCardViewTests(TestCase):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
 
-        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Movie actions"')
         self.assertContains(response, 'aria-label="Mark unwatched"')

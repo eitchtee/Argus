@@ -162,6 +162,7 @@ class SearchResultsViewTests(TestCase):
             HTTP_HX_REQUEST="true",
         )
         self.assertContains(response, "/movies/550/")
+        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
 
     @patch("apps.catalog.views.catalog_search")
     def test_results_link_to_tv_detail_page(self, catalog_search):
@@ -171,6 +172,7 @@ class SearchResultsViewTests(TestCase):
             HTTP_HX_REQUEST="true",
         )
         self.assertContains(response, "/tv/123/")
+        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
 
     @patch("apps.catalog.views.catalog_search")
     def test_results_show_already_tracked_state(self, catalog_search):

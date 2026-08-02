@@ -418,6 +418,10 @@ class UpcomingViewTests(TestCase):
         self.assertContains(response, "upcoming-episode-group-additional-item")
         self.assertContains(response, "rounded-b-none")
         self.assertContains(response, "Second episode")
+        self.assertRegex(
+            response.content.decode(),
+            rf'href="/tv/1/episodes/{second.id}/"\s+hx-boost="true"',
+        )
         self.assertContains(response, "Third episode")
         self.assertNotContains(response, f'id="upcoming-episode-{second.id}"')
         self.assertNotContains(response, f'id="upcoming-episode-{third.id}"')
@@ -493,6 +497,7 @@ class HomeUpcomingViewTests(TestCase):
         self.assertNotContains(response, "checkbox-lg")
         episode = Episode.objects.get(name="Pilot")
         self.assertContains(response, f"/tv/1/episodes/{episode.id}/\"")
+        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
 
     def test_groups_same_day_episodes_behind_expandable_lip(self):
         first = self._make_episode(1, self.today, "First episode")

@@ -213,6 +213,7 @@ class CalendarViewTests(TestCase):
         self.assertContains(response, "Tracked")
         self.assertContains(response, episode.name)
         self.assertContains(response, "Summary")
+        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
 
     def test_episode_details_for_another_users_show_are_not_found(self):
         episode = self.make_episode(
@@ -280,6 +281,7 @@ class CalendarViewTests(TestCase):
         self.assertContains(response, "Summary")
         self.assertContains(response, "Example Director")
         self.assertContains(response, "Drama")
+        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
 
     def test_unwatchlisted_movie_details_return_404(self):
         movie = self.make_movie(
