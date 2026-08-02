@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from apps.catalog.models import UserMediaArtworkPreference
 from apps.movies.models import Movie, UserMovie
 
 
@@ -91,6 +92,45 @@ class MovieWatchlistViewTests(TestCase):
         self.assertContains(response, "No Poster")
         self.assertContains(response, "fa-film")
         self.assertNotContains(response, 'src=""')
+
+    def test_watchlist_search_data_contains_translated_and_original_titles(self):
+        movie = Movie.objects.create(
+            external_id="550",
+            title="Clube da Luta",
+            original_title="Fight Club",
+        )
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
+
+        response = self.client.get(
+            reverse("movies-watchlist-page"), HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(response, 'data-name="Clube da Luta Fight Club"')
+
+    def test_watchlist_displays_original_title_for_users_who_enable_it(self):
+        movie = Movie.objects.create(
+            external_id="550",
+            title="Clube da Luta",
+            original_title="Fight Club",
+        )
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
+        UserMediaArtworkPreference.objects.create(
+            user=self.user,
+            provider="tmdb",
+            media_type="movie",
+            external_id="550",
+            use_original_title=True,
+        )
+
+        response = self.client.get(
+            reverse("movies-watchlist-page"), HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(
+            response,
+            '<h2 class="poster-card__title" title="Fight Club">Fight Club</h2>',
+        )
+        self.assertContains(response, 'data-name="Clube da Luta Fight Club"')
 
     def test_empty_watchlist_renders_empty_state(self):
         response = self.client.get(

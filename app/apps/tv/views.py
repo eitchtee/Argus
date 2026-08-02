@@ -17,6 +17,7 @@ from apps.catalog.artwork import (
     localized_media_records,
     media_artwork_overrides,
     media_language_for_user,
+    use_original_title_for_media,
 )
 from apps.catalog.localization import (
     LocalizedRecord,
@@ -24,6 +25,7 @@ from apps.catalog.localization import (
     metadata_language_for_user,
     resolve_field,
     resolve_from_map,
+    resolve_title,
     season_name,
 )
 from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
@@ -673,7 +675,11 @@ def _build_show_context(user, external_id, provider="tvdb"):
     tracking_state = _refresh_show_identity(user, show, language)
     user_show = UserShow.objects.filter(user=user, show=show).first()
     tracked = bool(user_show and user_show.status == UserShow.Status.TRACKED)
-    title = resolve_field(show, "name", language)
+    title = resolve_title(
+        show,
+        language,
+        use_original_title=use_original_title_for_media(user, show),
+    )
     air_time_context = _air_time_context(
         show.airs_time,
         show.airs_timezone,
@@ -891,13 +897,7 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         language=language,
         provider=provider,
     )
-    title = resolve_from_map(
-        detail.translations,
-        "title",
-        language,
-        default_language,
-        detail.title,
-    )
+    title = resolve_title(detail, language)
     next_air_date = _parse_iso_date(detail.next_air_date)
     last_air_date = _parse_iso_date(detail.last_air_date)
     release_date = _parse_iso_date(detail.release_date)

@@ -1,4 +1,4 @@
-<div data-name="{{ movie.title }}" class="poster-card">
+<div data-name="{{ movie.search_title }}" class="poster-card">
   <a href="{% url 'movie-detail' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML"
      class="poster-card__link">
     <figure class="poster-card__figure">

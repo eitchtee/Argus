@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.catalog.models import Genre
+from apps.catalog.models import Genre, UserMediaArtworkPreference
 from apps.movies.models import Movie
 from apps.movies.views import _build_movie_context
 
@@ -36,3 +36,25 @@ class MovieMetadataLocalizationTests(TestCase):
         self.assertEqual(context["overview"], "English fallback")
         self.assertEqual(context["tagline"], "English tagline")
         self.assertEqual(context["genres"], ["Drama traduzido"])
+
+    def test_tracked_detail_uses_original_title_when_user_enables_it(self):
+        user = get_user_model().objects.create_user("user@example.com")
+        user.settings.tmdb_metadata_language = "pt-BR"
+        user.settings.save()
+        movie = Movie.objects.create(
+            external_id="550",
+            title="Clube da Luta",
+            original_title="Fight Club",
+            translations={"pt-BR": {"title": "Clube da Luta"}},
+        )
+        UserMediaArtworkPreference.objects.create(
+            user=user,
+            provider="tmdb",
+            media_type="movie",
+            external_id="550",
+            use_original_title=True,
+        )
+
+        context = _build_movie_context(user, "550")
+
+        self.assertEqual(context["title"], "Fight Club")

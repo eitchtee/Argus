@@ -5,6 +5,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.api.permissions import NotInDemoMode
+from apps.catalog.artwork import (
+    media_identity_key,
+    original_title_preference_keys,
+    use_original_title_for_media,
+)
+from apps.catalog.localization import metadata_language_for_user, resolve_title
 from apps.catalog.models import Tier
 from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
@@ -108,7 +114,23 @@ class MovieListAPIView(APIView):
                 )
             queryset = queryset.filter(tier=tier)
 
-        return Response({"results": [_serialize_user_movie(row) for row in queryset]})
+        rows = list(queryset)
+        original_title_keys = original_title_preference_keys(
+            request.user,
+            [row.movie for row in rows],
+        )
+        return Response(
+            {
+                "results": [
+                    _serialize_user_movie(
+                        row,
+                        use_original_title=media_identity_key(row.movie)
+                        in original_title_keys,
+                    )
+                    for row in rows
+                ]
+            }
+        )
 
 
 class MovieTrackAPIView(APIView):
@@ -252,13 +274,19 @@ def _not_found():
     return Response({"detail": "Movie not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
-def _serialize_user_movie(user_movie):
+def _serialize_user_movie(user_movie, *, use_original_title=None):
     movie = user_movie.movie
+    if use_original_title is None:
+        use_original_title = use_original_title_for_media(user_movie.user, movie)
     return {
         "id": movie.id,
         "provider": movie.provider,
         "external_id": movie.external_id,
-        "title": movie.title,
+        "title": resolve_title(
+            movie,
+            metadata_language_for_user(user_movie.user, movie.provider),
+            use_original_title=use_original_title,
+        ),
         "poster_path": movie.poster_path,
         "release_date": movie.release_date.isoformat() if movie.release_date else None,
         "on_watchlist": user_movie.on_watchlist,

@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.catalog.models import Tier
+from apps.catalog.models import Tier, UserMediaArtworkPreference
 from apps.movies.models import Movie, UserMovie
 
 
@@ -104,6 +104,29 @@ class MovieAPITests(TestCase):
                 )
             ],
         )
+
+    def test_list_uses_original_title_preference(self):
+        user_movie = self._create_user_movie(
+            self.user,
+            title="Clube da Luta",
+            external_id="550",
+            on_watchlist=True,
+        )
+        user_movie.movie.original_title = "Fight Club"
+        user_movie.movie.save(update_fields=["original_title"])
+        UserMediaArtworkPreference.objects.create(
+            user=self.user,
+            provider="tmdb",
+            media_type="movie",
+            external_id="550",
+            use_original_title=True,
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get("/api/movies/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["results"][0]["title"], "Fight Club")
 
     @patch("apps.movies.services.track_movie")
     @patch("apps.movies.api.queue_track_movie")

@@ -6,7 +6,12 @@ from cachalot.api import cachalot_disabled
 from django.db.models import Prefetch
 from django.utils import timezone as django_timezone
 
-from apps.catalog.localization import metadata_language_for_user, resolve_field
+from apps.catalog.artwork import (
+    media_identity_key,
+    original_title_preference_keys,
+    use_original_title_for_media,
+)
+from apps.catalog.localization import metadata_language_for_user, resolve_field, resolve_title
 from apps.movies.models import Movie
 from apps.tv.models import Episode, Show, UserShow
 
@@ -127,11 +132,7 @@ def get_calendar_event(
     kind: str = "episode",
 ) -> CalendarEvent | None:
     if kind == "movie":
-        return _get_movie_event(
-            user,
-            object_id,
-            metadata_language_for_user(user, "tmdb"),
-        )
+        return _get_movie_event(user, object_id)
     if kind != "episode":
         return None
 
@@ -155,6 +156,7 @@ def get_calendar_event(
         episode,
         status=status,
         language=metadata_language_for_user(user, episode.show.provider),
+        user=user,
     )
 
 
@@ -187,10 +189,17 @@ def _get_episode_events(user, start_date, end_date, filters):
             )
         )
     )
+    episodes = list(episodes)
+    original_title_keys = original_title_preference_keys(
+        user,
+        [episode.show for episode in episodes],
+    )
     return [
         _episode_event(
             episode,
             language=metadata_language_for_user(user, episode.show.provider),
+            user=user,
+            use_original_title=media_identity_key(episode.show) in original_title_keys,
         )
         for episode in episodes
     ]
@@ -207,13 +216,24 @@ def _get_movie_events(user, start_date, end_date):
         .prefetch_related("genres")
         .order_by("release_date", "title", "id")
     )
+    movies = list(movies)
+    original_title_keys = original_title_preference_keys(user, movies)
     return [
-        _movie_event(movie, metadata_language_for_user(user, movie.provider))
+        _movie_event(
+            movie,
+            metadata_language_for_user(user, movie.provider),
+            user=user,
+            use_original_title=media_identity_key(movie) in original_title_keys,
+        )
         for movie in movies
     ]
 
 
-def _get_movie_event(user, movie_id: int, language: str) -> CalendarEvent | None:
+def _get_movie_event(
+    user,
+    movie_id: int,
+    language: str | None = None,
+) -> CalendarEvent | None:
     movie = (
         Movie.objects.filter(
             id=movie_id,
@@ -226,7 +246,9 @@ def _get_movie_event(user, movie_id: int, language: str) -> CalendarEvent | None
     )
     if movie is None:
         return None
-    return _movie_event(movie, language)
+    if language is None:
+        language = metadata_language_for_user(user, movie.provider)
+    return _movie_event(movie, language, user=user)
 
 
 def _episode_event(
@@ -234,9 +256,13 @@ def _episode_event(
     *,
     status: str | None = None,
     language: str = "eng",
+    user=None,
+    use_original_title: bool | None = None,
 ) -> CalendarEvent:
     if status is None:
         status = episode.show._calendar_user_states[0].status
+    if use_original_title is None:
+        use_original_title = use_original_title_for_media(user, episode.show)
 
     starts_at = None
     if episode.show.airs_time is not None:
@@ -262,7 +288,11 @@ def _episode_event(
         ends_at=ends_at,
         runtime=episode.runtime,
         status=status,
-        show_name=resolve_field(episode.show, "name", language),
+        show_name=resolve_title(
+            episode.show,
+            language,
+            use_original_title=use_original_title,
+        ),
         network=episode.show.network,
         provider=episode.show.provider,
         episode_id=episode.id,
@@ -281,12 +311,24 @@ def _show_air_timezone(show: Show):
     return UTC
 
 
-def _movie_event(movie: Movie, language: str = "en-US") -> CalendarEvent:
+def _movie_event(
+    movie: Movie,
+    language: str = "en-US",
+    *,
+    user=None,
+    use_original_title: bool | None = None,
+) -> CalendarEvent:
+    if use_original_title is None:
+        use_original_title = use_original_title_for_media(user, movie)
     return CalendarEvent(
         kind="movie",
         object_id=movie.id,
         external_id=movie.external_id,
-        title=resolve_field(movie, "title", language),
+        title=resolve_title(
+            movie,
+            language,
+            use_original_title=use_original_title,
+        ),
         subtitle="Movie",
         overview=resolve_field(movie, "overview", language),
         release_date=movie.release_date,

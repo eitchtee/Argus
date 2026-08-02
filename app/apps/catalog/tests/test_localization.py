@@ -11,6 +11,7 @@ from apps.catalog.localization import (
     merge_translation_maps,
     resolve_field,
     resolve_from_map,
+    resolve_title,
 )
 from apps.movies.models import Movie
 from apps.tv.models import Episode, Season, Show
@@ -106,8 +107,52 @@ class ResolveFieldTests(SimpleTestCase):
         localized = LocalizedRecord(movie, "pt-BR", overrides={"year": 1999})
 
         self.assertEqual(localized.title, "Clube da Luta")
+        self.assertEqual(localized.search_title, "Clube da Luta")
         self.assertEqual(localized.external_id, "550")
         self.assertEqual(localized.year, 1999)
+
+    def test_proxy_search_title_keeps_translation_when_original_title_is_visible(self):
+        movie = Movie(
+            title="Clube da Luta",
+            original_title="Fight Club",
+            translations={"pt-BR": {"title": "Clube da Luta"}},
+        )
+        localized = LocalizedRecord(movie, "pt-BR", use_original_title=True)
+
+        self.assertEqual(localized.title, "Fight Club")
+        self.assertEqual(localized.search_title, "Clube da Luta Fight Club")
+
+    def test_title_resolver_uses_original_title_when_preference_is_enabled(self):
+        movie = Movie(
+            title="Clube da Luta",
+            original_title="Fight Club",
+            translations={"pt-BR": {"title": "Clube da Luta"}},
+        )
+
+        self.assertEqual(
+            resolve_title(movie, "pt-BR", use_original_title=True),
+            "Fight Club",
+        )
+
+    def test_title_resolver_keeps_translation_when_preference_is_disabled(self):
+        movie = Movie(
+            title="Clube da Luta",
+            original_title="Fight Club",
+            translations={"pt-BR": {"title": "Clube da Luta"}},
+        )
+
+        self.assertEqual(resolve_title(movie, "pt-BR"), "Clube da Luta")
+
+    def test_title_resolver_falls_back_when_original_title_is_missing(self):
+        movie = Movie(
+            title="Clube da Luta",
+            translations={"pt-BR": {"title": "Clube da Luta"}},
+        )
+
+        self.assertEqual(
+            resolve_title(movie, "pt-BR", use_original_title=True),
+            "Clube da Luta",
+        )
 
 
 class UserMetadataLanguageTests(TestCase):

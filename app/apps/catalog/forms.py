@@ -49,6 +49,11 @@ class MediaArtworkPreferenceForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={"class": "select select-bordered w-full"}),
     )
+    use_original_title = forms.BooleanField(
+        label=_("Use original title"),
+        required=False,
+        help_text=_("Show this media's original title instead of its translated title."),
+    )
     poster_artwork_id = forms.ChoiceField(
         label=_("Poster"),
         required=False,
@@ -106,6 +111,9 @@ class MediaArtworkPreferenceForm(forms.Form):
             *language_choices,
         ]
         self.fields["language"].initial = preference.language if preference else ""
+        self.fields["use_original_title"].initial = bool(
+            preference and getattr(preference, "use_original_title", False)
+        )
 
         poster_choices = [
             ("", _("Automatic")),

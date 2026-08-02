@@ -10,6 +10,7 @@ from apps.catalog.artwork import (
     localized_media_records,
     media_artwork_overrides,
     media_language_for_user,
+    use_original_title_for_media,
 )
 from apps.catalog.models import SyncStatus
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
@@ -20,6 +21,7 @@ from apps.catalog.localization import (
     metadata_language_for_user,
     resolve_field,
     resolve_from_map,
+    resolve_title,
 )
 from apps.catalog.services import get_movie_detail
 from apps.catalog.services import SUPPORTED_PROVIDERS
@@ -283,7 +285,11 @@ def _build_movie_context(user, external_id, provider="tmdb"):
         language = media_language_for_user(user, movie)
         tracking_state = _refresh_movie_identity(user, movie, language)
         user_movie = UserMovie.objects.filter(user=user, movie=movie).first()
-        title = resolve_field(movie, "title", language)
+        title = resolve_title(
+            movie,
+            language,
+            use_original_title=use_original_title_for_media(user, movie),
+        )
         return {
             "external_id": movie.external_id,
             "provider": movie.provider,
@@ -328,9 +334,7 @@ def _build_movie_context(user, external_id, provider="tmdb"):
         provider=provider,
     )
     default_language = PROVIDER_DEFAULT_LANGUAGES[provider]
-    title = resolve_from_map(
-        detail.translations, "title", language, default_language, detail.title
-    )
+    title = resolve_title(detail, language)
     return {
         "external_id": detail.external_id,
         "provider": provider,

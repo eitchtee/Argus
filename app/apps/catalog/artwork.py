@@ -62,6 +62,33 @@ def media_language_for_user(user, media) -> str:
     return metadata_language_for_user(user, media.provider)
 
 
+_PREFERENCE_UNSET = object()
+
+
+def use_original_title_for_media(user, media, *, preference=_PREFERENCE_UNSET) -> bool:
+    if preference is _PREFERENCE_UNSET:
+        preference = _get_preference(user, **_media_identity(media))
+    return bool(preference and preference.use_original_title)
+
+
+def original_title_preference_keys(user, media_items) -> set[tuple[str, str, str]]:
+    identities = {}
+    for media in media_items:
+        identity = _media_identity(media)
+        identities[_identity_key(identity)] = identity
+    if not identities or not _is_authenticated(user):
+        return set()
+
+    identity_filter = _identity_filter(identities.values())
+    return {
+        _identity_key(preference)
+        for preference in UserMediaArtworkPreference.objects.filter(user=user)
+        .filter(identity_filter)
+        .only("provider", "media_type", "external_id", "use_original_title")
+        if preference.use_original_title
+    }
+
+
 def resolve_media_artwork(
     user,
     media,
@@ -99,6 +126,7 @@ def save_media_artwork_preferences(
     *,
     media,
     language: str | None,
+    use_original_title: bool,
     poster_artwork_id: int | None,
     background_artwork_id: int | None,
 ):
@@ -120,6 +148,7 @@ def save_media_artwork_preferences(
 
     values = {
         "language": language or None,
+        "use_original_title": use_original_title,
         "poster_artwork": poster,
         "background_artwork": background,
     }
@@ -143,6 +172,7 @@ def localized_media_record(media, user, *, artwork_context=None):
     if artwork_context is None:
         language = media_language_for_user(user, media)
         overrides = media_artwork_overrides(user, media, language=language)
+        preference = _get_preference(user, **identity)
     else:
         preference = artwork_context["preferences"].get(identity_key)
         language = artwork_context["languages"][identity_key]
@@ -157,6 +187,7 @@ def localized_media_record(media, user, *, artwork_context=None):
         media,
         language,
         overrides=overrides,
+        use_original_title=bool(preference and preference.use_original_title),
     )
 
 
@@ -415,6 +446,10 @@ def _identity_key(identity) -> tuple[str, str, str]:
         media_type,
         str(external_id),
     )
+
+
+def media_identity_key(media) -> tuple[str, str, str]:
+    return _identity_key(_media_identity(media))
 
 
 def _identity_filter(identities):

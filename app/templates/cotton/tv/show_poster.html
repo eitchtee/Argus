@@ -1,7 +1,7 @@
 {% load i18n %}
 
 <a href="{% url 'tv-detail' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML"
-   data-name="{{ show.name }}"
+   data-name="{{ show.search_title }}"
    class="poster-card">
   <figure class="poster-card__figure">
     {% if show.poster_url %}

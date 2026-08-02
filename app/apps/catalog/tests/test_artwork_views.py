@@ -95,7 +95,56 @@ class MediaArtworkPreferenceViewTests(TestCase):
         self.assertContains(response, self.default_poster.image_url)
         self.assertContains(response, self.localized_poster.image_url)
         self.assertContains(response, "Portuguese (pt-BR)")
+        self.assertContains(response, "Use original title")
+        self.assertNotRegex(
+            response.content.decode(),
+            r'name="use_original_title"[^>]*checked',
+        )
         self.assertContains(response, '_="install init_tom_select"')
+
+    @patch("apps.catalog.forms.get_language_choices", return_value=(("en-US", "English"),))
+    def test_get_uses_the_original_title_when_the_user_enables_it(self, _choices):
+        self.movie.original_title = "Original Fight Club"
+        self.movie.translations = {"en-US": {"title": "Fight Club"}}
+        self.movie.save(update_fields=["original_title", "translations"])
+        UserMediaArtworkPreference.objects.create(
+            user=self.user,
+            provider="tmdb",
+            media_type="movie",
+            external_id="550",
+            use_original_title=True,
+        )
+
+        response = self.client.get(
+            "/media/movie/550/artwork/?provider=tmdb",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(response, "Original Fight Club")
+
+    def test_original_title_preference_is_scoped_to_the_current_user(self):
+        self.movie.original_title = "Original Fight Club"
+        self.movie.save(update_fields=["original_title"])
+        UserMediaArtworkPreference.objects.create(
+            user=self.user,
+            provider="tmdb",
+            media_type="movie",
+            external_id="550",
+            use_original_title=True,
+        )
+        other_user = get_user_model().objects.create_user(
+            "other-viewer@example.com",
+            password="password",
+        )
+        self.client.force_login(other_user)
+
+        response = self.client.get(
+            "/media/movie/550/artwork/?provider=tmdb",
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(response, "Fight Club")
+        self.assertNotContains(response, "Original Fight Club")
 
     @patch("apps.catalog.forms.get_language_choices", return_value=(("en-US", "English"), ("pt-BR", "Português")))
     def test_picker_uses_checked_radio_for_live_selection_feedback(self, _choices):
@@ -281,6 +330,28 @@ class MediaArtworkPreferenceViewTests(TestCase):
         response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, selected.image_url)
+
+    @patch("apps.catalog.forms.get_language_choices", return_value=(("en-US", "English"),))
+    def test_post_saves_original_title_preference_for_the_current_user(self, _choices):
+        response = self.client.post(
+            "/media/movie/550/artwork/?provider=tmdb",
+            {
+                "language": "",
+                "use_original_title": "on",
+                "poster_artwork_id": "",
+                "background_artwork_id": "",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 204)
+        preference = UserMediaArtworkPreference.objects.get(
+            user=self.user,
+            provider="tmdb",
+            media_type="movie",
+            external_id="550",
+        )
+        self.assertTrue(preference.use_original_title)
 
     def test_episode_detail_uses_the_show_background_selection(self):
         show = Show.objects.create(provider="tvdb", external_id="123", name="Show")

@@ -5,6 +5,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.catalog.models import UserMediaArtworkPreference
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
@@ -298,3 +299,36 @@ class WatchlistViewTests(TestCase):
         self.assertContains(response, "No Poster")
         self.assertContains(response, "fa-tv")
         self.assertNotContains(response, 'src=""')
+
+    def test_watchlist_search_data_contains_translated_and_original_titles(self):
+        self.show.original_title = "The Original Show"
+        self.show.save(update_fields=["original_title"])
+
+        response = self.client.get(
+            self.tab_url("all"),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(response, 'data-name="My Show The Original Show"')
+
+    def test_watchlist_displays_original_title_for_users_who_enable_it(self):
+        self.show.original_title = "The Original Show"
+        self.show.save(update_fields=["original_title"])
+        UserMediaArtworkPreference.objects.create(
+            user=self.user,
+            provider="tvdb",
+            media_type="tv",
+            external_id=self.show.external_id,
+            use_original_title=True,
+        )
+
+        response = self.client.get(
+            self.tab_url("all"),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(
+            response,
+            '<h2 class="poster-card__title" title="The Original Show">The Original Show</h2>',
+        )
+        self.assertContains(response, 'data-name="My Show The Original Show"')

@@ -7,10 +7,11 @@ from django.views.decorators.http import require_http_methods
 from apps.catalog.artwork import (
     media_language_for_user,
     save_media_artwork_preferences,
+    use_original_title_for_media,
 )
 from apps.catalog.forms import MediaArtworkPreferenceForm, SearchForm
 from apps.catalog.languages import language_display_name
-from apps.catalog.localization import metadata_language_for_user
+from apps.catalog.localization import metadata_language_for_user, resolve_title
 from apps.catalog.models import MediaArtwork, UserMediaArtworkPreference
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.services import (
@@ -149,6 +150,7 @@ def media_artwork_preferences(request, media_type, external_id):
                     request.user,
                     media=media,
                     language=form.cleaned_data["language"],
+                    use_original_title=form.cleaned_data["use_original_title"],
                     poster_artwork_id=(
                         form.cleaned_data["poster_artwork_id"].id
                         if form.cleaned_data["poster_artwork_id"]
@@ -172,6 +174,8 @@ def media_artwork_preferences(request, media_type, external_id):
             preference=preference,
         )
 
+    effective_language = media_language_for_user(request.user, media)
+
     return render(
         request,
         "catalog/fragments/media_artwork_preferences.html",
@@ -180,9 +184,12 @@ def media_artwork_preferences(request, media_type, external_id):
             "media_type": media_type,
             "provider": provider,
             "preference": preference,
-            "effective_language": language_display_name(
-                media_language_for_user(request.user, media)
+            "media_title": resolve_title(
+                media,
+                effective_language,
+                use_original_title=use_original_title_for_media(request.user, media),
             ),
+            "effective_language": language_display_name(effective_language),
             "poster_artworks": [
                 artwork for artwork in artworks if artwork.kind == MediaArtwork.Kind.POSTER
             ],

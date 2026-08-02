@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class Tier(models.TextChoices):
@@ -116,6 +117,10 @@ class UserMediaArtworkPreference(models.Model):
     media_type = models.CharField(max_length=8, choices=MediaArtwork.MediaType.choices)
     external_id = models.CharField(max_length=32)
     language = models.CharField(max_length=16, null=True, blank=True)
+    use_original_title = models.BooleanField(
+        default=False,
+        verbose_name=_("Use original title"),
+    )
     poster_artwork = models.ForeignKey(
         MediaArtwork,
         on_delete=models.SET_NULL,

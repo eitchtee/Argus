@@ -127,11 +127,28 @@ def resolve_field(record, field_name: str, language: str) -> str:
     return ""
 
 
+def resolve_title(record, language: str, *, use_original_title: bool = False) -> str:
+    field_name = "title" if hasattr(record, "title") else "name"
+    if use_original_title:
+        original_title = getattr(record, "original_title", "")
+        if original_title:
+            return original_title
+    return resolve_field(record, field_name, language)
+
+
 @dataclass(frozen=True)
 class LocalizedRecord:
     source: Any
     language: str
     overrides: Mapping[str, Any] = field(default_factory=dict)
+    use_original_title: bool = False
+
+    @property
+    def search_title(self) -> str:
+        field_name = "title" if hasattr(self.source, "title") else "name"
+        translated_title = resolve_field(self.source, field_name, self.language)
+        original_title = getattr(self.source, "original_title", "")
+        return " ".join(value for value in (translated_title, original_title) if value)
 
     def __getattr__(self, name: str):
         if name in self.overrides:
@@ -139,6 +156,10 @@ class LocalizedRecord:
 
         localized_fields = LOCALIZED_FIELDS.get(type(self.source).__name__, ())
         if name in localized_fields:
+            if self.use_original_title and name in {"title", "name"}:
+                original_title = getattr(self.source, "original_title", "")
+                if original_title:
+                    return original_title
             return resolve_field(self.source, name, self.language)
 
         return getattr(self.source, name)

@@ -13,6 +13,7 @@ from apps.calendar.events import (
     get_feed_window,
     parse_filters,
 )
+from apps.catalog.models import UserMediaArtworkPreference
 from apps.movies.models import Movie, UserMovie
 from apps.tv.models import Episode, Season, Show, UserShow
 
@@ -100,6 +101,72 @@ class CalendarEventServiceTests(TestCase):
             (movie_event.title, movie_event.overview),
             ("Filme", "Resumo do filme."),
         )
+
+    def test_events_use_original_titles_when_owner_enables_preference(self):
+        show = self.make_show("Money Heist", UserShow.Status.TRACKED)
+        show.original_title = "La casa de papel"
+        show.translations = {"por": {"name": "La Casa de Papel"}}
+        show.save(update_fields=["original_title", "translations"])
+        UserMediaArtworkPreference.objects.create(
+            user=self.user,
+            provider="tvdb",
+            media_type="tv",
+            external_id=show.external_id,
+            use_original_title=True,
+        )
+        episode = self.make_episode(show, date(2026, 7, 10))
+        movie = self.make_movie(
+            "money-heist-movie",
+            on_watchlist=True,
+            release_date=date(2026, 7, 11),
+        )
+        movie.original_title = "Filme original"
+        movie.translations = {"pt-BR": {"title": "Filme traduzido"}}
+        movie.save(update_fields=["original_title", "translations"])
+        UserMediaArtworkPreference.objects.create(
+            user=self.user,
+            provider="tmdb",
+            media_type="movie",
+            external_id=movie.external_id,
+            use_original_title=True,
+        )
+
+        events = get_calendar_events(
+            self.user,
+            date(2026, 7, 1),
+            date(2026, 7, 31),
+            filters=CalendarFilters(include_movies=True),
+        )
+
+        episode_event = next(event for event in events if event.kind == "episode")
+        movie_event = next(event for event in events if event.kind == "movie")
+        self.assertEqual(episode_event.show_name, "La casa de papel")
+        self.assertEqual(movie_event.title, "Filme original")
+
+        direct_episode_event = get_calendar_event(self.user, episode.id)
+        direct_movie_event = get_calendar_event(self.user, movie.id, kind="movie")
+        self.assertEqual(direct_episode_event.show_name, "La casa de papel")
+        self.assertEqual(direct_movie_event.title, "Filme original")
+
+    def test_single_movie_event_uses_the_movie_provider_language(self):
+        self.user.settings.tvdb_metadata_language = "por"
+        self.user.settings.save(update_fields=["tvdb_metadata_language"])
+        movie = Movie.objects.create(
+            provider="tvdb",
+            external_id="tvdb-movie",
+            title="English Movie",
+            translations={"por": {"title": "Filme"}},
+            release_date=date(2026, 7, 11),
+        )
+        UserMovie.objects.create(
+            user=self.user,
+            movie=movie,
+            on_watchlist=True,
+        )
+
+        event = get_calendar_event(self.user, movie.id, kind="movie")
+
+        self.assertEqual(event.title, "Filme")
 
     def test_tracked_filter_defaults_to_true_and_can_be_disabled(self):
         self.assertTrue(parse_filters(QueryDict()).include_tracked)
