@@ -91,6 +91,20 @@ def language_display_name(code: str, fallback: str | None = None) -> str:
     return str(fallback or code)
 
 
+def language_choice_display_name(code: str, fallback: str | None = None) -> str:
+    """Return a distinct display name for a selectable language variant."""
+    normalized = str(code or "").replace("_", "-").casefold()
+    if "-" not in normalized:
+        return language_display_name(code, fallback)
+
+    base = language_base_code(code)
+    base_name = language_display_name(base)
+    if base_name == base and fallback:
+        base_name = str(fallback).split("(", 1)[0].strip()
+    region = normalized.split("-", 1)[1].upper()
+    return f"{base_name} ({base}-{region})"
+
+
 def language_codes_match(left: str | None, right: str | None) -> bool:
     """Compare language codes across provider ISO-639-1/ISO-639-2 formats."""
     left_base, left_region = _language_parts(left)

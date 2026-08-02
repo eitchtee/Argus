@@ -6,6 +6,7 @@ from apps.catalog.languages import (
     get_language_choices,
     language_codes_match,
     language_base_code,
+    language_choice_display_name,
     language_display_name,
 )
 from apps.catalog.models import MediaArtwork
@@ -158,25 +159,28 @@ class MediaArtworkPreferenceForm(forms.Form):
 
 def _language_choices_for_media(media, artworks):
     choices = []
-    known_bases = set()
+    known_variants = set()
     for code, label in get_language_choices(media.provider):
-        base = language_base_code(code)
-        if base in known_bases:
+        variant = _language_variant_key(code)
+        if variant in known_variants:
             continue
-        choices.append((code, language_display_name(code, label)))
-        known_bases.add(base)
+        choices.append((code, language_choice_display_name(code, label)))
+        known_variants.add(variant)
 
     available_codes = set((getattr(media, "translations", {}) or {}).keys())
     available_codes.update(
         artwork.language for artwork in artworks if artwork.language
     )
-    choice_codes = {code for code, _label in choices}
-    for code in sorted(available_codes - choice_codes):
-        base = language_base_code(code)
-        if base not in known_bases and not any(
-            language_codes_match(code, choice_code) for choice_code in choice_codes
-        ):
-            choices.append((code, language_display_name(code)))
-            known_bases.add(base)
-            choice_codes.add(code)
+    for code in sorted(available_codes):
+        variant = _language_variant_key(code)
+        if variant in known_variants:
+            continue
+        choices.append((code, language_choice_display_name(code)))
+        known_variants.add(variant)
     return choices
+
+
+def _language_variant_key(code):
+    normalized = str(code or "").replace("_", "-").casefold()
+    base, _, region = normalized.partition("-")
+    return language_base_code(base), region or None

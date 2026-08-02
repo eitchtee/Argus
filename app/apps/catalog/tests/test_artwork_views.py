@@ -1,4 +1,6 @@
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import TestCase as UnitTestCase
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -8,6 +10,39 @@ from apps.catalog.forms import MediaArtworkPreferenceForm
 from apps.catalog.models import MediaArtwork, UserMediaArtworkPreference
 from apps.movies.models import Movie
 from apps.tv.models import Episode, Season, Show
+
+
+class MediaArtworkPreferenceLanguageChoiceTests(UnitTestCase):
+    @patch(
+        "apps.catalog.forms.get_language_choices",
+        return_value=(
+            ("en-US", "English (US)"),
+            ("pt-AO", "Portuguese (AO)"),
+            ("pt-BR", "Portuguese (BR)"),
+            ("pt-PT", "Portuguese (PT)"),
+        ),
+    )
+    def test_media_language_choices_keep_regional_languages_distinct(self, _choices):
+        form = MediaArtworkPreferenceForm(
+            media=Movie(provider="tmdb", external_id="550", title="Fight Club"),
+            user=SimpleNamespace(is_authenticated=False),
+            artworks=[],
+            preference=SimpleNamespace(
+                language="en-US",
+                poster_artwork_id=None,
+                background_artwork_id=None,
+            ),
+        )
+
+        choices = dict(form.fields["language"].choices)
+
+        self.assertEqual(
+            [code for code in choices if code.startswith("pt-")],
+            ["pt-AO", "pt-BR", "pt-PT"],
+        )
+        self.assertEqual(choices["pt-AO"], "Portuguese (pt-AO)")
+        self.assertEqual(choices["pt-BR"], "Portuguese (pt-BR)")
+        self.assertEqual(choices["pt-PT"], "Portuguese (pt-PT)")
 
 
 @override_settings(
@@ -59,7 +94,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
         self.assertContains(response, "Fight Club")
         self.assertContains(response, self.default_poster.image_url)
         self.assertContains(response, self.localized_poster.image_url)
-        self.assertContains(response, "Brazilian Portuguese")
+        self.assertContains(response, "Portuguese (pt-BR)")
         self.assertContains(response, '_="install init_tom_select"')
 
     @patch("apps.catalog.forms.get_language_choices", return_value=(("en-US", "English"), ("pt-BR", "Português")))
@@ -107,6 +142,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
         self.movie.translations = {
             "en-US": {"title": "Fight Club"},
             "pt-BR": {"title": "Clube da Luta"},
+            "pt-PT": {"title": "Clube da Luta (Portugal)"},
         }
         self.movie.save(update_fields=["translations"])
         self.localized_poster.language = "spa"
@@ -119,6 +155,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
 
         content = response.content.decode()
         self.assertIn('option value="pt-BR"', content)
+        self.assertIn('option value="pt-PT"', content)
         self.assertIn('option value="spa"', content)
         self.assertIn(">Spanish<", content)
 
@@ -146,7 +183,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
             ("pt-BR", "Portuguese (BR)"),
         ),
     )
-    def test_media_language_choices_collapse_region_variants(self, _choices):
+    def test_media_language_choices_keep_region_variants(self, _choices):
         self.movie.translations = {
             "en-US": {"title": "Sidewalls"},
             "en-GB": {"title": "Sidewalls"},
@@ -166,9 +203,9 @@ class MediaArtworkPreferenceViewTests(TestCase):
 
         self.assertEqual(
             [code for code, _label in choices if code.startswith("en-")],
-            ["en-US"],
+            ["en-US", "en-AG", "en-GB"],
         )
-        self.assertIn(("pt-BR", "Brazilian Portuguese"), choices)
+        self.assertIn(("pt-BR", "Portuguese (pt-BR)"), choices)
 
     @patch(
         "apps.catalog.forms.get_language_choices",
@@ -199,7 +236,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
             preference=preference,
         )
 
-        self.assertIn(("en-GB", "British English"), form.fields["language"].choices)
+        self.assertIn(("en-GB", "English (en-GB)"), form.fields["language"].choices)
 
     @patch("apps.catalog.forms.get_language_choices", return_value=(("en-US", "English"), ("pt-BR", "Português")))
     def test_post_saves_choices_only_for_the_current_user(self, _choices):
