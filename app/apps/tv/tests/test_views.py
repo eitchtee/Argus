@@ -162,6 +162,13 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "Loading episodes")
         self.assertNotContains(response, "Pilot")
 
+    def test_detail_fragment_sets_show_document_title(self):
+        Show.objects.create(external_id="123", name="Foo")
+
+        response = self.client.get("/tv/123/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "<title>Foo :: TV Show :: Argus</title>")
+
     @patch("apps.tv.views.get_show_episodes")
     def test_episode_fragment_loads_provider_episodes_and_labels_air_status(
         self,

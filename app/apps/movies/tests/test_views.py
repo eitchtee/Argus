@@ -83,6 +83,13 @@ class MovieDetailViewTests(TestCase):
         self.assertContains(response, "Edward Norton")
         self.assertContains(response, "The Narrator")
 
+    def test_detail_fragment_sets_movie_document_title(self):
+        Movie.objects.create(external_id="550", title="Fight Club")
+
+        response = self.client.get("/movies/550/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "<title>Fight Club :: Movie :: Argus</title>")
+
     def test_shows_current_users_watchlist_state(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)

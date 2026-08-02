@@ -1,4 +1,6 @@
-{% load dates i18n %}
+{% load dates i18n title %}
+
+<title>{% filter site_title %}{{ movie.title }} :: {% trans "Movie" %}{% endfilter %}</title>
 
 <div class="media-detail space-y-8">
   <section class="media-hero">

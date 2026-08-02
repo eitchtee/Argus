@@ -1,4 +1,6 @@
-{% load dates i18n %}
+{% load dates i18n title %}
+
+<title>{% filter site_title %}S{{ episode.season_number|stringformat:"02d" }}E{{ episode.episode_number|stringformat:"02d" }} :: {{ show.name }} :: {% trans "TV Show" %}{% endfilter %}</title>
 
 <div class="media-detail space-y-6">
   <nav class="surface-card flex items-center justify-between gap-3 rounded-box p-3 sm:p-4" aria-label="{% trans 'Episode navigation' %}">

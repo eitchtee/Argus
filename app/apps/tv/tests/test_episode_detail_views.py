@@ -87,6 +87,13 @@ class EpisodeDetailViewTests(TestCase):
         self.assertContains(response, "The beginning.")
         self.assertNotContains(response, "Mark watched")
 
+    def test_detail_fragment_sets_episode_document_title(self):
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/", HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(response, "<title>S01E01 :: Foo :: TV Show :: Argus</title>")
+
     def test_renders_watched_action_card_when_tracking(self):
         UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
