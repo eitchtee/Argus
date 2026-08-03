@@ -123,7 +123,10 @@ def calendar_feed(request, uuid):
         filters=filters,
     )
     response = HttpResponse(
-        render_icalendar(events),
+        render_icalendar(
+            events,
+            interface_language=getattr(feed.user.settings, "language", None),
+        ),
         content_type="text/calendar; charset=utf-8",
     )
     response["Content-Disposition"] = 'inline; filename="argus-calendar.ics"'

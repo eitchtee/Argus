@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
 
 from django.test import SimpleTestCase
+from django.utils import translation
 from icalendar import Calendar
 
 from apps.calendar.events import CalendarEvent
@@ -128,6 +129,17 @@ class ICalendarSerializerTests(SimpleTestCase):
             "📛 Pilot\n📄 An episode overview.\n⏳ 60 minutes\n📍 Example Network",
         )
         self.assertNotIn("tracked", str(event.decoded("description")))
+
+    def test_formats_runtime_using_the_interface_language(self):
+        with translation.override("en"):
+            ical = render_icalendar(
+                [self.timed_event()],
+                interface_language="pt-br",
+            )
+
+        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
+
+        self.assertIn("⏳ 60 minutos", str(event.decoded("description")))
 
     def test_omits_missing_tv_description_fields(self):
         ical = render_icalendar(

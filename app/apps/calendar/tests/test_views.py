@@ -334,6 +334,20 @@ class CalendarViewTests(TestCase):
         self.assertIn("BEGIN:VCALENDAR", response.content.decode())
         self.assertEqual(missing.status_code, 404)
 
+    def test_feed_uses_owner_interface_language_for_runtime_labels(self):
+        self.user.settings.language = "pt-br"
+        self.user.settings.save(update_fields=["language"])
+        self.make_episode("Tracked", UserShow.Status.TRACKED, date.today())
+        feed = get_calendar_feed(self.user)
+        self.client.logout()
+
+        response = self.client.get(
+            f"/calendar/feed/{feed.uuid}.ics",
+            HTTP_ACCEPT_LANGUAGE="en",
+        )
+
+        self.assertIn("60 minutos", response.content.decode())
+
     def test_feed_is_available_without_login(self):
         feed = get_calendar_feed(self.user)
         self.client.logout()
