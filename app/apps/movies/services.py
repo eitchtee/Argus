@@ -62,6 +62,7 @@ def import_movie(
     language: str | None = None,
     sync_artworks: bool | None = None,
     provider_getter=get_provider,
+    base_detail=None,
 ) -> Movie:
     if provider not in PROVIDER_DEFAULT_LANGUAGES:
         raise ValueError(f"Unsupported provider: {provider}")
@@ -72,7 +73,7 @@ def import_movie(
     provider_client = provider_getter(provider)
 
     try:
-        detail = provider_client.fetch_detail(
+        detail = base_detail or provider_client.fetch_detail(
             external_id,
             language=language,
             media_type="movie",

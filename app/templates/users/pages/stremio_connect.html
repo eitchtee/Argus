@@ -1,0 +1,27 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Connect Stremio" %}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-xl space-y-5">
+  <div>
+    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Account" %}</p>
+    <h1 class="text-3xl font-bold tracking-tight">{% trans "Connect Stremio" %}</h1>
+  </div>
+  <div class="space-y-4 rounded-box border border-base-300 bg-base-100 p-6">
+    {% if pending %}
+      <p class="text-sm leading-6 text-base-content/70">{% trans "Stremio authorization is still waiting. Finish the link in Stremio, then try again." %}</p>
+    {% else %}
+      <p class="text-sm leading-6 text-base-content/70">{% trans "Open the secure Stremio link, authorize Argus, then return here to finish connecting." %}</p>
+      <a href="{{ link.link }}" class="btn btn-primary" target="_blank" rel="noopener">{% trans "Authorize in Stremio" %}</a>
+      {% if link.qrcode %}<img src="{{ link.qrcode }}" alt="{% trans 'Stremio authorization QR code' %}" class="h-48 w-48" />{% endif %}
+    {% endif %}
+    <form method="post" action="{% url 'stremio_complete' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-secondary">{% trans "I have authorized Stremio" %}</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
+

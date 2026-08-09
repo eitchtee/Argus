@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "apps.tv.apps.TvConfig",
     "apps.history.apps.HistoryConfig",
     "apps.trakt.apps.TraktConfig",
+    "apps.stremio.apps.StremioConfig",
     "apps.imports.apps.ImportsConfig",
     "apps.calendar.apps.CalendarConfig",
     "cachalot",
@@ -474,6 +475,14 @@ try:
 except ValueError:
     TRAKT_SYNC_INTERVAL_MINUTES = 5
 TRAKT_SYNC_CRON = f"*/{TRAKT_SYNC_INTERVAL_MINUTES} * * * *"
+try:
+    STREMIO_SYNC_INTERVAL_MINUTES = max(
+        1,
+        int(os.getenv("STREMIO_SYNC_INTERVAL_MINUTES", "5")),
+    )
+except ValueError:
+    STREMIO_SYNC_INTERVAL_MINUTES = 5
+STREMIO_SYNC_CRON = f"*/{STREMIO_SYNC_INTERVAL_MINUTES} * * * *"
 CATALOG_SEARCH_CACHE_TTL = int(os.getenv("CATALOG_SEARCH_CACHE_TTL", 3600))
 CATALOG_MOVIE_SYNC_INTERVAL_DAYS = int(os.getenv("CATALOG_MOVIE_SYNC_INTERVAL_DAYS", 14))
 CATALOG_SHOW_SYNC_INTERVAL_DAYS = int(os.getenv("CATALOG_SHOW_SYNC_INTERVAL_DAYS", 2))
