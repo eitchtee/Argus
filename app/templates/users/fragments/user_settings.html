@@ -40,5 +40,17 @@
         <a href="{% url 'trakt_connect' %}" class="btn btn-primary btn-sm mt-3">{% trans "Connect Trakt.tv" %}</a>
       {% endif %}
     </section>
+    <section class="mt-6 border-t border-base-300 pt-4">
+      <h4 class="font-semibold">{% trans "Stremio" %}</h4>
+      {% if stremio_account %}
+        <p class="mt-2 text-sm text-base-content/70">{% trans "Connected as" %} <span class="font-medium">{{ stremio_account.stremio_username|default:_('Stremio user') }}</span>.</p>
+        {% if stremio_account.last_synced_at %}<p class="text-sm text-base-content/70">{% trans "Last sync" %}: {% user_datetime stremio_account.last_synced_at %}</p>{% endif %}
+        {% if stremio_account.last_error %}<p class="text-sm text-error">{{ stremio_account.last_error }}</p>{% endif %}
+        <div class="mt-3 flex flex-wrap gap-2"><form method="post" action="{% url 'stremio_sync' %}" hx-post="{% url 'stremio_sync' %}" hx-swap="none">{% csrf_token %}<button type="submit" class="btn btn-primary btn-sm">{% trans "Sync now" %}</button></form><a href="{% url 'stremio_connect' %}" class="btn btn-secondary btn-sm">{% trans "Reconnect" %}</a><form method="post" action="{% url 'stremio_disconnect' %}" hx-post="{% url 'stremio_disconnect' %}" hx-swap="none" hx-confirm="{% trans 'Disconnect Stremio?' %}">{% csrf_token %}<button type="submit" class="btn btn-ghost btn-sm">{% trans "Disconnect" %}</button></form></div>
+      {% else %}
+        <p class="mt-2 text-sm text-base-content/70">{% trans "Connect your Stremio account to synchronize your library." %}</p>
+        <a href="{% url 'stremio_connect' %}" class="btn btn-primary btn-sm mt-3">{% trans "Connect Stremio" %}</a>
+      {% endif %}
+    </section>
   </div>
 </dialog>

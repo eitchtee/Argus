@@ -1,6 +1,7 @@
 from apps.common.decorators.user import htmx_login_required
 from apps.users.forms import LoginForm, UserSettingsForm
 from apps.trakt.models import TraktAccount
+from apps.stremio.models import StremioAccount
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.views import LoginView
@@ -49,10 +50,19 @@ def update_settings(request):
         .defer("access_token", "refresh_token")
         .first()
     )
+    stremio_account = (
+        StremioAccount.objects.filter(user=request.user)
+        .defer("auth_key")
+        .first()
+    )
     return render(
         request,
         "users/pages/settings.html",
-        {"form": form, "trakt_account": trakt_account},
+        {
+            "form": form,
+            "trakt_account": trakt_account,
+            "stremio_account": stremio_account,
+        },
     )
 
 
