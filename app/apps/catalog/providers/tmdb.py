@@ -93,6 +93,18 @@ class TMDBProvider(BaseProvider):
             for item in payload.get("results", [])
         ]
 
+    def find_by_imdb_id(self, imdb_id: str, media_type: str) -> str | None:
+        if media_type not in {"movie", "tv"}:
+            raise ValueError(f"Unsupported media type: {media_type}")
+        payload = self._get_json(
+            f"/find/{imdb_id}",
+            {"external_source": "imdb_id"},
+        )
+        results = payload.get("movie_results" if media_type == "movie" else "tv_results") or []
+        if not results or not results[0].get("id"):
+            return None
+        return str(results[0]["id"])
+
     def fetch_detail(
         self,
         external_id: str,

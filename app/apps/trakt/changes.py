@@ -25,19 +25,61 @@ def suppress_local_intents():
 def record_intent(user, kind: str, payload: dict, *, desired: bool = True):
     if _LOCAL_INTENTS_SUPPRESSED.get():
         return None
-    if not TraktAccount.objects.filter(user_id=user.pk).exists():
-        return None
-
     kind = str(kind)
     identity_key = identity_key_for_payload(kind, payload)
+    intents = []
+    if TraktAccount.objects.filter(user_id=user.pk).exists():
+        intents.append(
+            _record_provider_intent(
+                TraktSyncIntent,
+                user,
+                kind,
+                identity_key,
+                payload,
+                desired,
+            )
+        )
+
+    from apps.stremio.models import StremioAccount, StremioSyncIntent
+
+    if (
+        kind in {
+            StremioSyncIntent.Kind.MOVIE_WATCHLIST,
+            StremioSyncIntent.Kind.SHOW_WATCHLIST,
+            StremioSyncIntent.Kind.MOVIE_HISTORY,
+            StremioSyncIntent.Kind.EPISODE_HISTORY,
+        }
+        and StremioAccount.objects.filter(user_id=user.pk).exists()
+    ):
+        intents.append(
+            _record_provider_intent(
+                StremioSyncIntent,
+                user,
+                kind,
+                identity_key,
+                payload,
+                desired,
+            )
+        )
+    return intents[0] if intents else None
+
+
+def _record_provider_intent(
+    model,
+    user,
+    kind: str,
+    identity_key: str,
+    payload: dict,
+    desired: bool,
+):
     with transaction.atomic():
         intent = (
-            TraktSyncIntent.objects.select_for_update()
+            model.objects.select_for_update()
             .filter(user=user, kind=kind, identity_key=identity_key)
             .first()
         )
         if intent is None:
-            return TraktSyncIntent.objects.create(
+            return model.objects.create(
                 user=user,
                 kind=kind,
                 identity_key=identity_key,
