@@ -32,17 +32,12 @@
           {% comment %} debounced 'search' event sent when the query changes {% endcomment %}
           <div _="on input debounced at 400ms send search to #search-form">{{ form.q }}</div>
         </div>
-        <div class="w-full sm:w-auto">
-          <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-subtle">
-            {% trans "Provider" %}
-          </span>
-          <div id="provider-picker" role="tablist" class="tabs tabs-boxed w-fit"
-               aria-label="{% trans 'Search provider' %}">
-            <input type="radio" name="provider" role="tab" class="tab" value="tmdb"
-                   aria-label="TMDB" {% if provider == "tmdb" %}checked{% endif %}>
-            <input type="radio" name="provider" role="tab" class="tab" value="tvdb"
-                   aria-label="TVDB" {% if provider == "tvdb" %}checked{% endif %}>
-          </div>
+        <div id="provider-picker" role="tablist" class="tabs tabs-boxed w-fit"
+             aria-label="{% trans 'Search provider' %}">
+          <input type="radio" name="provider" role="tab" class="tab" value="tmdb"
+                 aria-label="TMDB" {% if provider == "tmdb" %}checked{% endif %}>
+          <input type="radio" name="provider" role="tab" class="tab" value="tvdb"
+                 aria-label="TVDB" {% if provider == "tvdb" %}checked{% endif %}>
         </div>
       </form>
     </div>
