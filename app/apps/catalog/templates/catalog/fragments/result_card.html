@@ -1,4 +1,14 @@
 {% load i18n %}
+{% trans "Add to watchlist" as track_movie_label %}
+{% trans "Track show" as track_show_label %}
+{% trans "Tracking" as tracking_label %}
+{% trans "Mark watched" as mark_watched_label %}
+{% trans "Mark unwatched" as mark_unwatched_label %}
+{% trans "Switch to" as switch_to_label %}
+{% trans "Switch provider?" as switch_provider_title %}
+{% trans "Move your tracking state to this provider?" as switch_provider_message %}
+{% trans "Switch" as switch_provider_confirm_label %}
+{% trans "Cancel" as cancel_label %}
 {% if item %}
 <div class="media-card card card-side overflow-hidden min-h-36 rounded-box">
   <figure class="w-24 shrink-0 bg-base-200 sm:w-28">
@@ -17,32 +27,80 @@
       {% if item.year %}<span class="text-subtle text-xs font-normal">({{ item.year }})</span>{% endif %}
     </h3>
     <p class="text-xs text-subtle line-clamp-3">{{ item.overview }}</p>
-    <div class="card-actions mt-2 flex-col items-start gap-1">
-      {% if item.tracked_on_other_provider %}
-      <span class="btn btn-warning btn-sm btn-outline" aria-disabled="true">
-        {% trans "Tracked on another provider" %}
-      </span>
-      {% else %}
-      <form hx-post="{% url 'catalog-track' %}"
-            hx-target="closest .card"
-            hx-swap="outerHTML"
-            hx-disabled-elt="this">
-        <input type="hidden" name="external_id" value="{{ item.external_id }}">
-        <input type="hidden" name="type" value="{{ media_type }}">
-        <input type="hidden" name="provider" value="{{ item.provider }}">
-        <input type="hidden" name="q" value="{{ query }}">
-        <input type="hidden" name="page" value="{{ page }}">
-        {% if item.already_tracked %}
-        <span class="btn btn-success btn-sm" disabled>{% trans "Tracking" %}</span>
-        {% else %}
-        <button type="submit" class="btn btn-primary btn-sm">{% trans "Track" %}</button>
-      {% endif %}
-      </form>
-      {% endif %}
-      {% if error %}
-      <span class="text-error text-xs">{{ error }}</span>
-      {% endif %}
-    </div>
+    {% if error %}<span class="text-error text-xs">{{ error }}</span>{% endif %}
+  </div>
+  <div class="flex shrink-0 items-center p-3">
+    {% if item.tracked_on_other_provider %}
+    <button type="button"
+            aria-label="{{ switch_to_label }} {{ item.provider|upper }}"
+            data-tippy-content="{{ switch_to_label }} {{ item.provider|upper }}"
+            class="btn btn-md btn-circle media-action-button btn-primary"
+            hx-post="{% url 'catalog-switch' %}?type={{ media_type }}&provider={{ item.provider }}&external_id={{ item.external_id }}&from_provider={{ item.tracked_provider }}&from_external_id={{ item.tracked_external_id }}&q={{ query|urlencode }}&page={{ page }}"
+            hx-target="closest .card" hx-swap="outerHTML" hx-trigger="confirmed" hx-disabled-elt="this"
+            _="on click
+                call Swal.fire({
+                  title: '{{ switch_provider_title|escapejs }}',
+                  text: '{{ switch_provider_message|escapejs }}',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: '{{ switch_provider_confirm_label|escapejs }}',
+                  cancelButtonText: '{{ cancel_label|escapejs }}',
+                  reverseButtons: true
+                })
+                if it.isConfirmed
+                  trigger confirmed">
+      <i class="fa-solid fa-right-left" aria-hidden="true"></i>
+      <span class="sr-only">{{ switch_to_label }} {{ item.provider|upper }}</span>
+    </button>
+    {% elif media_type == "movie" and item.already_tracked %}
+    <button type="button"
+            aria-label="{% if item.is_seen %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
+            aria-pressed="{{ item.is_seen|yesno:'true,false' }}"
+            data-tippy-content="{% if item.is_seen %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
+            class="btn btn-md btn-circle media-action-button btn-success"
+            hx-{% if item.is_seen %}delete{% else %}post{% endif %}="{% url 'catalog-watched' %}?type=movie&provider={{ item.provider }}&external_id={{ item.external_id }}&q={{ query|urlencode }}&page={{ page }}"
+            hx-target="closest .card" hx-swap="outerHTML" hx-disabled-elt="this">
+      <i class="fa-solid fa-{% if item.is_seen %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
+      <span class="sr-only">{% if item.is_seen %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}</span>
+    </button>
+    {% elif media_type == "movie" %}
+    <form hx-post="{% url 'catalog-track' %}"
+          hx-target="closest .card" hx-swap="outerHTML" hx-disabled-elt="this">
+      <input type="hidden" name="external_id" value="{{ item.external_id }}">
+      <input type="hidden" name="type" value="movie">
+      <input type="hidden" name="provider" value="{{ item.provider }}">
+      <input type="hidden" name="q" value="{{ query }}">
+      <input type="hidden" name="page" value="{{ page }}">
+      <button type="submit" aria-label="{{ track_movie_label }}"
+              data-tippy-content="{{ track_movie_label }}"
+              class="btn btn-md btn-circle media-action-button btn-primary">
+        <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+        <span class="sr-only">{{ track_movie_label }}</span>
+      </button>
+    </form>
+    {% elif item.already_tracked %}
+    <button type="button" disabled aria-label="{{ tracking_label }}"
+            data-tippy-content="{{ tracking_label }}"
+            class="btn btn-md btn-circle media-action-button btn-success">
+      <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+      <span class="sr-only">{{ tracking_label }}</span>
+    </button>
+    {% else %}
+    <form hx-post="{% url 'catalog-track' %}"
+          hx-target="closest .card" hx-swap="outerHTML" hx-disabled-elt="this">
+      <input type="hidden" name="external_id" value="{{ item.external_id }}">
+      <input type="hidden" name="type" value="tv">
+      <input type="hidden" name="provider" value="{{ item.provider }}">
+      <input type="hidden" name="q" value="{{ query }}">
+      <input type="hidden" name="page" value="{{ page }}">
+      <button type="submit" aria-label="{{ track_show_label }}"
+              data-tippy-content="{{ track_show_label }}"
+              class="btn btn-md btn-circle media-action-button btn-primary">
+        <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+        <span class="sr-only">{{ track_show_label }}</span>
+      </button>
+    </form>
+    {% endif %}
   </div>
 </div>
 {% elif error %}

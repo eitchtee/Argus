@@ -12,7 +12,7 @@ from apps.catalog.artwork import (
 from apps.catalog.forms import MediaArtworkPreferenceForm, SearchForm
 from apps.catalog.languages import language_display_name
 from apps.catalog.localization import metadata_language_for_user, resolve_title
-from apps.catalog.models import MediaArtwork, UserMediaArtworkPreference
+from apps.catalog.models import MediaArtwork, SyncStatus, UserMediaArtworkPreference
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.services import (
     SEARCH_TYPE_PROVIDERS,
@@ -107,6 +107,156 @@ def track(request):
         "error": error if item is None else None,
     }
     return render(request, "catalog/fragments/result_card.html", context)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST"])
+def switch(request):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    query = _request_param(request, "q")
+    media_type = _request_param(request, "type", "movie")
+    target_provider = _request_param(request, "provider").lower()
+    target_external_id = _request_param(request, "external_id")
+    source_provider = _request_param(request, "from_provider").lower()
+    source_external_id = _request_param(request, "from_external_id")
+    target_imdb_id = _request_param(request, "target_imdb_id") or None
+    page = _parse_page(_request_param(request, "page", "1"))
+
+    error = None
+    if (
+        media_type not in {"movie", "tv"}
+        or not target_external_id
+        or not source_external_id
+        or source_provider not in SUPPORTED_PROVIDERS
+        or target_provider not in SUPPORTED_PROVIDERS
+        or source_provider == target_provider
+    ):
+        error = _("Invalid request.")
+
+    if error is None:
+        try:
+            if media_type == "movie":
+                from apps.movies.services import queue_switch_movie_provider
+
+                switch_kwargs = {
+                    "source_provider": source_provider,
+                    "source_external_id": source_external_id,
+                    "target_provider": target_provider,
+                    "target_external_id": target_external_id,
+                }
+                if target_imdb_id:
+                    switch_kwargs["target_imdb_id"] = target_imdb_id
+                queue_switch_movie_provider(request.user, **switch_kwargs)
+            else:
+                from apps.tv.services import queue_switch_show_provider
+
+                switch_kwargs = {
+                    "source_provider": source_provider,
+                    "source_external_id": source_external_id,
+                    "target_provider": target_provider,
+                    "target_external_id": target_external_id,
+                }
+                if target_imdb_id:
+                    switch_kwargs["target_imdb_id"] = target_imdb_id
+                queue_switch_show_provider(request.user, **switch_kwargs)
+        except ValueError as exc:
+            error = str(exc) or _("Provider error.")
+
+    item = _find_tracked_item(
+        request,
+        query,
+        media_type,
+        target_provider,
+        page,
+        target_external_id,
+        error,
+    )
+    return render(
+        request,
+        "catalog/fragments/result_card.html",
+        {
+            "media_type": media_type,
+            "provider": target_provider,
+            "query": query,
+            "page": page,
+            "item": item,
+            "error": error,
+        },
+    )
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST", "DELETE"])
+def watched(request):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    query = _request_param(request, "q")
+    media_type = _request_param(request, "type", "movie")
+    provider = _request_param(request, "provider").lower()
+    external_id = _request_param(request, "external_id")
+    page = _parse_page(_request_param(request, "page", "1"))
+
+    error = None
+    if media_type != "movie" or not external_id:
+        error = _("Invalid request.")
+    elif not provider:
+        provider = SEARCH_TYPE_PROVIDERS["movie"]
+    elif provider not in SUPPORTED_PROVIDERS:
+        error = _("Invalid request.")
+
+    if error is None:
+        try:
+            from apps.movies.models import Movie
+            from apps.movies.services import mark_seen, refresh_movie, unmark_seen
+
+            if request.method == "POST":
+                movie, _created = Movie.objects.get_or_create(
+                    provider=provider,
+                    external_id=external_id,
+                    defaults={
+                        "title": external_id,
+                        "sync_status": SyncStatus.PENDING,
+                    },
+                )
+                mark_seen(request.user, movie)
+                if movie.sync_status != SyncStatus.OK or movie.last_synced_at is None:
+                    refresh_movie(request.user, movie)
+            else:
+                movie = Movie.objects.filter(
+                    provider=provider,
+                    external_id=external_id,
+                ).first()
+                if movie is not None:
+                    unmark_seen(request.user, movie)
+        except ValueError as exc:
+            error = str(exc) or _("Provider error.")
+
+    item = _find_tracked_item(
+        request,
+        query,
+        media_type,
+        provider,
+        page,
+        external_id,
+        error,
+    )
+    return render(
+        request,
+        "catalog/fragments/result_card.html",
+        {
+            "media_type": media_type,
+            "provider": provider,
+            "query": query,
+            "page": page,
+            "item": item,
+            "error": error if item is None else None,
+        },
+    )
 
 
 @only_htmx
@@ -240,26 +390,24 @@ def _find_tracked_item(
             page=page,
             provider=provider,
         )
-    except ValueError:
+    except (ValueError, ProviderError):
         return None
 
     matches = tracking_matches(request.user, media_type, raw_results)
+    seen_states = (
+        _movie_seen_states(request.user, raw_results)
+        if media_type == "movie"
+        else {}
+    )
     for result in raw_results:
         if result.external_id == external_id:
             match = matches[(result.provider, result.external_id)]
-            return {
-                "provider": result.provider,
-                "external_id": result.external_id,
-                "title": result.title,
-                "year": result.year,
-                "poster_url": result.poster_url,
-                "overview": result.overview,
-                "already_tracked": error is None or bool(match and match.same_provider),
-                "tracked_on_other_provider": bool(match and not match.same_provider),
-                "tracked_provider": (
-                    match.provider if match and not match.same_provider else None
-                ),
-            }
+            return _result_context(
+                result,
+                match,
+                is_seen=seen_states.get((result.provider, result.external_id), False),
+                already_tracked=error is None or bool(match and match.same_provider),
+            )
     return None
 
 
@@ -314,29 +462,61 @@ def _search_context(request, query, media_type, provider, page):
         return context
 
     matches = tracking_matches(request.user, media_type, raw_results)
+    seen_states = (
+        _movie_seen_states(request.user, raw_results)
+        if media_type == "movie"
+        else {}
+    )
     context["results"] = [
-        {
-                "provider": r.provider,
-                "external_id": r.external_id,
-                "title": r.title,
-                "year": r.year,
-                "poster_url": r.poster_url,
-                "overview": r.overview,
-                "already_tracked": bool(
-                    matches[(r.provider, r.external_id)]
-                    and matches[(r.provider, r.external_id)].same_provider
-                ),
-                "tracked_on_other_provider": bool(
-                    matches[(r.provider, r.external_id)]
-                    and not matches[(r.provider, r.external_id)].same_provider
-                ),
-                "tracked_provider": (
-                    matches[(r.provider, r.external_id)].provider
-                    if matches[(r.provider, r.external_id)]
-                    and not matches[(r.provider, r.external_id)].same_provider
-                    else None
-                ),
-            }
-        for r in raw_results
+        _result_context(
+            result,
+            matches[(result.provider, result.external_id)],
+            is_seen=seen_states.get((result.provider, result.external_id), False),
+        )
+        for result in raw_results
     ]
     return context
+
+
+def _result_context(result, match, *, is_seen=False, already_tracked=None):
+    if already_tracked is None:
+        already_tracked = bool(match and match.same_provider)
+    return {
+        "provider": result.provider,
+        "external_id": result.external_id,
+        "title": result.title,
+        "year": result.year,
+        "poster_url": result.poster_url,
+        "overview": result.overview,
+        "already_tracked": already_tracked,
+        "is_seen": is_seen,
+        "tracked_on_other_provider": bool(match and not match.same_provider),
+        "tracked_provider": (
+            match.provider if match and not match.same_provider else None
+        ),
+        "tracked_external_id": (
+            match.external_id if match and not match.same_provider else None
+        ),
+    }
+
+
+def _movie_seen_states(user, results):
+    if not results:
+        return {}
+
+    from apps.movies.models import UserMovie
+
+    provider = results[0].provider
+    external_ids = [result.external_id for result in results]
+    return {
+        (movie_provider, external_id): is_seen
+        for movie_provider, external_id, is_seen in UserMovie.objects.filter(
+            user=user,
+            movie__provider=provider,
+            movie__external_id__in=external_ids,
+        ).values_list("movie__provider", "movie__external_id", "is_seen")
+    }
+
+
+def _request_param(request, name, default=""):
+    return request.POST.get(name, request.GET.get(name, default)).strip()

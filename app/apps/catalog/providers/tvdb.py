@@ -415,7 +415,7 @@ class TVDBProvider(BaseProvider):
                     current.setdefault(key, value)
 
         add_translation(
-            "eng",
+            data.get("originalLanguage") or "eng",
             primary=True,
             title=data.get("name"),
             overview=data.get("overview"),
