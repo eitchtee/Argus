@@ -530,6 +530,40 @@ class TVDBProviderTests(SimpleTestCase):
         )
         self.assertIn("meta=translations", opener.requests[0][0].full_url)
 
+    def test_fetch_detail_uses_english_translation_when_original_name_is_korean(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        payload = load_fixture("tvdb_series_extended.json")
+        payload["data"].update(
+            {
+                "name": "고요의 바다",
+                "overview": "각계의 전문가들이 한 팀이 되어 달 탐사선에 오른다.",
+                "originalLanguage": "kor",
+                "translations": {
+                    "nameTranslations": [
+                        {"name": "고요의 바다", "language": "kor", "isPrimary": True},
+                        {"name": "The Silent Sea", "language": "eng"},
+                    ],
+                    "overviewTranslations": [
+                        {
+                            "overview": "During a perilous 24-hour mission on the moon.",
+                            "language": "eng",
+                        },
+                    ],
+                },
+            }
+        )
+        provider = TVDBProvider(opener=SequenceOpener([payload]))
+
+        detail = provider.fetch_detail("383137", language="eng")
+
+        self.assertEqual(
+            detail.translations["eng"],
+            {
+                "title": "The Silent Sea",
+                "overview": "During a perilous 24-hour mission on the moon.",
+            },
+        )
+
     def test_fetch_detail_keeps_primary_english_name_when_alias_shares_language(self):
         cache.set("catalog:tvdb:token", "existing-token")
         payload = load_fixture("tvdb_series_extended.json")
