@@ -179,7 +179,7 @@ class EpisodeDetailViewTests(TestCase):
             response,
             "background-image: url('https://artworks.thetvdb.com/fanart.jpg');",
         )
-        self.assertContains(response, 'class="absolute inset-0 bg-base-100/85"')
+        self.assertContains(response, 'class="media-hero__scrim"')
 
     def test_previous_and_next_links_across_season_boundary(self):
         episode_two = Episode.objects.create(

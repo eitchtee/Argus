@@ -25,12 +25,12 @@
     {% endif %}
   </nav>
 
-  <section class="media-hero">
+  <section class="media-hero" aria-labelledby="episode-title">
     {% if show.backdrop_url %}
-    <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('{{ show.backdrop_url }}');"></div>
-    <div class="absolute inset-0 bg-base-100/85"></div>
+    <div class="media-hero__backdrop" style="background-image: url('{{ show.backdrop_url }}');"></div>
+    <div class="media-hero__scrim" aria-hidden="true"></div>
     {% endif %}
-    <div class="relative grid gap-7 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:p-9">
+    <div class="media-hero__body media-hero__body--episode">
       <div class="episode-media-stack">
         <figure class="episode-media overflow-hidden rounded-box border border-base-300 bg-base-200">
           {% if episode.still_path %}
@@ -46,7 +46,7 @@
         {% endif %}
       </div>
 
-      <div class="min-w-0 space-y-6">
+      <div class="min-w-0 space-y-5">
         <div class="detail-eyebrow">
           <span class="episode-status episode-status--{{ episode.air_status }}">
             <i class="fa-solid {% if episode.air_status == 'aired' %}fa-circle-check{% elif episode.air_status == 'upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
@@ -60,27 +60,27 @@
           {% endif %}
         </div>
 
-        <div class="space-y-3">
+        <div class="space-y-2.5">
           <p class="detail-eyebrow">{% blocktrans with season=episode.season_number number=episode.episode_number %}Season {{ season }} · Episode {{ number }}{% endblocktrans %}</p>
-          <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">{{ episode.name }}</h1>
+          <h1 id="episode-title" class="text-balance text-3xl font-bold tracking-tight sm:text-4xl">{{ episode.name }}</h1>
         </div>
 
-        <dl class="detail-facts">
+        <dl class="detail-meta">
           {% if episode.air_date %}
-          <div class="detail-fact">
-            <dt><i class="fa-regular fa-calendar" aria-hidden="true"></i> {% trans "Air date" %}</dt>
-            <dd>{% user_date episode.air_date %}</dd>
+          <div class="detail-meta__item" title="{% trans 'Air date' %}">
+            <dt class="sr-only">{% trans "Air date" %}</dt>
+            <dd><i class="fa-regular fa-calendar" aria-hidden="true"></i>{% user_date episode.air_date %}</dd>
           </div>
           {% endif %}
           {% if episode.runtime %}
-          <div class="detail-fact">
-            <dt><i class="fa-regular fa-clock" aria-hidden="true"></i> {% trans "Runtime" %}</dt>
-            <dd>{{ episode.runtime }} {% trans "min" %}</dd>
+          <div class="detail-meta__item" title="{% trans 'Runtime' %}">
+            <dt class="sr-only">{% trans "Runtime" %}</dt>
+            <dd><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ episode.runtime }} {% trans "min" %}</dd>
           </div>
           {% endif %}
         </dl>
 
-        {% if episode.overview %}<p class="max-w-2xl text-base leading-7 text-base-content/85">{{ episode.overview }}</p>{% endif %}
+        {% if episode.overview %}<p class="max-w-2xl text-pretty text-sm leading-6 text-base-content/85 sm:text-base sm:leading-7">{{ episode.overview }}</p>{% endif %}
 
         {% if show_links %}
         <div class="detail-links" aria-label="{% trans 'Show links' %}">

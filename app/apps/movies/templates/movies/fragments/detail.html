@@ -2,19 +2,19 @@
 
 <title>{% filter site_title %}{{ movie.title }} :: {% trans "Movie" %}{% endfilter %}</title>
 
-<div class="media-detail space-y-8">
-  <section class="media-hero">
+<div class="media-detail space-y-6 sm:space-y-8">
+  <section class="media-hero" aria-labelledby="movie-title">
     {% if movie.backdrop_url %}
-    <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('{{ movie.backdrop_url }}');"></div>
-    <div class="absolute inset-0 bg-base-100/85"></div>
+    <div class="media-hero__backdrop" style="background-image: url('{{ movie.backdrop_url }}');"></div>
+    <div class="media-hero__scrim" aria-hidden="true"></div>
     {% endif %}
-    <div class="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[14rem_minmax(0,1fr)] lg:p-9">
+    <div class="media-hero__body">
       <div class="media-poster-stack">
         <figure class="media-poster h-fit self-start">
           {% if movie.poster_url %}
-          <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="aspect-[2/3] w-full object-cover" loading="eager">
+          <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="aspect-2/3 w-full object-cover" loading="eager">
           {% else %}
-          <div class="flex aspect-[2/3] items-center justify-center bg-base-200 text-base-content/30">
+          <div class="flex aspect-2/3 items-center justify-center bg-base-200 text-base-content/30">
             <i class="fa-solid fa-film text-4xl" aria-hidden="true"></i>
           </div>
           {% endif %}
@@ -32,44 +32,45 @@
         </div>
         {% endif %}
 
-        <div class="space-y-3">
-          <h1 class="text-3xl font-bold tracking-tight sm:text-5xl">
+        <div class="space-y-2.5">
+          <h1 id="movie-title" class="text-balance text-3xl font-bold tracking-tight sm:text-5xl">
             {{ movie.title }}{% if movie.year %} <span class="text-subtle text-xl font-normal sm:text-2xl">({{ movie.year }})</span>{% endif %}
           </h1>
-          {% if movie.tagline %}<p class="text-base italic text-base-content/70 sm:text-lg">{{ movie.tagline }}</p>{% endif %}
-          {% if movie.overview %}<p class="max-w-3xl text-base leading-7 text-base-content/85 sm:text-lg">{{ movie.overview }}</p>{% endif %}
+          {% if movie.tagline %}<p class="text-sm italic text-base-content/60 sm:text-base">{{ movie.tagline }}</p>{% endif %}
         </div>
 
-        <dl class="detail-facts">
+        <dl class="detail-meta">
           {% if movie.runtime %}
-          <div class="detail-fact">
-            <dt><i class="fa-regular fa-clock" aria-hidden="true"></i> {% trans "Runtime" %}</dt>
-            <dd>{{ movie.runtime }} {% trans "min" %}</dd>
+          <div class="detail-meta__item" title="{% trans 'Runtime' %}">
+            <dt class="sr-only">{% trans "Runtime" %}</dt>
+            <dd><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ movie.runtime }} {% trans "min" %}</dd>
           </div>
           {% endif %}
           {% if movie.release_date %}
-          <div class="detail-fact">
-            <dt><i class="fa-regular fa-calendar" aria-hidden="true"></i> {% trans "Released" %}</dt>
-            <dd>{% user_date movie.release_date %}</dd>
+          <div class="detail-meta__item" title="{% trans 'Release date' %}">
+            <dt class="sr-only">{% trans "Released" %}</dt>
+            <dd><i class="fa-regular fa-calendar" aria-hidden="true"></i>{% user_date movie.release_date %}</dd>
           </div>
           {% endif %}
           {% if movie.vote_average %}
-          <div class="detail-fact">
-            <dt><i class="fa-solid fa-star" aria-hidden="true"></i> {% trans "Rating" %}</dt>
-            <dd>{{ movie.vote_average|floatformat:1 }}/10</dd>
+          <div class="detail-meta__item detail-meta__item--rating" title="{% trans 'Rating' %}">
+            <dt class="sr-only">{% trans "Rating" %}</dt>
+            <dd><i class="fa-solid fa-star" aria-hidden="true"></i>{{ movie.vote_average|floatformat:1 }}<span class="text-base-content/50">/10</span></dd>
           </div>
           {% endif %}
           {% if movie.director %}
-          <div class="detail-fact detail-fact--wide">
-            <dt><i class="fa-solid fa-clapperboard" aria-hidden="true"></i> {% trans "Directed by" %}</dt>
-            <dd>{{ movie.director }}</dd>
+          <div class="detail-meta__item" title="{% trans 'Directed by' %}">
+            <dt class="sr-only">{% trans "Directed by" %}</dt>
+            <dd><i class="fa-solid fa-clapperboard" aria-hidden="true"></i><span class="truncate">{{ movie.director }}</span></dd>
           </div>
           {% endif %}
         </dl>
 
+        {% if movie.overview %}<p class="max-w-3xl text-pretty text-sm leading-6 text-base-content/85 sm:text-base sm:leading-7">{{ movie.overview }}</p>{% endif %}
+
         {% if movie.genres %}
-        <div class="flex flex-wrap gap-2" aria-label="{% trans 'Genres' %}">
-          {% for genre in movie.genres %}<span class="badge badge-outline">{{ genre }}</span>{% endfor %}
+        <div class="flex flex-wrap gap-1.5" aria-label="{% trans 'Genres' %}">
+          {% for genre in movie.genres %}<span class="genre-chip">{{ genre }}</span>{% endfor %}
         </div>
         {% endif %}
 
@@ -81,8 +82,8 @@
           </a>
           {% endfor %}
           {% if movie.trailer_url %}
-          <a href="{{ movie.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link">
-            <i class="fa-solid fa-film" aria-hidden="true"></i>
+          <a href="{{ movie.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
+            <i class="fa-solid fa-circle-play" aria-hidden="true"></i>
             <span>{% trans "Watch trailer" %}</span>
             <i class="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden="true"></i>
           </a>
@@ -96,21 +97,23 @@
 
   {% if movie.cast %}
   <section class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="movie-cast-heading">
-    <div class="section-heading mb-5">
-      <h2 id="movie-cast-heading" class="text-lg font-semibold"><i class="fa-solid fa-users me-2 text-primary" aria-hidden="true"></i>{% trans "Cast" %}</h2>
+    <div class="section-heading mb-4">
+      <h2 id="movie-cast-heading" class="text-base font-semibold tracking-tight"><i class="fa-solid fa-users me-2 text-primary" aria-hidden="true"></i>{% trans "Cast" %}<span class="ms-2 rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium text-base-content/60">{{ movie.cast|length }}</span></h2>
     </div>
-    <div class="flex gap-5 overflow-x-auto pb-3">
+    <div class="cast-rail">
       {% for member in movie.cast %}
-      <div class="flex w-20 shrink-0 flex-col items-center text-center">
-        {% if member.photo_url %}
-        <img src="{{ member.photo_url }}" alt="{{ member.name }}" class="h-16 w-16 rounded-full border border-base-300 object-cover" loading="lazy">
-        {% else %}
-        <div class="flex h-16 w-16 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content/30">
-          <i class="fa-solid fa-user" aria-hidden="true"></i>
+      <div class="cast-card">
+        <div class="cast-card__photo">
+          {% if member.photo_url %}
+          <img src="{{ member.photo_url }}" alt="{{ member.name }}" loading="lazy">
+          {% else %}
+          <div class="flex items-center justify-center text-base-content/25">
+            <i class="fa-solid fa-user text-xl" aria-hidden="true"></i>
+          </div>
+          {% endif %}
         </div>
-        {% endif %}
-        <span class="mt-2 text-xs font-medium">{{ member.name }}</span>
-        <span class="text-xs text-subtle">{{ member.character }}</span>
+        <span class="cast-card__name" title="{{ member.name }}">{{ member.name }}</span>
+        <span class="cast-card__role" title="{{ member.character }}">{{ member.character }}</span>
       </div>
       {% endfor %}
     </div>

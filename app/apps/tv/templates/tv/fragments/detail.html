@@ -1,14 +1,21 @@
 {% load dates i18n title %}
+{% trans "Mark show watched?" as watch_show_title %}
+{% trans "This marks all aired episodes of this show as watched. Continue?" as watch_show_message %}
+{% trans "Watch" as watch_label %}
+{% trans "Mark show unwatched?" as unwatch_show_title %}
+{% trans "This clears the watched status for all episodes of this show. Continue?" as unwatch_show_message %}
+{% trans "Unwatch" as unwatch_label %}
+{% trans "Cancel" as cancel_label %}
 
 <title>{% filter site_title %}{{ show.title }} :: {% trans "TV Show" %}{% endfilter %}</title>
 
-<div class="media-detail space-y-8">
-  <section class="media-hero">
+<div class="media-detail space-y-6 sm:space-y-8">
+  <section class="media-hero" aria-labelledby="show-title">
     {% if show.backdrop_url %}
-    <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('{{ show.backdrop_url }}');"></div>
-    <div class="absolute inset-0 bg-base-100/85"></div>
+    <div class="media-hero__backdrop" style="background-image: url('{{ show.backdrop_url }}');"></div>
+    <div class="media-hero__scrim" aria-hidden="true"></div>
     {% endif %}
-    <div class="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[14rem_minmax(0,1fr)] lg:p-9">
+    <div class="media-hero__body">
       <div class="media-poster-stack">
         <figure class="media-poster h-fit self-start">
           {% if show.poster_url %}
@@ -32,51 +39,51 @@
         </div>
         {% endif %}
 
-        <div class="space-y-3">
-          <h1 class="text-3xl font-bold tracking-tight sm:text-5xl">{{ show.title }}</h1>
-          {% if show.overview %}<p class="max-w-3xl text-base leading-7 text-base-content/85 sm:text-lg">{{ show.overview }}</p>{% endif %}
+        <div class="space-y-2.5">
+          <h1 id="show-title" class="text-balance text-3xl font-bold tracking-tight sm:text-5xl">{{ show.title }}</h1>
+          {% if show.overview %}<p class="text-pretty text-sm leading-6 text-base-content/85 sm:text-base sm:leading-7">{{ show.overview }}</p>{% endif %}
         </div>
 
-        <dl class="detail-facts">
+        <dl class="detail-meta">
           {% if show.network %}
-          <div class="detail-fact">
-            <dt><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i> {% trans "Network" %}</dt>
-            <dd>{{ show.network }}</dd>
+          <div class="detail-meta__item" title="{% trans 'Network' %}">
+            <dt class="sr-only">{% trans "Network" %}</dt>
+            <dd><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i><span class="truncate">{{ show.network }}</span></dd>
           </div>
           {% endif %}
           {% if show.release_date %}
-          <div class="detail-fact">
-            <dt><i class="fa-regular fa-calendar" aria-hidden="true"></i> {% trans "First aired" %}</dt>
-            <dd>{% user_date show.release_date %}</dd>
+          <div class="detail-meta__item" title="{% trans 'First aired' %}">
+            <dt class="sr-only">{% trans "First aired" %}</dt>
+            <dd><i class="fa-regular fa-calendar" aria-hidden="true"></i>{% user_date show.release_date %}</dd>
           </div>
           {% endif %}
           {% if show.average_runtime %}
-          <div class="detail-fact">
-            <dt><i class="fa-regular fa-clock" aria-hidden="true"></i> {% trans "Runtime" %}</dt>
-            <dd>~{{ show.average_runtime }} {% trans "min" %}</dd>
+          <div class="detail-meta__item" title="{% trans 'Runtime' %}">
+            <dt class="sr-only">{% trans "Runtime" %}</dt>
+            <dd><i class="fa-regular fa-clock" aria-hidden="true"></i>~{{ show.average_runtime }} {% trans "min" %}</dd>
           </div>
           {% endif %}
           {% if show.next_air_date %}
-          <div class="detail-fact">
-            <dt><i class="fa-solid fa-forward" aria-hidden="true"></i> {% trans "Next episode" %}</dt>
+          <div class="detail-meta__item detail-meta__item--accent" title="{% trans 'Next episode' %}">
+            <dt class="sr-only">{% trans "Next episode" %}</dt>
             <dd>
-              {% user_date show.next_air_date %}
+              <i class="fa-solid fa-forward" aria-hidden="true"></i>{% user_date show.next_air_date %}
               {% if show.airs_time %}
               <time class="next-air-time" title="{% trans 'Original airing time' %}: {% user_time show.airs_source_time %} {{ show.airs_source_timezone }}">{% user_time show.airs_time %}</time>
               {% endif %}
             </dd>
           </div>
           {% elif show.last_air_date %}
-          <div class="detail-fact">
-            <dt><i class="fa-solid fa-forward" aria-hidden="true"></i> {% trans "Last aired" %}</dt>
-            <dd>{% user_date show.last_air_date %}</dd>
+          <div class="detail-meta__item" title="{% trans 'Last aired' %}">
+            <dt class="sr-only">{% trans "Last aired" %}</dt>
+            <dd><i class="fa-solid fa-forward" aria-hidden="true"></i>{% user_date show.last_air_date %}</dd>
           </div>
           {% endif %}
         </dl>
 
         {% if show.genres %}
-        <div class="flex flex-wrap gap-2" aria-label="{% trans 'Genres' %}">
-          {% for genre in show.genres %}<span class="badge badge-outline">{{ genre }}</span>{% endfor %}
+        <div class="flex flex-wrap gap-1.5" aria-label="{% trans 'Genres' %}">
+          {% for genre in show.genres %}<span class="genre-chip">{{ genre }}</span>{% endfor %}
         </div>
         {% endif %}
 
@@ -88,8 +95,8 @@
           </a>
           {% endfor %}
           {% if show.trailer_url %}
-          <a href="{{ show.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link">
-            <i class="fa-solid fa-film" aria-hidden="true"></i>
+          <a href="{{ show.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
+            <i class="fa-solid fa-circle-play" aria-hidden="true"></i>
             <span>{% trans "Watch trailer" %}</span>
             <i class="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden="true"></i>
           </a>
@@ -103,21 +110,23 @@
 
   {% if show.cast %}
   <section class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="show-cast-heading">
-    <div class="section-heading mb-5">
-      <h2 id="show-cast-heading" class="text-lg font-semibold"><i class="fa-solid fa-users me-2 text-primary" aria-hidden="true"></i>{% trans "Cast" %}</h2>
+    <div class="section-heading mb-4">
+      <h2 id="show-cast-heading" class="text-base font-semibold tracking-tight"><i class="fa-solid fa-users me-2 text-primary" aria-hidden="true"></i>{% trans "Cast" %}<span class="ms-2 rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium text-base-content/60">{{ show.cast|length }}</span></h2>
     </div>
-    <div class="flex gap-5 overflow-x-auto pb-3">
+    <div class="cast-rail">
       {% for member in show.cast %}
-      <div class="flex w-20 shrink-0 flex-col items-center text-center">
-        {% if member.photo_url %}
-        <img src="{{ member.photo_url }}" alt="{{ member.name }}" class="h-16 w-16 rounded-full border border-base-300 object-cover" loading="lazy">
-        {% else %}
-        <div class="flex h-16 w-16 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content/30">
-          <i class="fa-solid fa-user" aria-hidden="true"></i>
+      <div class="cast-card">
+        <div class="cast-card__photo">
+          {% if member.photo_url %}
+          <img src="{{ member.photo_url }}" alt="{{ member.name }}" loading="lazy">
+          {% else %}
+          <div class="flex items-center justify-center text-base-content/25">
+            <i class="fa-solid fa-user text-xl" aria-hidden="true"></i>
+          </div>
+          {% endif %}
         </div>
-        {% endif %}
-        <span class="mt-2 text-xs font-medium">{{ member.name }}</span>
-        <span class="text-xs text-subtle">{{ member.character }}</span>
+        <span class="cast-card__name" title="{{ member.name }}">{{ member.name }}</span>
+        <span class="cast-card__role" title="{{ member.character }}">{{ member.character }}</span>
       </div>
       {% endfor %}
     </div>
@@ -130,7 +139,53 @@
         <p class="detail-eyebrow mb-2"><i class="fa-solid fa-list-ol text-primary" aria-hidden="true"></i>{% trans "Series guide" %}</p>
         <h2 id="show-episodes-heading" class="text-2xl font-bold tracking-tight">{% trans "Episodes" %}</h2>
       </div>
+      {% if show.tracked and show.has_episodes %}
+      {% if show.show_fully_watched %}
+      <button type="button"
+              aria-label="{% trans 'Mark show unwatched' %}"
+              class="btn btn-sm media-action-button btn-success"
+              hx-delete="{% url 'tv-detail-watched' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+              hx-trigger="confirmed" hx-disabled-elt="this"
+              _="on click
+                  call Swal.fire({
+                    title: '{{ unwatch_show_title|escapejs }}',
+                    text: '{{ unwatch_show_message|escapejs }}',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: '{{ unwatch_label|escapejs }}',
+                    cancelButtonText: '{{ cancel_label|escapejs }}',
+                    reverseButtons: true
+                  })
+                  if it.isConfirmed
+                    trigger confirmed">
+        <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+        <span class="hidden sm:inline">{% trans "Mark show unwatched" %}</span>
+      </button>
+      {% else %}
+      <button type="button"
+              aria-label="{% trans 'Mark show watched' %}"
+              class="btn btn-sm media-action-button border border-base-300 bg-base-100"
+              hx-post="{% url 'tv-detail-watched' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+              hx-trigger="confirmed" hx-disabled-elt="this"
+              _="on click
+                  call Swal.fire({
+                    title: '{{ watch_show_title|escapejs }}',
+                    text: '{{ watch_show_message|escapejs }}',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: '{{ watch_label|escapejs }}',
+                    cancelButtonText: '{{ cancel_label|escapejs }}',
+                    reverseButtons: true
+                  })
+                  if it.isConfirmed
+                    trigger confirmed">
+        <i class="fa-solid fa-eye" aria-hidden="true"></i>
+        <span class="hidden sm:inline">{% trans "Mark show watched" %}</span>
+      </button>
+      {% endif %}
+      {% else %}
       <span class="hidden text-sm text-subtle sm:block">{% trans "Release status and watch progress" %}</span>
+      {% endif %}
     </div>
     <div id="show-episodes-content"
          class="episodes-loading show-loading"
