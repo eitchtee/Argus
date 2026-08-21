@@ -12,13 +12,12 @@
 {% trans "Switch to" as switch_to_label %}
 {% trans "Refresh metadata" as refresh_metadata_label %}
 {% trans "Edit artwork and language" as edit_artwork_label %}
-{% if show.show_fully_watched %}
-  {% trans "Mark show unwatched" as show_watched_label %}
-{% else %}
-  {% trans "Mark show watched" as show_watched_label %}
-{% endif %}
+{% trans "More options" as more_options_label %}
 
-<div id="show-actions" class="media-poster-actions" role="group" aria-label="{{ show_actions_label }}">
+<div id="show-actions" class="media-poster-actions" role="group" aria-label="{{ show_actions_label }}"
+     x-data="{ open: false }"
+     @keydown.escape.window="open = false"
+     @click.outside="open = false">
   <div class="join media-action-join join-horizontal">
   {% if show.tracked_on_other_provider %}
     <button type="button" aria-label="{{ switch_to_label }} {{ show.provider|upper }}"
@@ -37,95 +36,37 @@
             hx-disabled-elt="this">
       <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
     </button>
+  {% elif show.tracking_status == "tracked" %}
+    <button type="button" aria-label="{{ pause_show_label }}"
+            data-tippy-content="{{ pause_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-warning"
+            hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-pause" aria-hidden="true"></i>
+    </button>
+    <button type="button" aria-label="{{ drop_show_label }}"
+            data-tippy-content="{{ drop_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-warning"
+            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+    </button>
+  {% elif show.tracking_status == "paused" %}
+    <button type="button" aria-label="{{ resume_show_label }}"
+            data-tippy-content="{{ resume_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-primary"
+            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-play" aria-hidden="true"></i>
+    </button>
+    <button type="button" aria-label="{{ drop_show_label }}"
+            data-tippy-content="{{ drop_show_label }}"
+            class="btn btn-sm join-item media-action-button btn-warning"
+            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+            hx-disabled-elt="this">
+      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+    </button>
   {% else %}
-    {% if show.tracking_status %}
-    <button type="button" aria-label="{{ refresh_metadata_label }}"
-            data-tippy-content="{{ refresh_metadata_label }}"
-            class="btn btn-sm join-item media-action-button btn-info"
-            hx-post="{% url 'tv-detail-refresh' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-swap="none" hx-disabled-elt="this">
-      <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
-    </button>
-    {% endif %}
-
-    {% if show.tracking_status == "tracked" %}
-    <button type="button" aria-label="{{ pause_show_label }}"
-            data-tippy-content="{{ pause_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-warning"
-            hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-disabled-elt="this">
-      <i class="fa-solid fa-pause" aria-hidden="true"></i>
-    </button>
-    <button type="button" aria-label="{{ drop_show_label }}"
-            data-tippy-content="{{ drop_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-warning"
-            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-disabled-elt="this">
-      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
-    </button>
-    <button type="button" aria-label="{{ delete_show_label }}"
-            data-tippy-content="{{ delete_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-error"
-            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-trigger="confirmed" hx-disabled-elt="this"
-            _="on click
-                call Swal.fire({
-                  title: '{{ delete_show_title|escapejs }}',
-                  text: '{{ delete_show_message|escapejs }}',
-                  icon: 'warning',
-                  showCancelButton: true,
-                  confirmButtonText: '{{ delete_label|escapejs }}',
-                  cancelButtonText: '{{ cancel_label|escapejs }}',
-                  reverseButtons: true
-                })
-                if it.isConfirmed
-                  trigger confirmed">
-      <i class="fa-solid fa-trash" aria-hidden="true"></i>
-    </button>
-      {% if show.tracked and show.has_episodes %}
-    <button type="button" aria-label="{{ show_watched_label }}"
-            data-tippy-content="{{ show_watched_label }}"
-            class="btn btn-sm join-item media-action-button btn-success"
-            hx-{% if show.show_fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-watched' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-disabled-elt="this">
-      <i class="fa-solid fa-{% if show.show_fully_watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
-    </button>
-      {% endif %}
-    {% elif show.tracking_status == "paused" %}
-    <button type="button" aria-label="{{ resume_show_label }}"
-            data-tippy-content="{{ resume_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-primary"
-            hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-disabled-elt="this">
-      <i class="fa-solid fa-play" aria-hidden="true"></i>
-    </button>
-    <button type="button" aria-label="{{ drop_show_label }}"
-            data-tippy-content="{{ drop_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-warning"
-            hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-disabled-elt="this">
-      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
-    </button>
-    <button type="button" aria-label="{{ delete_show_label }}"
-            data-tippy-content="{{ delete_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-error"
-            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-trigger="confirmed" hx-disabled-elt="this"
-            _="on click
-                call Swal.fire({
-                  title: '{{ delete_show_title|escapejs }}',
-                  text: '{{ delete_show_message|escapejs }}',
-                  icon: 'warning',
-                  showCancelButton: true,
-                  confirmButtonText: '{{ delete_label|escapejs }}',
-                  cancelButtonText: '{{ cancel_label|escapejs }}',
-                  reverseButtons: true
-                })
-                if it.isConfirmed
-                  trigger confirmed">
-      <i class="fa-solid fa-trash" aria-hidden="true"></i>
-    </button>
-    {% else %}
     <button type="button" aria-label="{{ resume_show_label }}"
             data-tippy-content="{{ resume_show_label }}"
             class="btn btn-sm join-item media-action-button btn-primary"
@@ -140,36 +81,71 @@
             hx-disabled-elt="this">
       <i class="fa-solid fa-pause" aria-hidden="true"></i>
     </button>
-    <button type="button" aria-label="{{ delete_show_label }}"
-            data-tippy-content="{{ delete_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-error"
-            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
-            hx-trigger="confirmed" hx-disabled-elt="this"
-            _="on click
-                call Swal.fire({
-                  title: '{{ delete_show_title|escapejs }}',
-                  text: '{{ delete_show_message|escapejs }}',
-                  icon: 'warning',
-                  showCancelButton: true,
-                  confirmButtonText: '{{ delete_label|escapejs }}',
-                  cancelButtonText: '{{ cancel_label|escapejs }}',
-                  reverseButtons: true
-                })
-                if it.isConfirmed
-                  trigger confirmed">
-      <i class="fa-solid fa-trash" aria-hidden="true"></i>
-    </button>
-    {% endif %}
   {% endif %}
+  {% if show.can_customize or show.tracking_status %}
+    <button type="button"
+            aria-haspopup="menu"
+            :aria-expanded="open"
+            aria-label="{{ more_options_label }}"
+            data-tippy-content="{{ more_options_label }}"
+            @click="open = !open"
+            class="btn btn-sm join-item media-action-button btn-secondary">
+      <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+      <span class="sr-only">{{ more_options_label }}</span>
+    </button>
+  {% endif %}
+  </div>
+  {% if show.can_customize or show.tracking_status %}
+  <div x-show="open"
+       x-cloak
+       role="menu"
+       x-transition:enter="transition ease-out duration-150"
+       x-transition:enter-start="opacity-0 scale-95"
+       x-transition:enter-end="opacity-100 scale-100"
+       x-transition:leave="transition ease-in duration-100"
+       x-transition:leave-start="opacity-100 scale-100"
+       x-transition:leave-end="opacity-0 scale-95"
+       class="media-menu">
+    {% if show.tracking_status %}
+    <button type="button" role="menuitem" class="media-menu__item"
+            aria-label="{{ refresh_metadata_label }}"
+            hx-post="{% url 'tv-detail-refresh' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+            hx-swap="none" hx-disabled-elt="this"
+            @click="open = false">
+      <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+      <span>{{ refresh_metadata_label }}</span>
+    </button>
+    <button type="button" role="menuitem" class="media-menu__item media-menu__item--danger"
+            aria-label="{{ delete_show_label }}"
+            hx-post="{% url 'tv-detail-delete' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
+            hx-trigger="confirmed" hx-disabled-elt="this"
+            @click="open = false"
+            _="on click
+                call Swal.fire({
+                  title: '{{ delete_show_title|escapejs }}',
+                  text: '{{ delete_show_message|escapejs }}',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: '{{ delete_label|escapejs }}',
+                  cancelButtonText: '{{ cancel_label|escapejs }}',
+                  reverseButtons: true
+                })
+                if it.isConfirmed
+                  trigger confirmed">
+      <i class="fa-solid fa-trash" aria-hidden="true"></i>
+      <span>{{ delete_show_label }}</span>
+    </button>
+    {% endif %}
     {% if show.can_customize %}
-    <button type="button" aria-label="{{ edit_artwork_label }}"
-            data-tippy-content="{{ edit_artwork_label }}"
-            class="btn btn-sm join-item media-action-button btn-ghost"
+    <button type="button" role="menuitem" class="media-menu__item"
+            aria-label="{{ edit_artwork_label }}"
             hx-get="{% url 'media-artwork-preferences' media_type='tv' external_id=show.external_id %}?provider={{ show.provider }}"
-            hx-target="#show-artwork-modal" hx-swap="innerHTML">
+            hx-target="#show-artwork-modal" hx-swap="innerHTML"
+            @click="open = false">
       <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
-      <span class="sr-only">{{ edit_artwork_label }}</span>
+      <span>{{ edit_artwork_label }}</span>
     </button>
     {% endif %}
   </div>
+  {% endif %}
 </div>

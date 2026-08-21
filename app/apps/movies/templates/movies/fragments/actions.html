@@ -12,8 +12,12 @@
 {% trans "Switch to" as switch_to_label %}
 {% trans "Refresh metadata" as refresh_metadata_label %}
 {% trans "Edit artwork and language" as edit_artwork_label %}
+{% trans "More options" as more_options_label %}
 
-<div id="movie-actions" class="media-poster-actions" role="group" aria-label="{{ movie_actions_label }}">
+<div id="movie-actions" class="media-poster-actions" role="group" aria-label="{{ movie_actions_label }}"
+     x-data="{ open: false }"
+     @keydown.escape.window="open = false"
+     @click.outside="open = false">
   <div class="join media-action-join join-horizontal">
   {% if movie.tracked_on_other_provider %}
     <button type="button" aria-label="{{ switch_to_label }} {{ movie.provider|upper }}"
@@ -33,16 +37,6 @@
       <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
     </button>
   {% else %}
-    {% if movie.on_watchlist or movie.is_seen %}
-    <button type="button" aria-label="{{ refresh_metadata_label }}"
-            data-tippy-content="{{ refresh_metadata_label }}"
-            class="btn btn-sm join-item media-action-button btn-info"
-            hx-post="{% url 'movie-detail-refresh' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
-            hx-swap="none" hx-disabled-elt="this">
-      <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
-    </button>
-    {% endif %}
-
     {% if movie.is_seen %}
     <button type="button" aria-label="{{ mark_unwatched_label }}"
             data-tippy-content="{{ mark_unwatched_label }}"
@@ -88,15 +82,52 @@
     </button>
     {% endif %}
   {% endif %}
+  {% if movie.can_customize or movie.on_watchlist or movie.is_seen %}
+    <button type="button"
+            aria-haspopup="menu"
+            :aria-expanded="open"
+            aria-label="{{ more_options_label }}"
+            data-tippy-content="{{ more_options_label }}"
+            @click="open = !open"
+            class="btn btn-sm join-item media-action-button btn-secondary">
+      <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+      <span class="sr-only">{{ more_options_label }}</span>
+    </button>
+  {% endif %}
+  </div>
+  {% if movie.can_customize or movie.on_watchlist or movie.is_seen %}
+  <div x-show="open"
+       x-cloak
+       role="menu"
+       x-transition:enter="transition ease-out duration-150"
+       x-transition:enter-start="opacity-0 scale-95"
+       x-transition:enter-end="opacity-100 scale-100"
+       x-transition:leave="transition ease-in duration-100"
+       x-transition:leave-start="opacity-100 scale-100"
+       x-transition:leave-end="opacity-0 scale-95"
+       class="media-menu">
+    {% if movie.on_watchlist or movie.is_seen %}
+    {% if not movie.tracked_on_other_provider %}
+    <button type="button" role="menuitem" class="media-menu__item"
+            aria-label="{{ refresh_metadata_label }}"
+            hx-post="{% url 'movie-detail-refresh' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
+            hx-swap="none" hx-disabled-elt="this"
+            @click="open = false">
+      <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+      <span>{{ refresh_metadata_label }}</span>
+    </button>
+    {% endif %}
+    {% endif %}
     {% if movie.can_customize %}
-    <button type="button" aria-label="{{ edit_artwork_label }}"
-            data-tippy-content="{{ edit_artwork_label }}"
-            class="btn btn-sm join-item media-action-button btn-ghost"
+    <button type="button" role="menuitem" class="media-menu__item"
+            aria-label="{{ edit_artwork_label }}"
             hx-get="{% url 'media-artwork-preferences' media_type='movie' external_id=movie.external_id %}?provider={{ movie.provider }}"
-            hx-target="#movie-artwork-modal" hx-swap="innerHTML">
+            hx-target="#movie-artwork-modal" hx-swap="innerHTML"
+            @click="open = false">
       <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
-      <span class="sr-only">{{ edit_artwork_label }}</span>
+      <span>{{ edit_artwork_label }}</span>
     </button>
     {% endif %}
   </div>
+  {% endif %}
 </div>

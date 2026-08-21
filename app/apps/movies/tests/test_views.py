@@ -502,8 +502,7 @@ class MovieActionCardViewTests(TestCase):
         self.assertRegex(
             content,
             r'<div class="join media-action-join join-horizontal">(?s:.*?)'
-            r'<button[^>]+aria-label="Edit artwork and language"[^>]*'
-            r'class="btn btn-sm join-item media-action-button btn-ghost"',
+            r'<button[^>]+aria-label="Edit artwork and language"',
         )
         self.assertNotContains(response, 'class="fab"')
         self.assertNotContains(response, 'class="tooltip')
