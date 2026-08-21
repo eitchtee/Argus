@@ -1,5 +1,5 @@
 {% load dates i18n %}
-<div id="season-{{ season.id|default:season.season_number }}" class="bg-base-100 border-base-300 border rounded-box">
+<div id="season-{{ season.id|default:season.season_number }}" class="season-card">
   <div class="flex cursor-pointer items-center justify-between gap-4 p-4" @click="expanded = !expanded">
     <div class="flex min-w-0 items-center gap-3">
       <i class="fa-solid fa-chevron-down fa-xs transition-transform duration-200" :class="{ 'rotate-180': expanded }"></i>
@@ -22,7 +22,7 @@
   </div>
   <div x-show="expanded" x-collapse x-cloak class="flex flex-col gap-2 px-4 pb-4">
     {% for episode in season.episodes %}
-    <div class="episode-row flex flex-wrap items-center justify-between gap-3 border-t border-base-300 pt-2">
+    <div class="episode-row flex flex-col gap-2 border-t border-base-300 pt-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
       <div class="flex min-w-0 items-center gap-3">
         {% if season.tracked %}
         <input type="checkbox" class="checkbox checkbox-sm shrink-0"
@@ -39,7 +39,7 @@
         <span class="min-w-0 truncate text-sm font-medium">{{ episode.episode_number }}. {{ episode.name }}</span>
         {% endif %}
       </div>
-      <div class="flex shrink-0 items-center gap-2">
+      <div class="flex items-center gap-2 sm:shrink-0">
         <span class="episode-status episode-status--{{ episode.air_status }}">
           <i class="fa-solid {% if episode.air_status == 'aired' %}fa-circle-check{% elif episode.air_status == 'upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
           {% if episode.air_status == "aired" %}{% trans "Aired" %}{% elif episode.air_status == "upcoming" %}{% trans "Upcoming" %}{% else %}{% trans "TBA" %}{% endif %}

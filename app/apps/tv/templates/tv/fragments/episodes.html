@@ -33,7 +33,7 @@
     </span>
   </div>
 
-  <div class="flex flex-col gap-4">
+  <div class="season-list flex flex-col">
     {% for season in show.seasons %}
     {% include "tv/fragments/season.html" with show_external_id=show.external_id show_provider=show.provider %}
     {% endfor %}
