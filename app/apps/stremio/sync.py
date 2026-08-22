@@ -975,17 +975,18 @@ def _changed_ids(metadata, synced_at):
 
 def _outbound_content_id_groups(local, intents):
     content_id_groups = []
-    for state in [
-        *local.movie_watchlist,
-        *local.movie_history,
-        *local.show_watchlist,
-        *local.show_dropped,
-        *local.episode_history,
-    ]:
-        model = state.movie if hasattr(state, "movie") else state.show
+
+    def append_model_aliases(model):
         aliases = _model_content_aliases(model)
         if aliases:
             content_id_groups.append(set(aliases))
+
+    for state in [*local.movie_watchlist, *local.movie_history]:
+        append_model_aliases(state.movie)
+    for state in [*local.show_watchlist, *local.show_dropped]:
+        append_model_aliases(state.show)
+    for state in local.episode_history:
+        append_model_aliases(state.episode.show)
     for intent in intents:
         kind = str(intent.kind)
         payload = intent.payload if isinstance(intent.payload, dict) else {}

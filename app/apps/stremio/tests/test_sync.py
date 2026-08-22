@@ -1649,6 +1649,97 @@ class StremioIncrementalSyncTests(TestCase):
         self.assertTrue(account.initial_sync_complete)
 
 
+class StremioIncrementalSyncWithEpisodeHistoryTests(TestCase):
+    def test_incremental_sync_survives_episode_history_and_pulls_watched_movie(self):
+        user = get_user_model().objects.create_user("user@example.com", password="pw")
+        show = Show.objects.create(
+            imdb_id="tt0903747",
+            name="Breaking Bad",
+            external_id="1396",
+            tmdb_id="1396",
+        )
+        season = Season.objects.create(show=show, season_number=1)
+        episode = Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=1,
+            name="Pilot",
+        )
+        UserEpisode.objects.create(user=user, episode=episode)
+        movie = Movie.objects.create(
+            imdb_id="tt0137523",
+            title="Fight Club",
+            external_id="550",
+            tmdb_id="550",
+        )
+        account = StremioAccount.objects.create(
+            user=user,
+            auth_key="auth-key",
+            initial_sync_complete=True,
+            library_synced_at=datetime(2026, 8, 8, 10, tzinfo=timezone.utc),
+        )
+        show_video_id = "tt0959621:1:1"
+
+        class FakeClient:
+            def __init__(self):
+                self.get_calls = []
+                self.puts = []
+
+            def datastore_meta(self):
+                return [["tt0137523", "2026-08-08T12:00:00Z"]]
+
+            def datastore_get(self, *, ids=None, all_items=False):
+                self.get_calls.append(list(ids or []))
+                items = [
+                    {
+                        "_id": "tt0137523",
+                        "type": "movie",
+                        "name": "Fight Club",
+                        "temp": True,
+                        "state": {"flaggedWatched": 1},
+                    }
+                ]
+                if ids and "tt0903747" in ids:
+                    items.append(
+                        {
+                            "_id": "tt0903747",
+                            "type": "series",
+                            "name": "Breaking Bad",
+                            "temp": True,
+                            "state": {
+                                "watched": encode_watched_bitfield(
+                                    {show_video_id}, [show_video_id]
+                                ),
+                            },
+                        }
+                    )
+                return items
+
+            def get_cinemeta_series(self, _imdb_id):
+                return {
+                    "videos": [
+                        {"id": show_video_id, "season": 1, "episode": 1},
+                    ]
+                }
+
+            def datastore_put(self, changes):
+                self.puts.append(changes)
+
+        client = FakeClient()
+        report = sync_account(account.id, client_factory=lambda _account: client)
+
+        account.refresh_from_db()
+        self.assertTrue(UserMovie.objects.get(user=user, movie=movie).is_seen)
+        self.assertIn(
+            True,
+            ["tt0903747" in call for call in client.get_calls],
+        )
+        self.assertEqual(report.warnings, [])
+        self.assertTrue(account.library_synced_at)
+        self.assertEqual(account.sync_status, StremioAccount.SyncStatus.OK)
+
+
 class StremioPullTests(TestCase):
     def test_initial_pull_marks_existing_movie_watched_without_pushing_back(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
