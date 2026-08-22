@@ -37,7 +37,13 @@ export default defineConfig({
         },
         hmr: false,
         cors: true,
-        origin: `http://${process.env.VITE_DEV_SERVER_HOST || 'localhost'}:${process.env.VITE_DEV_SERVER_PORT || '5173'}`
+        origin: `http://${process.env.VITE_DEV_SERVER_HOST || 'localhost'}:${process.env.VITE_DEV_SERVER_PORT || '5173'}`,
+        proxy: {
+            '/static/img': {
+                target: `http://${process.env.DJANGO_PROXY_HOST || '127.0.0.1'}:${process.env.DJANGO_DEV_SERVER_PORT || '8000'}`,
+                changeOrigin: false,
+            },
+        },
     },
 
     resolve: {

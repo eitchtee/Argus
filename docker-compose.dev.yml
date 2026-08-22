@@ -43,6 +43,7 @@ services:
       - '${VITE_OUTBOUND_PORT:-5173}:5173'
     environment:
       - WATCHPACK_POLLING=true
+      - DJANGO_PROXY_HOST=web
     restart: unless-stopped
 
   db:
