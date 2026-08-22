@@ -1,10 +1,9 @@
 {% load i18n %}
 {% if movies %}
-<div class="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-6 lg:overflow-visible">
+<div class="flex snap-x gap-3 overflow-x-auto pb-2 sm:gap-4 xl:grid xl:grid-cols-6 xl:overflow-visible">
   {% for movie in movies %}
-  <div class="w-[20%] shrink-0 md:w-[40%] lg:min-w-0 lg:w-auto">
-    <c-movies.movie-poster :movie="movie" :watched="False" :removable="True" />
-  </div>
+  <c-movies.movie-poster :movie="movie" :watched="False" :removable="True"
+      slot_classes="w-[45%] shrink-0 snap-start sm:w-[32%] md:w-[24%] lg:w-[20%] xl:min-w-0 xl:w-auto" />
   {% endfor %}
 </div>
 {% else %}

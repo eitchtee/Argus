@@ -280,6 +280,14 @@ class IndexViewTests(TestCase):
         response = self.client.get("/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "Interstellar")
-        self.assertContains(response, "Nov 07, 2014")
-        self.assertContains(response, "group card overflow-hidden")
+        self.assertContains(response, 'poster-card__year tabular-nums">2014<')
+        self.assertContains(
+            response,
+            'class="poster-card w-[45%] shrink-0 snap-start sm:w-[32%] md:w-[24%] '
+            'lg:w-[20%] xl:min-w-0 xl:w-auto"',
+        )
         self.assertContains(response, "/movies/1/")
+        self.assertContains(response, 'aria-label="Remove from watchlist"')
+        self.assertEqual(
+            response.content.decode().count('hx-target="closest .poster-card"'), 2
+        )

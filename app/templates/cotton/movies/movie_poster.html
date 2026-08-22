@@ -5,7 +5,7 @@
 {% trans "Remove" as remove_label %}
 {% trans "Cancel" as cancel_label %}
 
-<div data-name="{{ movie.search_title }}" class="poster-card">
+<div data-name="{{ movie.search_title }}" class="poster-card {{ slot_classes }}">
   <a href="{% url 'movie-detail' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML"
      class="poster-card__link">
     <figure class="poster-card__figure">
