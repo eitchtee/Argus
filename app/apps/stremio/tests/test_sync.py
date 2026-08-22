@@ -204,7 +204,7 @@ class StremioOutboundTests(TestCase):
                 "timeWatched": 0,
                 "timeOffset": 0,
                 "overallTimeWatched": 0,
-                "timesWatched": 0,
+                "timesWatched": 1,
                 "flaggedWatched": 0,
                 "duration": 0,
                 "noNotif": False,
