@@ -204,6 +204,13 @@
         @apply min-h-(--size) py-1;
         height: unset;
     }
+
+    /* daisyUI keeps the outline foreground (btn-color) when .btn-active fills
+       the background with that same color, making the label unreadable. Flip
+       the label to the contrasting content color while selected. */
+    .btn.btn-outline.btn-active {
+        --btn-rest-fg: var(--btn-fg, var(--color-base-content));
+    }
 }
 
 
