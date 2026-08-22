@@ -76,7 +76,7 @@
     </button>
     <button type="button" aria-label="{{ remove_from_watchlist_label }}"
             data-tippy-content="{{ remove_from_watchlist_label }}"
-            class="btn btn-sm join-item media-action-button btn-warning"
+            class="btn btn-sm join-item media-action-button btn-error"
             hx-delete="{% url 'movie-detail-track' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
       <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>

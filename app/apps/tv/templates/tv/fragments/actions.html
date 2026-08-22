@@ -46,7 +46,7 @@
     </button>
     <button type="button" aria-label="{{ drop_show_label }}"
             data-tippy-content="{{ drop_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-warning"
+            class="btn btn-sm join-item media-action-button btn-error"
             hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
@@ -61,7 +61,7 @@
     </button>
     <button type="button" aria-label="{{ drop_show_label }}"
             data-tippy-content="{{ drop_show_label }}"
-            class="btn btn-sm join-item media-action-button btn-warning"
+            class="btn btn-sm join-item media-action-button btn-error"
             hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
       <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
