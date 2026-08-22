@@ -471,6 +471,16 @@ class HomeUpcomingViewTests(TestCase):
         self.season = Season.objects.create(show=self.show, season_number=1, name="Season 1")
         UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
+    def _make_episode(self, number, air_date, name):
+        return Episode.objects.create(
+            show=self.show,
+            season=self.season,
+            season_number=1,
+            episode_number=number,
+            air_date=air_date,
+            name=name,
+        )
+
     def test_requires_htmx_header(self):
         response = self.client.get("/tv/home/upcoming/")
         self.assertEqual(response.status_code, 403)
@@ -498,6 +508,19 @@ class HomeUpcomingViewTests(TestCase):
         episode = Episode.objects.get(name="Pilot")
         self.assertContains(response, f"/tv/1/episodes/{episode.id}/\"")
         self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
+
+    def test_yesterday_episode_is_dimmed(self):
+        self._make_episode(1, self.today - timedelta(days=1), "Yesterday episode")
+        self._make_episode(2, self.today + timedelta(days=1), "Tomorrow episode")
+
+        response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+
+        content = response.content.decode()
+        past_pos = content.index("upcoming-episode-card-past")
+        yesterday_pos = content.index("Yesterday episode")
+        tomorrow_pos = content.index("Tomorrow episode")
+        self.assertLess(past_pos, yesterday_pos)
+        self.assertNotIn("upcoming-episode-card-past", content[yesterday_pos:tomorrow_pos])
 
     def test_groups_same_day_episodes_behind_expandable_lip(self):
         first = self._make_episode(1, self.today, "First episode")

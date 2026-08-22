@@ -2,7 +2,7 @@
 {% if entries %}
 <div class="flex flex-col gap-2" id="upcoming-list">
   {% for entry in entries %}
-  {% include "tv/fragments/home_upcoming_row.html" %}
+  {% include "tv/fragments/home_upcoming_row.html" with dim_past=True %}
   {% endfor %}
 </div>
 <div class="flex justify-center mt-4">
