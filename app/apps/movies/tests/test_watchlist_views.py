@@ -76,8 +76,38 @@ class MovieWatchlistViewTests(TestCase):
             response,
             f'href="{reverse("movie-detail", kwargs={"external_id": "550"})}"',
         )
-        self.assertContains(response, 'class="group card overflow-hidden')
         self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
+        self.assertContains(response, 'aria-label="Remove from watchlist"')
+        self.assertContains(
+            response,
+            f'hx-delete="{reverse("movie-poster-watchlist-remove", kwargs={"external_id": "550"})}"',
+        )
+
+    def test_watchlist_poster_actions_dismiss_card(self):
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
+
+        response = self.client.get(
+            reverse("movies-watchlist-page"), HTTP_HX_REQUEST="true"
+        )
+
+        content = response.content.decode()
+        self.assertEqual(content.count('hx-target="closest .poster-card"'), 2)
+        self.assertContains(response, 'hx-swap="delete"')
+        self.assertContains(response, 'hx-trigger="confirmed"')
+        self.assertContains(response, "Swal.fire")
+        self.assertContains(response, "Remove from watchlist?")
+
+    def test_watched_page_poster_button_keeps_in_place_swap(self):
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
+
+        response = self.client.get(
+            reverse("movies-watched-page"), HTTP_HX_REQUEST="true"
+        )
+
+        self.assertNotContains(response, 'hx-target="closest .poster-card"')
+        self.assertContains(response, 'hx-target="this" hx-swap="outerHTML"')
         self.assertNotContains(response, "Seen")
         self.assertNotContains(response, "<c-movies.movie-poster")
 

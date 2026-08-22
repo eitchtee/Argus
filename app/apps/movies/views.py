@@ -227,6 +227,21 @@ def movie_poster_watched(request, external_id):
     )
 
 
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST", "DELETE"])
+def movie_poster_watchlist_remove(request, external_id):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    provider = _provider_from_request(request, "tmdb")
+    movie = Movie.objects.filter(provider=provider, external_id=external_id).first()
+    if movie is not None:
+        remove_from_watchlist(request.user, movie)
+
+    return HttpResponse()
+
+
 def _toggle_movie_watched(request, external_id):
     provider = _provider_from_request(request, "tmdb")
     if request.method == "POST":

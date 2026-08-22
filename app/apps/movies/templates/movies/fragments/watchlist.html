@@ -13,7 +13,7 @@
 
 <div id="movies-watchlist-grid" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
   {% for movie in movies %}
-  <c-movies.movie-poster :movie="movie" :watched="False" />
+  <c-movies.movie-poster :movie="movie" :watched="False" :removable="True" />
   {% endfor %}
 </div>
 {% else %}

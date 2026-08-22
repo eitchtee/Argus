@@ -3,7 +3,7 @@
 <div class="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-6 lg:overflow-visible">
   {% for movie in movies %}
   <div class="w-[20%] shrink-0 md:w-[40%] lg:min-w-0 lg:w-auto">
-    <c-movies.movie-poster :movie="movie" :watched="False" />
+    <c-movies.movie-poster :movie="movie" :watched="False" :removable="True" />
   </div>
   {% endfor %}
 </div>

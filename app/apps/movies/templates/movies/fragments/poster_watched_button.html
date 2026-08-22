@@ -9,7 +9,12 @@
         data-watched-toggle
         class="btn btn-success btn-circle btn-lg poster-card__watch-button"
         hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'movie-poster-watched' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
-        hx-target="this" hx-swap="outerHTML" hx-disabled-elt="this">
+        {% if dismiss_on_toggle %}
+        hx-target="closest .poster-card" hx-swap="delete"
+        {% else %}
+        hx-target="this" hx-swap="outerHTML"
+        {% endif %}
+        hx-disabled-elt="this">
   <i class="fa-solid fa-{% if watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
   <span class="sr-only">{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}</span>
 </button>

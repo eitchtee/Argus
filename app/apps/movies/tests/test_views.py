@@ -451,6 +451,63 @@ class MovieWatchedViewTests(TestCase):
         self.assertTrue(user_movie.on_watchlist)
 
 
+class MoviePosterWatchlistRemoveViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("user@example.com", password="password")
+        self.client.login(username="user@example.com", password="password")
+
+    def test_requires_htmx_header(self):
+        response = self.client.delete("/movies/550/watchlist/poster/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_delete_removes_movie_from_watchlist(self):
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
+
+        response = self.client.delete(
+            "/movies/550/watchlist/poster/", HTTP_HX_REQUEST="true"
+        )
+
+        # htmx 2 does not swap on 204 responses; an empty 200 lets hx-swap="delete" run.
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            UserMovie.objects.filter(
+                user=self.user, movie=movie, on_watchlist=True
+            ).exists()
+        )
+
+    def test_delete_keeps_seen_state_of_watched_movie(self):
+        movie = Movie.objects.create(external_id="550", title="Fight Club")
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True, is_seen=True)
+
+        response = self.client.delete(
+            "/movies/550/watchlist/poster/", HTTP_HX_REQUEST="true"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        user_movie = UserMovie.objects.get(user=self.user, movie=movie)
+        self.assertFalse(user_movie.on_watchlist)
+        self.assertTrue(user_movie.is_seen)
+
+    def test_delete_is_noop_for_unknown_movie(self):
+        response = self.client.delete(
+            "/movies/999/watchlist/poster/", HTTP_HX_REQUEST="true"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    @patch("apps.movies.views.remove_from_watchlist")
+    def test_demo_mode_blocks_non_superusers(self, remove_from_watchlist_mock):
+        with self.settings(DEMO=True):
+            response = self.client.delete(
+                "/movies/550/watchlist/poster/", HTTP_HX_REQUEST="true"
+            )
+
+        self.assertEqual(response.status_code, 403)
+        remove_from_watchlist_mock.assert_not_called()
+
+
 @override_settings(
     STORAGES={
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},

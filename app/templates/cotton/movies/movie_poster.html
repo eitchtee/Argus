@@ -1,3 +1,10 @@
+{% load i18n %}
+{% trans "Remove from watchlist" as remove_from_watchlist_label %}
+{% trans "Remove from watchlist?" as remove_from_watchlist_title %}
+{% trans "This will remove the movie from your watchlist. Continue?" as remove_from_watchlist_message %}
+{% trans "Remove" as remove_label %}
+{% trans "Cancel" as cancel_label %}
+
 <div data-name="{{ movie.search_title }}" class="poster-card">
   <a href="{% url 'movie-detail' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML"
      class="poster-card__link">
@@ -20,6 +27,29 @@
     </figure>
   </a>
   <div class="poster-card__watch-action">
-    {% include "movies/fragments/poster_watched_button.html" with movie=movie watched=watched only %}
+    {% include "movies/fragments/poster_watched_button.html" with movie=movie watched=watched dismiss_on_toggle=removable only %}
+    {% if removable %}
+    <button type="button"
+            aria-label="{{ remove_from_watchlist_label }}"
+            data-tippy-content="{{ remove_from_watchlist_label }}"
+            class="btn btn-error btn-circle btn-sm poster-card__watch-remove-button"
+            hx-delete="{% url 'movie-poster-watchlist-remove' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
+            hx-target="closest .poster-card" hx-swap="delete" hx-trigger="confirmed" hx-disabled-elt="this"
+            _="on click
+                call Swal.fire({
+                  title: '{{ remove_from_watchlist_title|escapejs }}',
+                  text: '{{ remove_from_watchlist_message|escapejs }}',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: '{{ remove_label|escapejs }}',
+                  cancelButtonText: '{{ cancel_label|escapejs }}',
+                  reverseButtons: true
+                })
+                if it.isConfirmed
+                  trigger confirmed">
+      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+      <span class="sr-only">{{ remove_from_watchlist_label }}</span>
+    </button>
+    {% endif %}
   </div>
 </div>
