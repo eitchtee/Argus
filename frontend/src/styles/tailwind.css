@@ -314,6 +314,46 @@
         @apply outline outline-2 outline-offset-2 outline-error;
     }
 
+    .poster-card__badge {
+        @apply pointer-events-auto absolute top-2 z-[2] flex h-6 w-6 items-center justify-center rounded-full border shadow-md;
+    }
+
+    .poster-card__badge--start {
+        @apply start-2;
+    }
+
+    .poster-card__badge--end {
+        @apply end-2;
+    }
+
+    .poster-card__badge i {
+        @apply text-base;
+    }
+
+    .poster-card__badge--primary {
+        @apply border-primary/60 bg-primary/90 text-primary-content;
+    }
+
+    .poster-card__badge--success {
+        @apply border-success/60 bg-success/90 text-success-content;
+    }
+
+    .poster-card__badge--info {
+        @apply border-info/60 bg-info/90 text-info-content;
+    }
+
+    .poster-card__badge--warning {
+        @apply border-warning/60 bg-warning/90 text-warning-content;
+    }
+
+    .poster-card__badge--error {
+        @apply border-error/60 bg-error/90 text-error-content;
+    }
+
+    .poster-card__badge--neutral {
+        @apply border-neutral/60 bg-neutral/90 text-neutral-content;
+    }
+
     .poster-card__copy {
         @apply pointer-events-none absolute inset-x-0 bottom-0 z-[2] p-3 text-left;
     }

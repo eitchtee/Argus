@@ -18,6 +18,20 @@
       </div>
       {% endif %}
       <div class="poster-card__gradient" aria-hidden="true"></div>
+      {% if movie.normalized_status %}
+      <span class="poster-card__badge poster-card__badge--start
+                   {% if movie.normalized_status == 'Released' %}poster-card__badge--success{% elif movie.normalized_status == 'Canceled' %}poster-card__badge--error{% elif movie.normalized_status == 'Upcoming' %}poster-card__badge--warning{% else %}poster-card__badge--neutral{% endif %}"
+            data-tippy-content="{{ movie.normalized_status }}">
+        <i class="fa-solid {% if movie.normalized_status == 'Released' %}fa-circle-check{% elif movie.normalized_status == 'Canceled' %}fa-circle-xmark{% elif movie.normalized_status == 'Upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
+        <span class="sr-only">{{ movie.normalized_status }}</span>
+      </span>
+      {% endif %}
+      <span class="poster-card__badge poster-card__badge--end
+                   {% if watched %}poster-card__badge--success{% else %}poster-card__badge--primary{% endif %}"
+            data-tippy-content="{% if watched %}{% trans 'Watched' %}{% else %}{% trans 'On watchlist' %}{% endif %}">
+        <i class="fa-solid fa-{% if watched %}eye{% else %}bookmark{% endif %}" aria-hidden="true"></i>
+        <span class="sr-only">{% if watched %}{% trans 'Watched' %}{% else %}{% trans 'On watchlist' %}{% endif %}</span>
+      </span>
       <div class="poster-card__copy">
         <h2 class="poster-card__title" title="{{ movie.title }}">{{ movie.title }}</h2>
         {% if movie.release_date %}

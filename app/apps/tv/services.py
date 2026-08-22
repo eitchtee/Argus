@@ -1193,6 +1193,21 @@ def watchlist_progress_color(
     }.get(normalized_status, "info")
 
 
+def watchlist_user_condition(
+    status: str,
+    watched_count: int,
+    total_count: int,
+    upcoming_count: int,
+) -> str:
+    if status == UserShow.Status.PAUSED:
+        return "paused"
+    if status == UserShow.Status.DROPPED:
+        return "dropped"
+    if total_count > 0 and watched_count == total_count and upcoming_count == 0:
+        return "completed"
+    return "watching"
+
+
 def _attach_watchlist_progress(user, shows: list[Show]) -> None:
     if not shows:
         return
@@ -1253,6 +1268,13 @@ def get_watchlist_shows(user, section: str = "all") -> list[Show]:
     )
     shows = [user_show.show for user_show in user_shows]
     _attach_watchlist_progress(user, shows)
+    for user_show, show in zip(user_shows, shows):
+        show.user_condition = watchlist_user_condition(
+            user_show.status,
+            show.watched_episode_count,
+            show.total_episode_count,
+            show.upcoming_episode_count,
+        )
     if section == "all":
         return shows
 

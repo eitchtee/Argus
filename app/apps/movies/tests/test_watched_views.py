@@ -75,7 +75,7 @@ class MovieWatchedViewTests(TestCase):
             response,
             f'href="{reverse("movie-detail", kwargs={"external_id": "550"})}"',
         )
-        self.assertContains(response, 'class="group card overflow-hidden')
+        self.assertContains(response, 'class="poster-card')
         self.assertNotContains(response, "Unwatched")
         self.assertNotContains(response, "<c-movies.movie-poster")
 

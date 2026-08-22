@@ -48,6 +48,7 @@
                     remove @disabled from filter
                   end
                   trigger change on filter">
+        <i class="fa-solid {% if value == 'watching' %}fa-play{% elif value == 'completed' %}fa-check{% elif value == 'paused' %}fa-pause{% else %}fa-circle-minus{% endif %}" aria-hidden="true"></i>
         {{ label }}
       </button>
       {% endfor %}
@@ -76,6 +77,7 @@
                     remove @disabled from filter
                   end
                   trigger change on filter">
+        <i class="fa-solid {% if value == 'Continuing' %}fa-circle-play{% elif value == 'Ended' %}fa-circle-check{% else %}fa-calendar-days{% endif %}" aria-hidden="true"></i>
         {{ label }}
       </button>
       {% endfor %}
