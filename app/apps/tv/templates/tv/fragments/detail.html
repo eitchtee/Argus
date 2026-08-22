@@ -164,6 +164,7 @@
       {% else %}
       <button type="button"
               aria-label="{% trans 'Mark show watched' %}"
+              data-watched-toggle
               class="btn btn-sm media-action-button border border-base-300 bg-base-100"
               hx-post="{% url 'tv-detail-watched' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
               hx-trigger="confirmed" hx-disabled-elt="this"

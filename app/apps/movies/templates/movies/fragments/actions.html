@@ -68,6 +68,7 @@
     {% else %}
     <button type="button" aria-label="{{ mark_watched_label }}"
             data-tippy-content="{{ mark_watched_label }}"
+            data-watched-toggle
             class="btn btn-sm join-item media-action-button btn-success"
             hx-post="{% url 'movie-detail-watched' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">

@@ -6,6 +6,7 @@
         aria-label="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
         aria-pressed="{{ watched|yesno:'true,false' }}"
         data-tippy-content="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
+        data-watched-toggle
         class="btn btn-success btn-circle btn-lg poster-card__watch-button"
         hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'movie-poster-watched' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
         hx-target="this" hx-swap="outerHTML" hx-disabled-elt="this">

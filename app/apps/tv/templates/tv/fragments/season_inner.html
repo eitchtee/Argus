@@ -13,6 +13,7 @@
            data-tippy-content="{% if season.fully_watched %}{% trans 'Mark season unwatched' %}{% else %}{% trans 'Mark season watched' %}{% endif %}"
            aria-label="{% if season.fully_watched %}{% trans 'Mark season unwatched' %}{% else %}{% trans 'Mark season watched' %}{% endif %}"
            class="checkbox checkbox-primary checkbox-md"
+           data-watched-toggle
            {% if season.fully_watched %}checked{% endif %}
            @click.stop
            hx-{% if season.fully_watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-season-watched' external_id=show_external_id season_id=season.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
@@ -26,6 +27,7 @@
       <div class="flex min-w-0 items-center gap-3">
         {% if season.tracked %}
         <input type="checkbox" class="checkbox checkbox-sm shrink-0"
+               data-watched-toggle
                aria-label="{% if episode.watched %}{% trans 'Mark episode unwatched' %}{% else %}{% trans 'Mark episode watched' %}{% endif %}"
                {% if episode.watched %}checked{% endif %}
                hx-{% if episode.watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-episode-watched' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"

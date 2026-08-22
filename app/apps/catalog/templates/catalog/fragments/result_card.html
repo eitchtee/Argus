@@ -57,6 +57,7 @@
             aria-label="{% if item.is_seen %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
             aria-pressed="{{ item.is_seen|yesno:'true,false' }}"
             data-tippy-content="{% if item.is_seen %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
+            data-watched-toggle
             class="btn btn-md btn-circle media-action-button btn-success"
             hx-{% if item.is_seen %}delete{% else %}post{% endif %}="{% url 'catalog-watched' %}?type=movie&provider={{ item.provider }}&external_id={{ item.external_id }}&q={{ query|urlencode }}&page={{ page }}"
             hx-target="closest .card" hx-swap="outerHTML" hx-disabled-elt="this">
