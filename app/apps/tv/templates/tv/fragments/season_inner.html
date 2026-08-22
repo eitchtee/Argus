@@ -32,8 +32,6 @@
                {% if episode.watched %}checked{% endif %}
                hx-{% if episode.watched %}delete{% else %}post{% endif %}="{% url 'tv-detail-episode-watched' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
                hx-trigger="change" hx-target="#season-{{ season.id }}" hx-swap="outerHTML" hx-disabled-elt="this">
-        {% else %}
-        <i class="fa-solid shrink-0 {% if episode.air_status == 'aired' %}fa-circle-check text-success{% elif episode.air_status == 'upcoming' %}fa-calendar-days text-info{% else %}fa-circle-question text-subtle{% endif %}" aria-hidden="true"></i>
         {% endif %}
         {% if episode.id %}
         <a href="{% url 'tv-episode-detail' external_id=show_external_id episode_id=episode.id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML" class="min-w-0 truncate text-sm font-medium link link-hover">{{ episode.episode_number }}. {{ episode.name }}</a>
@@ -42,10 +40,19 @@
         {% endif %}
       </div>
       <div class="flex items-center gap-2 sm:shrink-0">
-        <span class="episode-status episode-status--{{ episode.air_status }}">
-          <i class="fa-solid {% if episode.air_status == 'aired' %}fa-circle-check{% elif episode.air_status == 'upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
-          {% if episode.air_status == "aired" %}{% trans "Aired" %}{% elif episode.air_status == "upcoming" %}{% trans "Upcoming" %}{% else %}{% trans "TBA" %}{% endif %}
+        {% if episode.air_status == "aired" %}
+        <span role="img" aria-label="{% trans 'Aired' %}" data-tippy-content="{% trans 'Aired' %}">
+          <i class="fa-solid fa-circle-check text-success" aria-hidden="true"></i>
         </span>
+        {% elif episode.air_status == "upcoming" %}
+        <span role="img" aria-label="{% trans 'Upcoming' %}" data-tippy-content="{% trans 'Upcoming' %}">
+          <i class="fa-solid fa-calendar-days text-base-content/35" aria-hidden="true"></i>
+        </span>
+        {% else %}
+        <span role="img" aria-label="{% trans 'TBA' %}" data-tippy-content="{% trans 'TBA' %}">
+          <i class="fa-solid fa-circle-question text-base-content/35" aria-hidden="true"></i>
+        </span>
+        {% endif %}
         {% if episode.air_date %}
         <span class="text-subtle text-xs">{% user_date episode.air_date %}</span>
         {% endif %}
