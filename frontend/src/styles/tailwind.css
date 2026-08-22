@@ -370,7 +370,7 @@
         transition: max-height 220ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .poster-card__figure:hover .poster-card__title,
+    .poster-card:hover .poster-card__title,
     .poster-card:focus-visible .poster-card__title {
         display: block;
         -webkit-line-clamp: unset;
@@ -388,7 +388,7 @@
         transition: max-height 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
     }
 
-    .poster-card__figure:hover .poster-card__progress-meta,
+    .poster-card:hover .poster-card__progress-meta,
     .poster-card:focus-visible .poster-card__progress-meta {
         max-height: 1.25rem;
         opacity: 1;
@@ -402,7 +402,7 @@
         transition: max-height 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
     }
 
-    .poster-card__figure:hover .poster-card__year,
+    .poster-card:hover .poster-card__year,
     .poster-card:focus-visible .poster-card__year {
         max-height: 1.25rem;
         opacity: 1;
