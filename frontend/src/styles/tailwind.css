@@ -215,6 +215,14 @@
 
 
 @layer components {
+    /* Icon placeholders before lucide replaces them with inline SVG: hold the
+       same box so a swap never shifts layout or shows a stray glyph. */
+    i[data-lucide] {
+        @apply inline-block h-6 w-6 shrink-0 align-middle;
+        font-size: 0;
+        line-height: 0;
+    }
+
     .app-shell {
         @apply min-h-screen text-base-content;
         background-color: var(--root-bg);

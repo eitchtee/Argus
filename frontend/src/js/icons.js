@@ -131,13 +131,28 @@ const icons = {
     X,
 };
 
-export function renderIcons() {
-    createIcons({ icons });
+export function renderIcons(root = document) {
+    createIcons({ icons, root });
 }
 
 renderIcons();
 
-// HTMX swaps inject new placeholders; re-render after they settle.
-document.addEventListener('htmx:afterSettle', () => {
-    renderIcons();
-});
+// HTMX swaps inject new placeholders. afterSwap fires synchronously in the same
+// task as the DOM insertion, so replacing them here happens before the browser
+// paints the new content - no flash of unrendered <i> placeholders. afterSettle
+// runs on a timer (settleDelay) and would let a frame slip through.
+function renderSwappedIcons(event) {
+    const root = event.detail?.target || event.target;
+
+    if (root instanceof Element && root.matches('[data-lucide]')) {
+        // outerHTML swap of a placeholder itself: querySelectorAll skips the root.
+        renderIcons(root.parentNode || document);
+    } else if (root instanceof Element || root instanceof DocumentFragment) {
+        renderIcons(root);
+    } else {
+        renderIcons();
+    }
+}
+
+document.addEventListener('htmx:afterSwap', renderSwappedIcons);
+document.addEventListener('htmx:oobAfterSwap', renderSwappedIcons);
