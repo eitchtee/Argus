@@ -1,4 +1,5 @@
 {% load i18n %}
+<c-vars removable="" dismiss_on_toggle="" />
 {% trans "Remove from watchlist" as remove_from_watchlist_label %}
 {% trans "Remove from watchlist?" as remove_from_watchlist_title %}
 {% trans "This will remove the movie from your watchlist. Continue?" as remove_from_watchlist_message %}
@@ -43,7 +44,7 @@
     </figure>
   </a>
   <div class="poster-card__watch-action">
-    {% include "movies/fragments/poster_watched_button.html" with movie=movie watched=watched dismiss_on_toggle=removable only %}
+    {% include "movies/fragments/poster_watched_button.html" with movie=movie watched=watched dismiss_on_toggle=dismiss_on_toggle|default:removable only %}
     {% if removable %}
     <button type="button"
             aria-label="{{ remove_from_watchlist_label }}"

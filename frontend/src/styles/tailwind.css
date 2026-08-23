@@ -367,15 +367,15 @@
         max-height: 1.25rem;
         overflow-wrap: anywhere;
         text-overflow: ellipsis;
-        white-space: nowrap;
-        transition: max-height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+        /* No transition on purpose: -webkit-line-clamp cannot animate, so any
+           max-height tween uncovers the extra lines one at a time over reflowed
+           text. Snapping reads cleaner than the wipe. */
     }
 
     .poster-card:hover .poster-card__title,
     .poster-card:focus-visible .poster-card__title {
         -webkit-line-clamp: 3;
         max-height: 3.75rem;
-        white-space: normal;
     }
 
     .poster-card__progress-meta {
@@ -973,7 +973,6 @@
     .poster-card__watch-button,
     .poster-card__watch-remove-button,
     .poster-card__gradient,
-    .poster-card__title,
     .poster-card__progress-meta,
     .poster-card__year,
     .cast-card__photo img {
