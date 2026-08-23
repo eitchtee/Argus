@@ -1,6 +1,7 @@
 {% load i18n %}
 {% trans "Add to watchlist" as track_movie_label %}
 {% trans "Track show" as track_show_label %}
+{% trans "View details" as view_details_label %}
 {% trans "Tracking" as tracking_label %}
 {% trans "Mark watched" as mark_watched_label %}
 {% trans "Mark unwatched" as mark_unwatched_label %}
@@ -10,7 +11,12 @@
 {% trans "Switch" as switch_provider_confirm_label %}
 {% trans "Cancel" as cancel_label %}
 {% if item %}
-<div class="media-card card card-side overflow-hidden min-h-36 rounded-box">
+<div class="media-card card card-side relative overflow-hidden min-h-36 rounded-box">
+  <a href="{% if media_type == 'movie' %}{% url 'movie-detail' external_id=item.external_id %}{% else %}{% url 'tv-detail' external_id=item.external_id %}{% endif %}?provider={{ item.provider }}"
+     hx-boost="true" hx-target="body" hx-swap="innerHTML"
+     class="absolute inset-0 z-[1] rounded-box focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary">
+    <span class="sr-only">{{ view_details_label }}: {{ item.title }}</span>
+  </a>
   <figure class="w-24 shrink-0 bg-base-200 sm:w-28">
     {% if item.poster_url %}
     <img src="{{ item.poster_url }}" alt="{{ item.title }}" class="h-full w-full object-cover">
@@ -20,16 +26,15 @@
     </div>
     {% endif %}
   </figure>
-  <div class="card-body gap-2 p-4">
-    <h3 class="card-title text-sm leading-tight">
-      <a href="{% if media_type == 'movie' %}{% url 'movie-detail' external_id=item.external_id %}{% else %}{% url 'tv-detail' external_id=item.external_id %}{% endif %}?provider={{ item.provider }}" hx-boost="true" hx-target="body" hx-swap="innerHTML"
-         class="link link-hover">{{ item.title }}</a>
+  <div class="card-body min-w-0 gap-2 p-4">
+    <h3 class="text-sm leading-tight wrap-anywhere">
+      <span class="font-semibold">{{ item.title }}</span>
       {% if item.year %}<span class="text-subtle text-xs font-normal">({{ item.year }})</span>{% endif %}
     </h3>
-    <p class="text-xs text-subtle line-clamp-3">{{ item.overview }}</p>
+    <p class="text-xs text-subtle line-clamp-3 grow-0 wrap-anywhere">{{ item.overview }}</p>
     {% if error %}<span class="text-error text-xs">{{ error }}</span>{% endif %}
   </div>
-  <div class="flex shrink-0 items-center p-3">
+  <div class="relative z-[2] flex shrink-0 items-center p-3">
     {% if item.tracked_on_other_provider %}
     <button type="button"
             aria-label="{{ switch_to_label }} {{ item.provider|upper }}"

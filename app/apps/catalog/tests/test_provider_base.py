@@ -53,6 +53,21 @@ class ProviderDTOTests(SimpleTestCase):
         self.assertEqual(result.poster_url, "https://image.tmdb.org/t/p/w342/poster.jpg")
         self.assertEqual(result.overview, "An insomniac office worker...")
 
+    def test_search_result_dto_collapses_line_breaks_in_text_fields(self):
+        result = SearchResultDTO(
+            provider="tvdb",
+            external_id="123",
+            title="Testo\nPart 2",
+            year=2024,
+            poster_url=None,
+            overview="First paragraph.\n\nSecond paragraph.\r\nThird one.",
+        )
+
+        self.assertEqual(result.title, "Testo Part 2")
+        self.assertEqual(
+            result.overview, "First paragraph. Second paragraph. Third one."
+        )
+
     def test_detail_dto_contains_shared_movie_and_show_metadata(self):
         self.assertTrue(is_dataclass(DetailDTO))
 

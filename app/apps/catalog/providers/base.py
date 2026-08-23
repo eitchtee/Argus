@@ -1,5 +1,8 @@
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+
+_MULTILINE_WHITESPACE = re.compile(r"\s+")
 
 
 @dataclass(frozen=True)
@@ -10,6 +13,20 @@ class SearchResultDTO:
     year: int | None
     poster_url: str | None
     overview: str
+
+    def __post_init__(self) -> None:
+        # Providers (notably TVDB) return overviews with raw line breaks, which
+        # break -webkit-line-clamp truncation in search result cards.
+        object.__setattr__(
+            self,
+            "title",
+            _MULTILINE_WHITESPACE.sub(" ", self.title or "").strip(),
+        )
+        object.__setattr__(
+            self,
+            "overview",
+            _MULTILINE_WHITESPACE.sub(" ", self.overview or "").strip(),
+        )
 
 
 @dataclass(frozen=True)

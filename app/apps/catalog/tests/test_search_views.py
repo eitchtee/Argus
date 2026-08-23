@@ -120,7 +120,7 @@ class SearchResultsViewTests(TestCase):
         self.assertContains(response, 'aria-label="Add to watchlist"')
         self.assertContains(response, 'data-tippy-content="Add to watchlist"')
         self.assertContains(response, "fa-bookmark")
-        self.assertContains(response, 'class="flex shrink-0 items-center p-3"')
+        self.assertContains(response, 'class="relative z-[2] flex shrink-0 items-center p-3"')
         self.assertNotContains(response, ">Track<")
         catalog_search.assert_called_once_with(
             "Fight",
