@@ -13,8 +13,10 @@ def decode_watched_bitfield(serialized: str | None, video_ids: list[str]) -> set
         previous = zlib.decompress(base64.b64decode(packed, validate=True))
     except (ValueError, TypeError, zlib.error, binascii.Error):
         return set()
-    if anchor_length <= 0 or anchor_index >= anchor_length:
+    if anchor_length <= 0:
         return set()
+    # The anchor may sit past anchor_length when the provider added videos
+    # ahead of it since Stremio wrote the state; the offset absorbs that.
     offset = (anchor_length - 1) - anchor_index
     watched = set()
     for index, video_id in enumerate(video_ids):
