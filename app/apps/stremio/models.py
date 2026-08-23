@@ -26,6 +26,8 @@ class StremioAccount(models.Model):
         default=SyncStatus.OK,
     )
     last_error = models.TextField(blank=True)
+    last_warning = models.TextField(blank=True)
+    deferred_content_ids = models.JSONField(default=list, blank=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

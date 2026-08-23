@@ -27,7 +27,7 @@ class StremioTaskSchedulingTests(SimpleTestCase):
 
     @patch("apps.stremio.tasks.StremioAccount.objects.filter")
     @patch("apps.stremio.tasks.sync_account")
-    def test_sync_warnings_keep_the_job_successful(self, sync, account_filter):
+    def test_sync_warnings_do_not_mark_the_account_as_failed(self, sync, account_filter):
         sync.return_value = SyncReport(warnings=["metadata unavailable"])
 
         from apps.stremio.tasks import sync_account_task
@@ -35,10 +35,23 @@ class StremioTaskSchedulingTests(SimpleTestCase):
         report = sync_account_task.func(7)
 
         self.assertEqual(report.warnings, ["metadata unavailable"])
+        account_filter.assert_not_called()
+
+    @patch("apps.stremio.tasks.StremioAccount.objects.filter")
+    @patch(
+        "apps.stremio.tasks.sync_account",
+        side_effect=StremioAPIError("library pull failed", code=500),
+    )
+    def test_a_failed_sync_marks_the_account_with_an_error(self, _sync, account_filter):
+        from apps.stremio.tasks import sync_account_task
+
+        with self.assertRaises(StremioAPIError):
+            sync_account_task.func(7)
+
         account_filter.assert_called_once_with(id=7)
         account_filter.return_value.update.assert_called_once_with(
             sync_status=StremioAccount.SyncStatus.ERROR,
-            last_error="metadata unavailable",
+            last_error="library pull failed",
             updated_at=ANY,
         )
 

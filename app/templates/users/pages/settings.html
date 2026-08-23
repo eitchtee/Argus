@@ -151,6 +151,7 @@
             {% if stremio_account.last_synced_at %}<div class="sm:text-right"><span class="block text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Last sync" %}</span><span class="mt-1 block text-xs text-base-content/70">{% user_datetime stremio_account.last_synced_at %}</span></div>{% endif %}
           </div>
           {% if stremio_account.last_error %}<div class="flex items-start gap-2.5 border-l-2 border-error pl-3 text-sm text-error" role="alert"><i data-lucide="triangle-alert" class="mt-0.5" aria-hidden="true"></i><span>{{ stremio_account.last_error }}</span></div>{% endif %}
+          {% if stremio_account.last_warning %}<div class="flex items-start gap-2.5 border-l-2 border-warning pl-3 text-sm text-warning" role="status"><i data-lucide="triangle-alert" class="mt-0.5" aria-hidden="true"></i><span>{% trans "Some items could not be synchronized and will be retried:" %} {{ stremio_account.last_warning }}</span></div>{% endif %}
           <div class="flex flex-wrap gap-2">
             <form method="post" action="{% url 'stremio_sync' %}" hx-post="{% url 'stremio_sync' %}" hx-swap="none">{% csrf_token %}<button type="submit" class="btn btn-primary btn-sm"><i data-lucide="refresh-cw" aria-hidden="true"></i>{% trans "Sync now" %}</button></form>
             <a href="{% url 'stremio_connect' %}" class="btn btn-secondary btn-sm"><i data-lucide="link" aria-hidden="true"></i>{% trans "Reconnect" %}</a>

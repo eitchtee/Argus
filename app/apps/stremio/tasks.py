@@ -97,21 +97,8 @@ def sync_account_task(account_id: int):
             raise
         return None
 
-    if report.warnings:
-        message = "; ".join(report.warnings)
-        StremioAccount.objects.filter(id=account_id).update(
-            sync_status=StremioAccount.SyncStatus.ERROR,
-            last_error=message,
-            updated_at=timezone.now(),
-        )
-    else:
-        StremioAccount.objects.filter(id=account_id).update(
-            sync_status=StremioAccount.SyncStatus.OK,
-            last_error="",
-            last_synced_at=timezone.now(),
-            initial_sync_complete=True,
-            updated_at=timezone.now(),
-        )
+    # sync_account() already persisted the outcome, including any per-item
+    # warnings; the job only reports failures of the sync itself.
     return report
 
 

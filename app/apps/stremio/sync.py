@@ -50,7 +50,9 @@ class RemoteSnapshot:
     series_video_ids: dict[str, list[str]] = field(default_factory=dict)
     series_metadata_available: set[str] = field(default_factory=set)
     metadata_failures: set[str] = field(default_factory=set)
+    state_failures: set[str] = field(default_factory=set)
     series_state_valid: set[str] = field(default_factory=set)
+    series_state_exact: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -60,6 +62,7 @@ class SyncReport:
     episodes_marked: int = 0
     items_pushed: int = 0
     warnings: list[str] = field(default_factory=list)
+    deferred_content_ids: set[str] = field(default_factory=set)
     initial_sync_complete: bool = False
 
 
@@ -122,6 +125,12 @@ def normalize_items(
         state_valid = _valid_watched_bitfield(state.get("watched"), video_ids)
         if state_valid:
             snapshot.series_state_valid.add(content_id)
+            if _exact_watched_bitfield(state.get("watched"), video_ids):
+                snapshot.series_state_exact.add(content_id)
+        elif state.get("watched") not in (None, "") and video_ids:
+            # Stremio wrote episode progress we cannot line up against the
+            # Cinemeta video list, so the watches would be dropped silently.
+            snapshot.state_failures.add(content_id)
         watched_ids = (
             decode_watched_bitfield(state.get("watched"), video_ids)
             if state_valid
@@ -135,15 +144,9 @@ def normalize_items(
             if parts is not None
         }
         snapshot.series_watched[content_id] = pairs
+        videos_by_parts = _videos_by_parts(videos) if pairs else {}
         for season_number, episode_number in pairs:
-            video = next(
-                (
-                    video
-                    for video in videos
-                    if _video_parts(video) == (season_number, episode_number)
-                ),
-                {},
-            )
+            video = videos_by_parts.get((season_number, episode_number), {})
             episode_id = (content_id, season_number, episode_number)
             snapshot.watched_episodes[episode_id] = WatchedEpisode(
                 content_id=content_id,
@@ -316,16 +319,11 @@ def build_outbound_items(
                 discard_candidate(candidate)
             continue
         watched_ids = decode_watched_bitfield(serialized_watched, video_ids)
+        videos_by_parts = _videos_by_parts(videos)
         latest_seen_at = None
         for state in episode_states:
-            matching = next(
-                (
-                    video
-                    for video in videos
-                    if _video_parts(video)
-                    == (state.episode.season_number, state.episode.episode_number)
-                ),
-                None,
+            matching = videos_by_parts.get(
+                (state.episode.season_number, state.episode.episode_number)
             )
             if matching:
                 watched_ids.add(str(matching["id"]))
@@ -387,8 +385,13 @@ def build_outbound_items(
             candidate["removed"] = not bool(intent.desired)
             candidate["temp"] = False
         elif kind == StremioSyncIntent.Kind.MOVIE_HISTORY:
-            state["timesWatched"] = 1 if intent.desired else 0
-            if not intent.desired:
+            if intent.desired:
+                state["timesWatched"] = max(1, _as_int(state.get("timesWatched")))
+            else:
+                # Stremio flags a movie as watched through either counter, so
+                # both have to be cleared or the unwatch never sticks.
+                state["timesWatched"] = 0
+                state["flaggedWatched"] = 0
                 state["lastWatched"] = None
         elif kind == StremioSyncIntent.Kind.EPISODE_HISTORY:
             applied = _apply_episode_intent(
@@ -431,15 +434,26 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
         remote_items = client.datastore_get(all_items=True)
     else:
         changed_ids = _changed_ids(client.datastore_meta(), account.library_synced_at)
-        remote_items = client.datastore_get(ids=changed_ids) if changed_ids else []
+        # Items a previous run could not project locally are re-fetched even
+        # though the cursor has already moved past them.
+        fetch_ids = list(
+            dict.fromkeys([*changed_ids, *_deferred_content_ids(account)])
+        )
+        remote_items = client.datastore_get(ids=fetch_ids) if fetch_ids else []
 
-    getter = client.get_cinemeta_series
+    getter = _memoized_metadata_getter(client.get_cinemeta_series)
     report = SyncReport()
     remote = normalize_items(remote_items, cinemeta_getter=getter, user=account.user)
     report.warnings.extend(
         f"Cinemeta metadata unavailable for {content_id}"
         for content_id in sorted(remote.metadata_failures)
     )
+    report.warnings.extend(
+        f"Stremio episode state could not be read for {content_id}"
+        for content_id in sorted(remote.state_failures - remote.metadata_failures)
+    )
+    report.deferred_content_ids.update(remote.metadata_failures)
+    report.deferred_content_ids.update(remote.state_failures)
     with cachalot_disabled():
         local_before = _collect_local_snapshot(account.user)
         intents = list(
@@ -478,19 +492,13 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
         final_remote = _merge_remote_items(all_remote_items, changes)
         _acknowledge_intents(intents, final_remote, getter, user=account.user)
 
-    if report.warnings:
-        account.last_synced_at = started_at
-        account.sync_status = StremioAccount.SyncStatus.ERROR
-        account.last_error = "; ".join(report.warnings)
-        account.save(update_fields=["last_synced_at", "sync_status", "last_error", "updated_at"])
-        report.initial_sync_complete = account.initial_sync_complete
-        return report
-
     account.initial_sync_complete = True
     account.library_synced_at = started_at
     account.last_synced_at = started_at
     account.sync_status = StremioAccount.SyncStatus.OK
     account.last_error = ""
+    account.last_warning = "; ".join(report.warnings)
+    account.deferred_content_ids = sorted(report.deferred_content_ids)
     account.save(
         update_fields=[
             "initial_sync_complete",
@@ -498,11 +506,20 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
             "last_synced_at",
             "sync_status",
             "last_error",
+            "last_warning",
+            "deferred_content_ids",
             "updated_at",
         ]
     )
     report.initial_sync_complete = True
     return report
+
+
+def _deferred_content_ids(account):
+    stored = account.deferred_content_ids
+    if not isinstance(stored, list):
+        return []
+    return [content_id for content_id in stored if isinstance(content_id, str) and content_id]
 
 
 def _apply_remote(user, remote, local, intents, report, *, initial, getter):
@@ -516,6 +533,7 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                 report.movies_imported += int(created)
             except (ProviderError, ValueError) as exc:
                 report.warnings.append(f"Movie import failed for {content_id}: {exc}")
+                report.deferred_content_ids.add(content_id)
                 return None
         return movie_cache[content_id]
 
@@ -526,8 +544,11 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                 report.shows_imported += int(created)
             except (ProviderError, ValueError) as exc:
                 report.warnings.append(f"Show import failed for {content_id}: {exc}")
+                report.deferred_content_ids.add(content_id)
                 return None
         return show_cache[content_id]
+
+    remote_movie_ids = _remote_ids(remote.items, "movie")
 
     for item in remote.items:
         content_id = _content_id(item.get("_id"))
@@ -556,9 +577,15 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                 if movie is None:
                     continue
                 state, _ = UserMovie.objects.get_or_create(user=user, movie=movie)
-            if content_id in remote.library_ids and not _pending(
+            movie_state_before = (
+                state.on_watchlist,
+                state.watchlist_added_at,
+                state.is_seen,
+                state.seen_at,
+            )
+            if content_id in remote.library_ids and _pending(
                 intents, StremioSyncIntent.Kind.MOVIE_WATCHLIST, content_id
-            ) is False:
+            ) is not False:
                 state.on_watchlist = True
                 state.watchlist_added_at = state.watchlist_added_at or django_timezone.now()
             elif not initial and content_id not in remote.library_ids and _pending(
@@ -579,14 +606,28 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                 not initial
                 and not (item.get("removed") or item.get("temp"))
                 and _movie_state_is_zero(item)
-                and content_id in {key for key in _remote_ids(remote.items, "movie")}
+                and content_id in remote_movie_ids
                 and _pending(
                     intents, StremioSyncIntent.Kind.MOVIE_HISTORY, content_id
                 ) is not True
             ):
                 state.is_seen = False
                 state.seen_at = None
-            state.save(update_fields=["on_watchlist", "watchlist_added_at", "is_seen", "seen_at", "updated_at"])
+            if (
+                state.on_watchlist,
+                state.watchlist_added_at,
+                state.is_seen,
+                state.seen_at,
+            ) != movie_state_before:
+                state.save(
+                    update_fields=[
+                        "on_watchlist",
+                        "watchlist_added_at",
+                        "is_seen",
+                        "seen_at",
+                        "updated_at",
+                    ]
+                )
             continue
 
         if item.get("removed"):
@@ -601,6 +642,7 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
             if show is None:
                 continue
             user_show, _ = UserShow.objects.get_or_create(user=user, show=show)
+        show_watchlist_before = user_show.on_watchlist
         pending_watchlist = _pending(
             intents, StremioSyncIntent.Kind.SHOW_WATCHLIST, content_id
         )
@@ -612,39 +654,70 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
             user_show.on_watchlist = True
         elif not initial and content_id not in remote.library_ids:
             user_show.on_watchlist = False
-        user_show.save(update_fields=["on_watchlist", "updated_at"])
+        if user_show.on_watchlist != show_watchlist_before:
+            user_show.save(update_fields=["on_watchlist", "updated_at"])
 
         if item.get("removed"):
             continue
 
         watched_pairs = remote.series_watched.get(content_id, set())
+        # Deleting local history needs a bitfield that still lines up exactly;
+        # a realigned one is trusted to add watches, never to remove them.
+        prune_local = not initial and content_id in remote.series_state_exact
+        if not watched_pairs and not prune_local:
+            continue
+
+        # Load the show's episodes and watch states up front: doing it per pair
+        # costs three queries per watched episode on every sync.
+        episodes_by_parts = {
+            (episode.season_number, episode.episode_number): episode
+            for episode in (Episode.objects.filter(show=show) if watched_pairs else [])
+        }
+        local_states = {
+            state.episode_id: state
+            for state in UserEpisode.objects.filter(
+                user=user, episode__show=show
+            ).select_related("episode")
+        }
         for season_number, episode_number in watched_pairs:
             if _pending_episode(intents, content_id, season_number, episode_number) is False:
                 continue
-            episode = _ensure_episode(show, season_number, episode_number, getter, content_id)
+            episode = episodes_by_parts.get((season_number, episode_number))
             if episode is None:
-                continue
+                episode = _ensure_episode(show, season_number, episode_number, getter, content_id)
+                if episode is None:
+                    continue
+                episodes_by_parts[(season_number, episode_number)] = episode
             watched = remote.watched_episodes[(content_id, season_number, episode_number)]
-            state, created = UserEpisode.objects.get_or_create(
-                user=user,
-                episode=episode,
-                defaults={"seen_at": watched.watched_at or django_timezone.now()},
-            )
+            state = local_states.get(episode.id)
+            created = False
+            if state is None:
+                state, created = UserEpisode.objects.get_or_create(
+                    user=user,
+                    episode=episode,
+                    defaults={"seen_at": watched.watched_at or django_timezone.now()},
+                )
+                local_states[episode.id] = state
             if not created and watched.watched_at and (state.seen_at is None or watched.watched_at > state.seen_at):
                 state.seen_at = watched.watched_at
                 state.save(update_fields=["seen_at"])
             report.episodes_marked += int(created)
 
-        if not initial and content_id in remote.series_state_valid:
+        if prune_local:
             keep = {
                 (season_number, episode_number)
                 for show_id, season_number, episode_number in remote.watched_episodes
                 if show_id == content_id
             }
-            for state in UserEpisode.objects.filter(user=user, episode__show=show):
-                pair = (state.episode.season_number, state.episode.episode_number)
-                if pair not in keep and _pending_episode(intents, content_id, *pair) is not True:
-                    state.delete()
+            stale_ids = [
+                state.id
+                for state in local_states.values()
+                for pair in [(state.episode.season_number, state.episode.episode_number)]
+                if pair not in keep
+                and _pending_episode(intents, content_id, *pair) is not True
+            ]
+            if stale_ids:
+                UserEpisode.objects.filter(id__in=stale_ids).delete()
 
 
 def _movie_lookup(content_id):
@@ -883,6 +956,10 @@ def _delete_intent_if_unchanged(intent):
 
 def _acknowledge_intents(intents, remote_items, getter, *, user=None):
     snapshot = normalize_items(remote_items, cinemeta_getter=getter, user=user)
+    remote_ids_by_type = {
+        item_type: _remote_ids(snapshot.items, item_type)
+        for item_type in ("movie", "series")
+    }
     for index, intent in enumerate(intents):
         if any(
             _same_intent_target(intent, newer)
@@ -900,10 +977,11 @@ def _acknowledge_intents(intents, remote_items, getter, *, user=None):
             str(intent.kind),
         )
         resolved_content_id = snapshot_id or content_id
-        if intent.kind == StremioSyncIntent.Kind.MOVIE_WATCHLIST:
-            actual = resolved_content_id in _remote_ids(snapshot.items, item_type)
-        elif intent.kind == StremioSyncIntent.Kind.SHOW_WATCHLIST:
-            actual = resolved_content_id in _remote_ids(snapshot.items, item_type)
+        if intent.kind in {
+            StremioSyncIntent.Kind.MOVIE_WATCHLIST,
+            StremioSyncIntent.Kind.SHOW_WATCHLIST,
+        }:
+            actual = resolved_content_id in remote_ids_by_type[item_type]
         elif intent.kind == StremioSyncIntent.Kind.MOVIE_HISTORY:
             actual = resolved_content_id in snapshot.watched_movies
         elif intent.kind == StremioSyncIntent.Kind.EPISODE_HISTORY:
@@ -1210,6 +1288,39 @@ def _safe_metadata(getter, content_id):
         return None
 
 
+def _videos_by_parts(videos):
+    by_parts: dict[tuple[int, int], dict] = {}
+    for video in videos:
+        parts = _video_parts(video)
+        if parts is not None:
+            by_parts.setdefault(parts, video)
+    return by_parts
+
+
+def _memoized_metadata_getter(getter):
+    """Cache Cinemeta lookups for the lifetime of a single sync run.
+
+    The same series metadata is needed while normalizing the remote snapshot,
+    building outbound items, applying episode intents and acknowledging them;
+    without this each pass would re-issue the HTTP request.
+    """
+    cache: dict[str, object] = {}
+
+    def wrapped(content_id):
+        key = str(content_id)
+        if key not in cache:
+            try:
+                cache[key] = getter(key)
+            except Exception as exc:  # cached so retries stay consistent in-run
+                cache[key] = exc
+        result = cache[key]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    return wrapped
+
+
 def _parse_stremio_timestamp(value):
     if value in (None, ""):
         return None
@@ -1258,6 +1369,21 @@ def _movie_state_is_zero(item):
     return True
 
 
+def _exact_watched_bitfield(serialized, video_ids):
+    """True when the anchor still sits where Stremio recorded it.
+
+    A readable bitfield whose anchor has drifted (the provider added videos
+    ahead of it) decodes correctly, but its tail can no longer be read as an
+    authoritative "not watched" list.
+    """
+    try:
+        anchor_video_id, anchor_length_raw, _packed = serialized.rsplit(":", 2)
+        anchor_length = int(anchor_length_raw)
+    except (ValueError, TypeError, AttributeError):
+        return False
+    return anchor_video_id in video_ids and video_ids.index(anchor_video_id) < anchor_length
+
+
 def _valid_watched_bitfield(serialized, video_ids):
     if not isinstance(serialized, str) or not serialized or not video_ids:
         return False
@@ -1269,7 +1395,6 @@ def _valid_watched_bitfield(serialized, video_ids):
         return False
     return (
         anchor_video_id in video_ids
-        and video_ids.index(anchor_video_id) < anchor_length
         and 0 < anchor_length <= len(video_ids)
         and len(decoded) >= (anchor_length + 7) // 8
     )

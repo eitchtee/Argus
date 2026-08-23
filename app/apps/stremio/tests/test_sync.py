@@ -79,6 +79,81 @@ class StremioMovieStateTests(SimpleTestCase):
 
         self.assertIn("tt0137523", snapshot.watched_movies)
 
+    def test_unmappable_episode_state_is_reported_instead_of_dropped(self):
+        # A bitfield Stremio wrote against another addon's episode ids: the
+        # anchor is absent from the Cinemeta video list.
+        snapshot = normalize_items(
+            [
+                {
+                    "_id": "tt0944947",
+                    "type": "series",
+                    "name": "Game of Thrones",
+                    "state": {
+                        "watched": encode_watched_bitfield(
+                            {"kitsu:12345:2"}, ["kitsu:12345:1", "kitsu:12345:2"]
+                        )
+                    },
+                }
+            ],
+            cinemeta_getter=lambda _imdb_id: {
+                "videos": [
+                    {"id": "tt0944947:1:1", "season": 1, "episode": 1},
+                    {"id": "tt0944947:1:2", "season": 1, "episode": 2},
+                ]
+            },
+        )
+
+        self.assertEqual(snapshot.state_failures, {"tt0944947"})
+        self.assertNotIn("tt0944947", snapshot.series_state_valid)
+        self.assertEqual(snapshot.series_watched["tt0944947"], set())
+
+    def test_readable_episode_state_is_not_reported_as_a_failure(self):
+        snapshot = normalize_items(
+            [
+                {
+                    "_id": "tt0944947",
+                    "type": "series",
+                    "name": "Game of Thrones",
+                    "state": {"watched": "tt0944947:1:2:2:eJxjAgAAAwAD"},
+                }
+            ],
+            cinemeta_getter=lambda _imdb_id: {
+                "videos": [
+                    {"id": "tt0944947:1:1", "season": 1, "episode": 1},
+                    {"id": "tt0944947:1:2", "season": 1, "episode": 2},
+                ]
+            },
+        )
+
+        self.assertEqual(snapshot.state_failures, set())
+
+    def test_episode_state_survives_new_videos_ahead_of_the_anchor(self):
+        original = [f"tt0944947:1:{number}" for number in range(1, 11)]
+        serialized = encode_watched_bitfield({"tt0944947:1:2"}, original)
+        videos = [
+            {"id": "tt0944947:0:1", "season": 0, "episode": 1},
+            *(
+                {"id": f"tt0944947:1:{number}", "season": 1, "episode": number}
+                for number in range(1, 11)
+            ),
+        ]
+
+        snapshot = normalize_items(
+            [
+                {
+                    "_id": "tt0944947",
+                    "type": "series",
+                    "name": "Game of Thrones",
+                    "state": {"watched": serialized},
+                }
+            ],
+            cinemeta_getter=lambda _imdb_id: {"videos": videos},
+        )
+
+        self.assertEqual(snapshot.series_watched["tt0944947"], {(1, 2)})
+        self.assertIn("tt0944947", snapshot.series_state_valid)
+        self.assertEqual(snapshot.state_failures, set())
+
     def test_flagged_movie_is_not_treated_as_zero_state(self):
         self.assertFalse(
             _movie_state_is_zero(
@@ -264,6 +339,75 @@ class StremioOutboundTests(TestCase):
         self.assertEqual(len(changes), 1)
         self.assertEqual(changes[0]["addonData"], {"keep": True})
         self.assertEqual(changes[0]["state"]["timesWatched"], 1)
+
+    def test_movie_unwatch_intent_clears_flagged_watched(self):
+        user = get_user_model().objects.create_user("user@example.com", password="pw")
+        intent = StremioSyncIntent.objects.create(
+            user=user,
+            kind=StremioSyncIntent.Kind.MOVIE_HISTORY,
+            identity_key="tt0137523",
+            payload={"ids": {"imdb": "tt0137523"}},
+            desired=False,
+        )
+        local = LocalSnapshot(
+            movie_watchlist=[],
+            movie_history=[],
+            show_watchlist=[],
+            show_dropped=[],
+            episode_history=[],
+        )
+        remote = {
+            "_id": "tt0137523",
+            "type": "movie",
+            "name": "Fight Club",
+            "state": {"timesWatched": 1, "flaggedWatched": 1, "lastWatched": "2026-08-01T10:00:00Z"},
+        }
+
+        changes = build_outbound_items(
+            local,
+            [remote],
+            [intent],
+            cinemeta_getter=lambda _imdb_id: {},
+            initial=False,
+        )
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0]["state"]["timesWatched"], 0)
+        self.assertEqual(changes[0]["state"]["flaggedWatched"], 0)
+        self.assertNotIn("tt0137523", normalize_items(changes, cinemeta_getter=lambda _id: {}).watched_movies)
+
+    def test_movie_watch_intent_preserves_a_higher_remote_play_count(self):
+        user = get_user_model().objects.create_user("user@example.com", password="pw")
+        intent = StremioSyncIntent.objects.create(
+            user=user,
+            kind=StremioSyncIntent.Kind.MOVIE_HISTORY,
+            identity_key="tt0137523",
+            payload={"ids": {"imdb": "tt0137523"}},
+            desired=True,
+        )
+        local = LocalSnapshot(
+            movie_watchlist=[],
+            movie_history=[],
+            show_watchlist=[],
+            show_dropped=[],
+            episode_history=[],
+        )
+        remote = {
+            "_id": "tt0137523",
+            "type": "movie",
+            "name": "Fight Club",
+            "state": {"timesWatched": 5},
+        }
+
+        changes = build_outbound_items(
+            local,
+            [remote],
+            [intent],
+            cinemeta_getter=lambda _imdb_id: {},
+            initial=False,
+        )
+
+        self.assertEqual(changes, [])
 
     def test_outbound_watch_timestamp_is_iso8601_string(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
@@ -1283,6 +1427,54 @@ class StremioRemoteSafetyTests(TestCase):
 
         self.assertTrue(UserEpisode.objects.filter(user=user, episode=episode).exists())
 
+    def test_realigned_bitfield_adds_watches_but_never_prunes(self):
+        user = get_user_model().objects.create_user("user@example.com", password="pw")
+        show = Show.objects.create(
+            imdb_id="tt0944947",
+            name="Game of Thrones",
+            external_id="1399",
+            tmdb_id="1399",
+        )
+        season = Season.objects.create(show=show, season_number=1)
+        kept = Episode.objects.create(
+            show=show, season=season, season_number=1, episode_number=9, name="Baelor"
+        )
+        UserEpisode.objects.create(user=user, episode=kept)
+
+        original = [f"tt0944947:1:{number}" for number in range(1, 11)]
+        serialized = encode_watched_bitfield({"tt0944947:1:2"}, original)
+        videos = [
+            {"id": "tt0944947:0:1", "season": 0, "episode": 1},
+            *(
+                {"id": f"tt0944947:1:{number}", "season": 1, "episode": number}
+                for number in range(1, 11)
+            ),
+        ]
+        remote = normalize_items(
+            [{"_id": "tt0944947", "type": "series", "state": {"watched": serialized}}],
+            cinemeta_getter=lambda _imdb_id: {"videos": videos},
+        )
+
+        self.assertIn("tt0944947", remote.series_state_valid)
+        self.assertNotIn("tt0944947", remote.series_state_exact)
+
+        _apply_remote(
+            user,
+            remote,
+            LocalSnapshot([], [], [], [], []),
+            [],
+            SyncReport(),
+            initial=False,
+            getter=lambda _imdb_id: {"videos": videos},
+        )
+
+        watched = {
+            (state.episode.season_number, state.episode.episode_number)
+            for state in UserEpisode.objects.filter(user=user).select_related("episode")
+        }
+        self.assertIn((1, 2), watched)
+        self.assertIn((1, 9), watched)
+
 
 class StremioMetadataRetryTests(TestCase):
     def test_provider_series_ids_use_local_imdb_alias_for_cinemeta(self):
@@ -1323,7 +1515,7 @@ class StremioMetadataRetryTests(TestCase):
         self.assertEqual(report.warnings, [])
         self.assertTrue(account.initial_sync_complete)
 
-    def test_cinemeta_failure_keeps_library_cursor_pending(self):
+    def test_cinemeta_failure_warns_without_stalling_the_library_cursor(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
         Show.objects.create(
             imdb_id="tt0944947",
@@ -1347,8 +1539,12 @@ class StremioMetadataRetryTests(TestCase):
 
         account.refresh_from_db()
         self.assertTrue(report.warnings)
-        self.assertFalse(account.initial_sync_complete)
-        self.assertIsNone(account.library_synced_at)
+        self.assertTrue(account.initial_sync_complete)
+        self.assertIsNotNone(account.library_synced_at)
+        self.assertEqual(account.sync_status, StremioAccount.SyncStatus.OK)
+        self.assertEqual(account.last_error, "")
+        self.assertIn("tt0944947", account.last_warning)
+        self.assertEqual(account.deferred_content_ids, ["tt0944947"])
 
     def test_episode_removal_intent_stays_queued_when_cinemeta_fails(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
@@ -1389,7 +1585,7 @@ class StremioMetadataRetryTests(TestCase):
 
         self.assertFalse(StremioSyncIntent.objects.filter(pk=intent.pk).exists())
 
-    def test_local_episode_projection_keeps_cursor_pending_when_cinemeta_fails(self):
+    def test_local_episode_projection_warns_without_stalling_the_cursor(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
         show = Show.objects.create(
             imdb_id="tt0944947",
@@ -1426,11 +1622,14 @@ class StremioMetadataRetryTests(TestCase):
 
         account.refresh_from_db()
         self.assertTrue(report.warnings)
-        self.assertFalse(account.initial_sync_complete)
-        self.assertIsNone(account.library_synced_at)
+        self.assertTrue(account.initial_sync_complete)
+        self.assertIsNotNone(account.library_synced_at)
+        self.assertEqual(account.sync_status, StremioAccount.SyncStatus.OK)
+        self.assertEqual(account.last_error, "")
+        self.assertIn("tt0944947", account.last_warning)
         self.assertEqual(client.puts, [])
 
-    def test_watched_series_with_empty_cinemeta_videos_keeps_cursor_pending(self):
+    def test_watched_series_with_empty_cinemeta_videos_warns_and_defers(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
         Show.objects.create(
             imdb_id="tt0944947",
@@ -1461,8 +1660,10 @@ class StremioMetadataRetryTests(TestCase):
 
         account.refresh_from_db()
         self.assertTrue(report.warnings)
-        self.assertFalse(account.initial_sync_complete)
-        self.assertIsNone(account.library_synced_at)
+        self.assertTrue(account.initial_sync_complete)
+        self.assertIsNotNone(account.library_synced_at)
+        self.assertEqual(account.sync_status, StremioAccount.SyncStatus.OK)
+        self.assertEqual(account.deferred_content_ids, ["tt0944947"])
 
     def test_acknowledgement_does_not_delete_a_newer_intent(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
@@ -1575,7 +1776,7 @@ class StremioMetadataRetryTests(TestCase):
 
 class StremioProjectionRetryTests(TestCase):
     @patch("apps.stremio.sync._ensure_movie", side_effect=ValueError("not imported"))
-    def test_failed_remote_projection_keeps_initial_cursor_pending(self, _ensure_movie):
+    def test_failed_remote_projection_warns_and_defers_the_item(self, _ensure_movie):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
         account = StremioAccount.objects.create(user=user, auth_key="auth-key")
 
@@ -1593,8 +1794,91 @@ class StremioProjectionRetryTests(TestCase):
 
         account.refresh_from_db()
         self.assertTrue(report.warnings)
-        self.assertFalse(account.initial_sync_complete)
-        self.assertIsNone(account.library_synced_at)
+        self.assertTrue(account.initial_sync_complete)
+        self.assertIsNotNone(account.library_synced_at)
+        self.assertEqual(account.sync_status, StremioAccount.SyncStatus.OK)
+        self.assertEqual(account.last_error, "")
+        self.assertIn("tt0137523", account.last_warning)
+        self.assertEqual(account.deferred_content_ids, ["tt0137523"])
+
+    @patch("apps.stremio.sync._ensure_movie", side_effect=ValueError("not imported"))
+    def test_deferred_items_are_refetched_on_the_next_incremental_sync(self, _ensure_movie):
+        user = get_user_model().objects.create_user("user@example.com", password="pw")
+        account = StremioAccount.objects.create(
+            user=user,
+            auth_key="auth-key",
+            initial_sync_complete=True,
+            library_synced_at=datetime(2026, 8, 8, 10, tzinfo=timezone.utc),
+            deferred_content_ids=["tt0137523"],
+        )
+
+        class FakeClient:
+            def __init__(self):
+                self.get_calls = []
+
+            def datastore_meta(self):
+                return []
+
+            def datastore_get(self, *, ids=None, all_items=False):
+                self.get_calls.append(list(ids or []))
+                return [{"_id": "tt0137523", "type": "movie", "name": "Fight Club", "state": {}}]
+
+            def get_cinemeta_series(self, _imdb_id):
+                return {}
+
+            def datastore_put(self, changes):
+                raise AssertionError("failed projections should not push")
+
+        client = FakeClient()
+        sync_account(account.id, client_factory=lambda _account: client)
+
+        account.refresh_from_db()
+        self.assertEqual(client.get_calls[0], ["tt0137523"])
+        self.assertEqual(account.deferred_content_ids, ["tt0137523"])
+
+    def test_a_recovered_item_clears_its_deferral(self):
+        user = get_user_model().objects.create_user("user@example.com", password="pw")
+        movie = Movie.objects.create(
+            imdb_id="tt0137523",
+            title="Fight Club",
+            external_id="550",
+            tmdb_id="550",
+        )
+        account = StremioAccount.objects.create(
+            user=user,
+            auth_key="auth-key",
+            initial_sync_complete=True,
+            library_synced_at=datetime(2026, 8, 8, 10, tzinfo=timezone.utc),
+            deferred_content_ids=["tt0137523"],
+            last_warning="Movie import failed for tt0137523: not imported",
+        )
+
+        class FakeClient:
+            def datastore_meta(self):
+                return []
+
+            def datastore_get(self, *, ids=None, all_items=False):
+                return [
+                    {
+                        "_id": "tt0137523",
+                        "type": "movie",
+                        "name": "Fight Club",
+                        "state": {"timesWatched": 1},
+                    }
+                ]
+
+            def get_cinemeta_series(self, _imdb_id):
+                return {}
+
+            def datastore_put(self, changes):
+                self.changes = changes
+
+        sync_account(account.id, client_factory=lambda _account: FakeClient())
+
+        account.refresh_from_db()
+        self.assertEqual(account.deferred_content_ids, [])
+        self.assertEqual(account.last_warning, "")
+        self.assertTrue(UserMovie.objects.get(user=user, movie=movie).is_seen)
 
 
 class StremioIncrementalSyncTests(TestCase):
