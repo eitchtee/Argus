@@ -90,6 +90,29 @@ def episode_name(episode_number: int) -> str:
     return f"Episode {episode_number}"
 
 
+def regional_siblings(
+    translations: Mapping[str, Mapping[str, str]],
+    language: str,
+) -> tuple[str, ...]:
+    """Return other stored codes sharing this code's base language.
+
+    Providers publish text per region rather than per language: TMDB has
+    ``ar-SA`` but no ``ar``, so a viewer reading ``ar-AE`` has no exact match
+    even though Arabic text exists. Sorted for a stable pick when a base
+    language has several regions.
+    """
+    base = str(language or "").split("-", 1)[0]
+    if not base:
+        return ()
+    return tuple(
+        sorted(
+            code
+            for code in translations
+            if code != language and code.split("-", 1)[0] == base
+        )
+    )
+
+
 def resolve_from_map(
     translations: Mapping[str, Mapping[str, str]],
     field_name: str,
@@ -97,10 +120,16 @@ def resolve_from_map(
     default_language: str,
     scalar: str = "",
 ) -> str:
+    # A regional sibling of the requested language is a closer match than the
+    # provider default, so it is preferred over falling all the way back.
     for code in dict.fromkeys((language, default_language)):
         value = translations.get(code, {}).get(field_name)
         if value:
             return value
+        for sibling in regional_siblings(translations, code):
+            value = translations.get(sibling, {}).get(field_name)
+            if value:
+                return value
     return scalar or ""
 
 
