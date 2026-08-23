@@ -103,9 +103,15 @@ def import_movie(
             provider=provider,
             external_id=external_id,
         ).first()
+        # A movie detail response carries the provider's complete translation
+        # set, so it replaces what is stored rather than merging into it.
+        # Merging let codes the provider never had accumulate permanently, and
+        # a stale code shadows the real regional sibling that resolution would
+        # otherwise fall back to. An empty set means a bad response, not a
+        # movie that lost every translation, so that case keeps what is stored.
+        stored_translations = existing_movie.translations if existing_movie else {}
         translations = merge_translation_maps(
-            existing_movie.translations if existing_movie else {},
-            detail.translations,
+            detail.translations or stored_translations
         )
         default_text = translations.get(PROVIDER_DEFAULT_LANGUAGES[provider], {})
         base_title = default_text.get("title") or (
