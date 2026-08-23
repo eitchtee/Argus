@@ -11,6 +11,9 @@ rm -f /tmp/migrations_complete
 
 python manage.py migrate
 
+# Stale jobs from a previous run block the queue and never complete
+python manage.py flush_stale_jobs
+
 # Create flag file to signal migrations are complete
 touch /tmp/migrations_complete
 
