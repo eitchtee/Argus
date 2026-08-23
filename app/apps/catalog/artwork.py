@@ -3,6 +3,7 @@ from urllib.parse import urljoin
 
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from apps.catalog.localization import metadata_language_for_user
 from apps.catalog.languages import language_codes_match
@@ -31,28 +32,67 @@ def sync_media_artworks(detail: DetailDTO, *, media_type: str) -> None:
     }
 
     with transaction.atomic():
+        # A single series can carry several hundred artworks, so the whole set
+        # is reconciled in a handful of statements rather than one round trip
+        # per image.
+        existing_rows = {
+            (row.kind, row.image_url): row
+            for row in MediaArtwork.objects.filter(**identity)
+        }
+
         retained_keys = set()
+        new_rows = []
+        changed_rows = []
+        changed_fields = set()
         for artwork in incoming:
-            retained_keys.add((artwork.kind, artwork.image_url))
-            row, _created = MediaArtwork.objects.get_or_create(
-                **identity,
-                kind=artwork.kind,
-                image_url=artwork.image_url,
-                defaults=_artwork_defaults(artwork),
+            key = (artwork.kind, artwork.image_url)
+            retained_keys.add(key)
+            defaults = _artwork_defaults(artwork)
+            row = existing_rows.get(key)
+            if row is None:
+                new_rows.append(
+                    MediaArtwork(
+                        **identity,
+                        kind=artwork.kind,
+                        image_url=artwork.image_url,
+                        **defaults,
+                    )
+                )
+                continue
+            changed = [
+                field
+                for field, value in defaults.items()
+                if getattr(row, field) != value
+            ]
+            if not changed:
+                continue
+            for field in changed:
+                setattr(row, field, defaults[field])
+            # bulk_update skips auto_now, so the timestamp is set by hand.
+            row.updated_at = timezone.now()
+            changed_fields.update(changed)
+            changed_rows.append(row)
+
+        if new_rows:
+            # A concurrent sync may have inserted the same image already; the
+            # identity constraint makes that a no-op rather than a failure.
+            MediaArtwork.objects.bulk_create(new_rows, ignore_conflicts=True)
+        if changed_rows:
+            MediaArtwork.objects.bulk_update(
+                changed_rows,
+                [*changed_fields, "updated_at"],
             )
-            changed = []
-            for field, value in _artwork_defaults(artwork).items():
-                if getattr(row, field) != value:
-                    setattr(row, field, value)
-                    changed.append(field)
-            if changed:
-                row.save(update_fields=[*changed, "updated_at"])
 
         if complete_response:
-            retained = Q(pk__in=[])
-            for kind, image_url in retained_keys:
-                retained |= Q(kind=kind, image_url=image_url)
-            MediaArtwork.objects.filter(**identity).exclude(retained).delete()
+            # Only rows that were already stored can be stale, so this deletes
+            # by primary key instead of building one OR term per retained image.
+            stale_ids = [
+                row.id
+                for key, row in existing_rows.items()
+                if key not in retained_keys
+            ]
+            if stale_ids:
+                MediaArtwork.objects.filter(id__in=stale_ids).delete()
 
 
 def media_language_for_user(user, media) -> str:

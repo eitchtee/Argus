@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from apps.catalog.artwork import (
     media_language_for_user,
@@ -9,6 +11,72 @@ from apps.catalog.artwork import (
 from apps.catalog.models import MediaArtwork, UserMediaArtworkPreference
 from apps.catalog.providers.base import ArtworkDTO, DetailDTO
 from apps.movies.models import Movie
+
+
+class MediaArtworkBulkSyncTests(TestCase):
+    """A single series can carry hundreds of artworks, so the reconciliation
+    must not scale its statement count with the size of the collection."""
+
+    def _detail(self, count, *, score_offset=0):
+        return DetailDTO(
+            provider="tvdb",
+            external_id="121361",
+            title="Game of Thrones",
+            artworks=[
+                ArtworkDTO(
+                    kind="poster" if index % 2 else "background",
+                    image_url=f"https://artworks.thetvdb.com/{index}.jpg",
+                    score=float(index + score_offset),
+                )
+                for index in range(count)
+            ],
+        )
+
+    def test_large_collections_sync_in_a_constant_number_of_statements(self):
+        count = 400
+
+        with CaptureQueriesContext(connection) as inserting:
+            sync_media_artworks(self._detail(count), media_type="tv")
+        with CaptureQueriesContext(connection) as unchanged:
+            sync_media_artworks(self._detail(count), media_type="tv")
+        with CaptureQueriesContext(connection) as updating:
+            sync_media_artworks(
+                self._detail(count, score_offset=1),
+                media_type="tv",
+            )
+
+        self.assertEqual(MediaArtwork.objects.count(), count)
+        self.assertLess(len(inserting), 10)
+        self.assertLess(len(unchanged), 10)
+        self.assertLess(len(updating), 10)
+
+    def test_changed_values_are_written_and_stale_rows_are_pruned(self):
+        sync_media_artworks(self._detail(5), media_type="tv")
+
+        sync_media_artworks(self._detail(3, score_offset=100), media_type="tv")
+
+        rows = MediaArtwork.objects.order_by("image_url")
+        self.assertEqual(rows.count(), 3)
+        self.assertEqual(
+            sorted(row.score for row in rows),
+            [100.0, 101.0, 102.0],
+        )
+
+    def test_an_incomplete_response_keeps_rows_it_did_not_mention(self):
+        sync_media_artworks(self._detail(5), media_type="tv")
+
+        sync_media_artworks(
+            DetailDTO(
+                provider="tvdb",
+                external_id="121361",
+                title="Game of Thrones",
+                poster_path="https://artworks.thetvdb.com/only.jpg",
+                artworks=None,
+            ),
+            media_type="tv",
+        )
+
+        self.assertEqual(MediaArtwork.objects.count(), 6)
 
 
 class MediaArtworkServiceTests(TestCase):
