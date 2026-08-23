@@ -14,7 +14,7 @@ from apps.movies.models import Movie, UserMovie
 class MovieTaskTests(TransactionTestCase):
     @patch("apps.movies.tasks.get_provider")
     @patch("apps.movies.tasks.movie_services.import_movie")
-    def test_hydration_imports_each_provider_language_and_continues_after_failure(
+    def test_hydration_imports_once_instead_of_walking_every_language(
         self,
         import_movie,
         get_provider,
@@ -27,20 +27,28 @@ class MovieTaskTests(TransactionTestCase):
             LanguageOptionDTO("en-US", "English"),
             LanguageOptionDTO("pt-BR", "Português"),
         ]
-        import_movie.side_effect = [movie, ProviderError("pt failed")]
+        import_movie.return_value = movie
 
-        with self.assertRaisesMessage(ProviderError, "pt-BR"):
+        result = hydrate_movie_translations.func(movie.id)
+
+        # A detail response carries every translation at once, so the language
+        # list must not be walked. Genre names, the only per-language part,
+        # come from refresh_genre_catalog instead.
+        self.assertEqual(result, movie)
+        self.assertEqual(import_movie.call_count, 1)
+        self.assertEqual(import_movie.call_args.kwargs["language"], "en-US")
+        provider.list_languages.assert_not_called()
+
+    @patch("apps.movies.tasks.get_provider")
+    @patch("apps.movies.tasks.movie_services.import_movie")
+    def test_hydration_surfaces_provider_failures(self, import_movie, get_provider):
+        from apps.movies.tasks import hydrate_movie_translations
+
+        movie = Movie.objects.create(provider="tmdb", external_id="550", title="Fight Club")
+        import_movie.side_effect = ProviderError("tmdb is down")
+
+        with self.assertRaisesMessage(ProviderError, "tmdb is down"):
             hydrate_movie_translations.func(movie.id)
-
-        self.assertEqual(import_movie.call_count, 2)
-        self.assertEqual(
-            [call.kwargs["language"] for call in import_movie.call_args_list],
-            ["en-US", "pt-BR"],
-        )
-        self.assertEqual(
-            [call.kwargs["sync_artworks"] for call in import_movie.call_args_list],
-            [True, False],
-        )
 
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")

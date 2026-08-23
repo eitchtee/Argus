@@ -121,6 +121,10 @@ class EpisodeDTO:
 
 class BaseProvider(ABC):
     name: str
+    # Whether genre names differ per language. Providers that publish a single
+    # set of names are only asked for the catalog once instead of once per
+    # selectable language.
+    translates_genres: bool = False
 
     @abstractmethod
     def search(
@@ -156,4 +160,9 @@ class BaseProvider(ABC):
     def list_languages(self) -> list[LanguageOptionDTO]:
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support language listing."
+        )
+
+    def fetch_genres(self, *, media_type: str, language: str) -> list[GenreDTO]:
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support genre listing."
         )

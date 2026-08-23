@@ -606,6 +606,24 @@ class TVDBProvider(BaseProvider):
             )
         return self._series_extended_cache[external_id]
 
+    def fetch_genres(self, *, media_type: str = "tv", language: str = "eng") -> list[GenreDTO]:
+        # TVDB publishes one genre list with English names only. The language
+        # is accepted so the provider interface stays uniform, but there is
+        # nothing to translate, hence translates_genres staying False.
+        payload = self._get_json("/genres")
+        return [
+            GenreDTO(
+                provider=self.name,
+                external_id=str(genre["id"]),
+                name=genre.get("name") or "",
+                translations=(
+                    {"eng": {"name": genre["name"]}} if genre.get("name") else {}
+                ),
+            )
+            for genre in payload.get("data", [])
+            if genre.get("id") is not None
+        ]
+
     def list_languages(self) -> list[LanguageOptionDTO]:
         payload = self._get_json("/languages")
         return [

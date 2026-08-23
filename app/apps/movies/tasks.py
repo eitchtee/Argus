@@ -9,7 +9,6 @@ from apps.catalog.localization import (
     PROVIDER_DEFAULT_LANGUAGES,
     metadata_language_for_user,
 )
-from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.movies import services as movie_services
 from apps.movies.models import Movie, UserMovie
@@ -33,30 +32,19 @@ def track_movie(user_id: int, movie_id: int):
 
 @app.task(name="hydrate_movie_translations")
 def hydrate_movie_translations(movie_id: int):
+    # One detail response already carries every translation the provider has
+    # for a movie, so this no longer walks the language list. Genre names were
+    # the only per-language part, and refresh_genre_catalog now collects those
+    # once for every title instead of once per movie.
     movie = Movie.objects.get(id=movie_id)
     provider = get_provider(movie.provider)
-    failures = []
-    result = movie
-    default_language = PROVIDER_DEFAULT_LANGUAGES[movie.provider]
-    languages = dict.fromkeys(
-        [default_language, *(option.code for option in provider.list_languages())]
+    return movie_services.import_movie(
+        movie.provider,
+        movie.external_id,
+        language=PROVIDER_DEFAULT_LANGUAGES[movie.provider],
+        sync_artworks=True,
+        provider_getter=lambda _name: provider,
     )
-    for language in languages:
-        try:
-            result = movie_services.import_movie(
-                movie.provider,
-                movie.external_id,
-                language=language,
-                sync_artworks=language == default_language,
-                provider_getter=lambda _name: provider,
-            )
-        except ProviderError:
-            failures.append(language)
-    if failures:
-        raise ProviderError(
-            f"Movie translation hydration failed for: {', '.join(failures)}"
-        )
-    return result
 
 
 @app.task(name="sync_movie")

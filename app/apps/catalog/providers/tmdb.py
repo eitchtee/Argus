@@ -41,6 +41,7 @@ class TMDBProvider(BaseProvider):
     name = "tmdb"
     api_base_url = "https://api.themoviedb.org/3"
     poster_size = "w342"
+    translates_genres = True
 
     def __init__(
         self,
@@ -308,6 +309,24 @@ class TMDBProvider(BaseProvider):
                     )
                 )
         return episodes
+
+    def fetch_genres(self, *, media_type: str, language: str) -> list[GenreDTO]:
+        if media_type not in {"movie", "tv"}:
+            raise ValueError(f"Unsupported media type: {media_type}")
+
+        payload = self._get_json(f"/genre/{media_type}/list", {"language": language})
+        return [
+            GenreDTO(
+                provider=self.name,
+                external_id=str(genre["id"]),
+                name=genre.get("name") or "",
+                translations=(
+                    {language: {"name": genre["name"]}} if genre.get("name") else {}
+                ),
+            )
+            for genre in payload.get("genres", [])
+            if genre.get("id") is not None
+        ]
 
     def list_languages(self) -> list[LanguageOptionDTO]:
         primary_tags = self._get_json("/configuration/primary_translations", {})
