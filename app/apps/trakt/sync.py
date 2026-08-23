@@ -330,7 +330,9 @@ def _record_timestamp(record: dict, *, fallback: dict | None = None) -> datetime
 
 
 def _apply_remote_movies(user, remote, intents, local, report, *, initial: bool):
-    movie_cache: dict[str, Movie] = {}
+    movie_cache: dict[str, Movie | None] = {}
+    watched_movies_index = _media_index(remote.watched_movies.values())
+    watchlist_movies_index = _media_index(remote.watchlist_movies.values())
 
     def ensure(media):
         cache_key = media_identity_key(media)
@@ -339,6 +341,7 @@ def _apply_remote_movies(user, remote, intents, local, report, *, initial: bool)
                 movie, created = _ensure_movie(user, media)
             except (ProviderError, ValueError) as exc:
                 report.warnings.append(f"Movie import failed: {exc}")
+                movie_cache[cache_key] = None
                 return None
             movie_cache[cache_key] = movie
             if created:
@@ -359,41 +362,49 @@ def _apply_remote_movies(user, remote, intents, local, report, *, initial: bool)
         if movie is None:
             continue
         state, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
-        state.is_seen = True
+        changed_fields = []
+        if not state.is_seen:
+            state.is_seen = True
+            changed_fields.append("is_seen")
         if state.seen_at is None or watched.watched_at > state.seen_at:
             state.seen_at = watched.watched_at
-        state.on_watchlist = False
-        state.watchlist_added_at = None
-        state.save(
-            update_fields=[
-                "is_seen",
-                "seen_at",
-                "on_watchlist",
-                "watchlist_added_at",
-                "updated_at",
-            ]
-        )
+            changed_fields.append("seen_at")
+        if state.on_watchlist:
+            state.on_watchlist = False
+            changed_fields.append("on_watchlist")
+        if state.watchlist_added_at is not None:
+            state.watchlist_added_at = None
+            changed_fields.append("watchlist_added_at")
+        if changed_fields:
+            state.save(update_fields=[*changed_fields, "updated_at"])
 
     for media in remote.watchlist_movies.values():
-        movie = ensure(media)
-        if movie is None:
-            continue
         tokens = _media_tokens(media)
         if _pending_desired(intents, TraktSyncIntent.Kind.MOVIE_WATCHLIST, tokens) is False:
             continue
-        if _matching_remote_media(tokens, remote.watched_movies.values()) is not None:
+        if _matching_remote_media(tokens, watched_movies_index) is not None:
+            continue
+        movie = ensure(media)
+        if movie is None:
             continue
         state, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
-        if not state.is_seen:
+        if state.is_seen:
+            continue
+        changed_fields = []
+        if not state.on_watchlist:
             state.on_watchlist = True
+            changed_fields.append("on_watchlist")
+        if state.watchlist_added_at is None:
             state.watchlist_added_at = timezone.now()
-            state.save(update_fields=["on_watchlist", "watchlist_added_at", "updated_at"])
+            changed_fields.append("watchlist_added_at")
+        if changed_fields:
+            state.save(update_fields=[*changed_fields, "updated_at"])
 
     if not initial:
         for old_state in local.movie_watchlist:
             media = movie_payload(old_state.movie)
             tokens = _media_tokens(media)
-            if _matching_remote_media(tokens, remote.watchlist_movies.values()) is not None:
+            if _matching_remote_media(tokens, watchlist_movies_index) is not None:
                 continue
             if _pending_desired(intents, TraktSyncIntent.Kind.MOVIE_WATCHLIST, tokens) is True:
                 continue
@@ -405,7 +416,9 @@ def _apply_remote_movies(user, remote, intents, local, report, *, initial: bool)
 
 
 def _apply_remote_shows(user, remote, intents, local, report, *, initial: bool):
-    show_cache: dict[str, Show] = {}
+    show_cache: dict[str, Show | None] = {}
+    watchlist_shows_index = _media_index(remote.watchlist_shows.values())
+    dropped_shows_index = _media_index(remote.dropped_shows.values())
 
     def ensure(media):
         cache_key = media_identity_key(media)
@@ -414,6 +427,7 @@ def _apply_remote_shows(user, remote, intents, local, report, *, initial: bool):
                 show, created = _ensure_show(user, media)
             except (ProviderError, ValueError) as exc:
                 report.warnings.append(f"Show import failed: {exc}")
+                show_cache[cache_key] = None
                 return None
             show_cache[cache_key] = show
             if created:
@@ -544,11 +558,12 @@ def _apply_remote_shows(user, remote, intents, local, report, *, initial: bool):
             continue
         if _pending_desired(intents, TraktSyncIntent.Kind.SHOW_DROPPED, tokens) is True:
             continue
-        if _matching_remote_media(tokens, remote.dropped_shows.values()) is not None:
+        if _matching_remote_media(tokens, dropped_shows_index) is not None:
             continue
         user_show = ensure_user_show_cached(show, status=UserShow.Status.TRACKED)
-        user_show.on_watchlist = True
-        user_show.save(update_fields=["on_watchlist", "updated_at"])
+        if not user_show.on_watchlist:
+            user_show.on_watchlist = True
+            user_show.save(update_fields=["on_watchlist", "updated_at"])
 
     for watched in remote.watched_episodes.values():
         show = ensure(watched.show)
@@ -567,37 +582,44 @@ def _apply_remote_shows(user, remote, intents, local, report, *, initial: bool):
         if _pending_desired(intents, TraktSyncIntent.Kind.SHOW_DROPPED, tokens) is False:
             continue
         user_show = ensure_user_show_cached(show, status=UserShow.Status.DROPPED)
-        if user_show.status != UserShow.Status.PAUSED:
+        changed_fields = []
+        if user_show.status not in {UserShow.Status.PAUSED, UserShow.Status.DROPPED}:
             user_show.status = UserShow.Status.DROPPED
-        user_show.on_watchlist = False
-        user_show.save(update_fields=["status", "on_watchlist", "updated_at"])
+            changed_fields.append("status")
+        if user_show.on_watchlist:
+            user_show.on_watchlist = False
+            changed_fields.append("on_watchlist")
+        if changed_fields:
+            user_show.save(update_fields=[*changed_fields, "updated_at"])
+
+    if initial:
+        return
 
     for old_state in local.show_watchlist:
         media = show_payload(old_state.show)
         tokens = _media_tokens(media)
-        if _matching_remote_media(tokens, remote.watchlist_shows.values()) is not None:
+        if _matching_remote_media(tokens, watchlist_shows_index) is not None:
             continue
         if _pending_desired(intents, TraktSyncIntent.Kind.SHOW_WATCHLIST, tokens) is True:
             continue
-        if not initial:
-            UserShow.objects.filter(id=old_state.id).update(on_watchlist=False)
+        UserShow.objects.filter(id=old_state.id).update(on_watchlist=False)
 
     for old_state in local.show_dropped:
         media = show_payload(old_state.show)
         tokens = _media_tokens(media)
-        if _matching_remote_media(tokens, remote.dropped_shows.values()) is not None:
+        if _matching_remote_media(tokens, dropped_shows_index) is not None:
             continue
         if _pending_desired(intents, TraktSyncIntent.Kind.SHOW_DROPPED, tokens) is True:
             continue
-        if not initial:
-            state = UserShow.objects.filter(id=old_state.id).first()
-            if state is None:
-                continue
-            state.status = UserShow.Status.TRACKED
-            state.on_watchlist = (
-                _matching_remote_media(tokens, remote.watchlist_shows.values()) is not None
-            )
-            state.save(update_fields=["status", "on_watchlist", "updated_at"])
+        state = UserShow.objects.filter(id=old_state.id).first()
+        if state is None:
+            continue
+        state.status = UserShow.Status.TRACKED
+        state.on_watchlist = (
+            _matching_remote_media(tokens, watchlist_shows_index) is not None
+        )
+        state.save(update_fields=["status", "on_watchlist", "updated_at"])
+
 
 def _collect_local_snapshot(user) -> LocalSnapshot:
     return LocalSnapshot(
@@ -720,6 +742,12 @@ def _normalize_show_title(show: Show, media: dict) -> None:
 
 
 def _find_by_ids(model, media, *, user=None, user_state_relation: str | None = None):
+    """Look a record up by external id, preferring the user's own copy.
+
+    Identifiers are tried in ``trakt, imdb, tmdb, tvdb`` order; a single query
+    fetches every candidate so a library sync does not issue one round trip per
+    identifier per item.
+    """
     ids = ids_from_media(media)
     fields = [
         ("trakt_id", "trakt"),
@@ -729,26 +757,43 @@ def _find_by_ids(model, media, *, user=None, user_state_relation: str | None = N
     if ids.get("tmdb") in (None, ""):
         fields.append(("tvdb_id", "tvdb"))
 
-    def find(fields_to_search):
-        for field_name, provider_name in fields_to_search:
-            value = ids.get(provider_name)
-            if value in (None, ""):
-                continue
-            if user is not None and user_state_relation:
-                record = model.objects.filter(
-                    **{
-                        field_name: str(value),
-                        f"{user_state_relation}__user": user,
-                    }
-                ).first()
-                if record is not None:
-                    return record
-            record = model.objects.filter(**{field_name: str(value)}).first()
-            if record is not None:
-                return record
+    lookups = [
+        (field_name, str(ids[provider_name]))
+        for field_name, provider_name in fields
+        if ids.get(provider_name) not in (None, "")
+    ]
+    if not lookups:
         return None
 
-    return find(fields)
+    query = Q()
+    for field_name, value in lookups:
+        query |= Q(**{field_name: value})
+    candidates = list(model.objects.filter(query))
+    if not candidates:
+        return None
+
+    owned_ids: set[int] = set()
+    if user is not None and user_state_relation and len(candidates) > 1:
+        owned_ids = set(
+            model.objects.filter(
+                query,
+                **{f"{user_state_relation}__user": user},
+            ).values_list("id", flat=True)
+        )
+
+    for field_name, value in lookups:
+        matches = [
+            candidate
+            for candidate in candidates
+            if getattr(candidate, field_name) == value
+        ]
+        if not matches:
+            continue
+        for candidate in matches:
+            if candidate.id in owned_ids:
+                return candidate
+        return matches[0]
+    return None
 
 
 def _import_with_provider_fallback(ids: dict, provider_order, importer):
@@ -856,14 +901,13 @@ def _ensure_episodes_batch(
         )
         if episode is None:
             episode = conflicting_episode
-        elif (
-            conflicting_episode is not None
-            and conflicting_episode.id != episode.id
-            and conflicting_episode.show_id != show.id
-        ):
+        elif conflicting_episode is not None and conflicting_episode is not episode:
+            # The trakt id moved to another episode row; release it first so the
+            # reassignment below cannot trip the unique constraint.
             conflicting_episode.trakt_id = None
-            conflicting_ids_to_clear.add(conflicting_episode.id)
-            updates_by_id[conflicting_episode.id] = conflicting_episode
+            if conflicting_episode.id is not None:
+                conflicting_ids_to_clear.add(conflicting_episode.id)
+                updates_by_id[conflicting_episode.id] = conflicting_episode
         season = seasons[(show.id, watched.season_number)]
         if episode is None:
             episode = Episode(
@@ -976,25 +1020,29 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
     dropped_add = []
     dropped_remove = []
     remote_episode_index = _remote_episode_index(remote.watched_episodes.values())
+    watchlist_movies_index = _media_index(remote.watchlist_movies.values())
+    watchlist_shows_index = _media_index(remote.watchlist_shows.values())
+    watched_movies_index = _media_index(remote.watched_movies.values())
+    dropped_shows_index = _media_index(remote.dropped_shows.values())
 
     if initial:
         for state in local.movie_watchlist:
             payload = movie_payload(state.movie)
-            if _matching_remote_media(_media_tokens(payload), remote.watchlist_movies.values()) is None:
+            if _matching_remote_media(_media_tokens(payload), watchlist_movies_index) is None:
                 _append_unique(watch_add_movies, payload)
         for state in local.show_watchlist:
             payload = show_payload(state.show)
-            if _matching_remote_media(_media_tokens(payload), remote.watchlist_shows.values()) is None:
+            if _matching_remote_media(_media_tokens(payload), watchlist_shows_index) is None:
                 _append_unique(watch_add_shows, payload)
         for state in local.show_dropped:
             payload = show_payload(state.show)
-            if _matching_remote_media(_media_tokens(payload), remote.dropped_shows.values()) is None:
+            if _matching_remote_media(_media_tokens(payload), dropped_shows_index) is None:
                 _append_unique(dropped_add, payload)
 
     for state in local.movie_history:
         payload = movie_payload(state.movie, watched_at=state.seen_at)
         remote_watch = _matching_remote_media(
-            _media_tokens(payload), remote.watched_movies.values()
+            _media_tokens(payload), watched_movies_index
         )
         remote_time = remote_watch.watched_at if remote_watch else None
         if remote_time is None:
@@ -1014,7 +1062,7 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
         if kind == TraktSyncIntent.Kind.MOVIE_WATCHLIST:
             target = watch_add_movies if intent.desired else watch_remove_movies
             remote_present = _matching_remote_media(
-                _media_tokens(payload), remote.watchlist_movies.values()
+                _media_tokens(payload), watchlist_movies_index
             ) is not None
             if intent.desired and not remote_present:
                 _append_unique(target, _payload_media(payload, "movie"))
@@ -1023,7 +1071,7 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
         elif kind == TraktSyncIntent.Kind.SHOW_WATCHLIST:
             target = watch_add_shows if intent.desired else watch_remove_shows
             remote_present = _matching_remote_media(
-                _media_tokens(payload), remote.watchlist_shows.values()
+                _media_tokens(payload), watchlist_shows_index
             ) is not None
             if intent.desired and not remote_present:
                 _append_unique(target, _payload_media(payload, "show"))
@@ -1031,7 +1079,7 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
                 _append_unique(target, _payload_media(payload, "show"))
         elif kind == TraktSyncIntent.Kind.MOVIE_HISTORY:
             remote_watch = _matching_remote_media(
-                _media_tokens(payload), remote.watched_movies.values()
+                _media_tokens(payload), watched_movies_index
             )
             if intent.desired and remote_watch is None:
                 _append_unique(history_movies, _payload_media(payload, "movie"))
@@ -1052,7 +1100,7 @@ def _build_outbound(user, remote, local, intents, *, initial: bool) -> dict:
         elif kind == TraktSyncIntent.Kind.SHOW_DROPPED:
             target = dropped_add if intent.desired else dropped_remove
             remote_present = _matching_remote_media(
-                _media_tokens(payload), remote.dropped_shows.values()
+                _media_tokens(payload), dropped_shows_index
             ) is not None
             if intent.desired and not remote_present:
                 _append_unique(target, _payload_media(payload, "show"))
@@ -1101,30 +1149,36 @@ def _send_outbound(client, outbound: dict) -> int:
 
 
 def _acknowledge_intents(intents, remote):
+    if not intents:
+        return
     remote_episode_index = _remote_episode_index(remote.watched_episodes.values())
+    watchlist_movies_index = _media_index(remote.watchlist_movies.values())
+    watchlist_shows_index = _media_index(remote.watchlist_shows.values())
+    watched_movies_index = _media_index(remote.watched_movies.values())
+    dropped_shows_index = _media_index(remote.dropped_shows.values())
     for intent in intents:
         payload = intent.payload
         if intent.kind == TraktSyncIntent.Kind.MOVIE_WATCHLIST:
             present = _matching_remote_media(
-                _media_tokens(payload), remote.watchlist_movies.values()
+                _media_tokens(payload), watchlist_movies_index
             ) is not None
             if present == intent.desired:
                 _delete_intent_if_unchanged(intent)
         elif intent.kind == TraktSyncIntent.Kind.SHOW_WATCHLIST:
             present = _matching_remote_media(
-                _media_tokens(payload), remote.watchlist_shows.values()
+                _media_tokens(payload), watchlist_shows_index
             ) is not None
             if present == intent.desired:
                 _delete_intent_if_unchanged(intent)
         elif intent.kind == TraktSyncIntent.Kind.SHOW_DROPPED:
             present = _matching_remote_media(
-                _media_tokens(payload), remote.dropped_shows.values()
+                _media_tokens(payload), dropped_shows_index
             ) is not None
             if present == intent.desired:
                 _delete_intent_if_unchanged(intent)
         elif intent.kind == TraktSyncIntent.Kind.MOVIE_HISTORY:
             remote_watch = _matching_remote_media(
-                _media_tokens(payload), remote.watched_movies.values()
+                _media_tokens(payload), watched_movies_index
             )
             if (remote_watch is not None) == intent.desired:
                 _delete_intent_if_unchanged(intent)
@@ -1165,7 +1219,16 @@ def _clear_removed_episode_cache(account, payloads):
     if not candidates:
         return
 
-    rows = TraktWatchedEpisode.objects.filter(account=account)
+    position_filter = Q()
+    for _identity_key, _show_tokens, season_number, episode_number in candidates:
+        position_filter |= Q(
+            season_number=season_number,
+            episode_number=episode_number,
+        )
+    rows = TraktWatchedEpisode.objects.filter(account=account).filter(
+        Q(identity_key__in={identity_key for identity_key, *_rest in candidates})
+        | position_filter
+    )
     delete_ids = []
     for row in rows:
         row_tokens = _media_tokens(row.show_data)
@@ -1239,7 +1302,23 @@ def _media_tokens(media: dict) -> set[str]:
     }
 
 
+def _media_index(values) -> dict[str, object]:
+    """Map every identifier token of ``values`` to the first entry carrying it."""
+    index: dict[str, object] = {}
+    for value in values:
+        media = value.media if isinstance(value, WatchedMovie) else value
+        for token in _media_tokens(media):
+            index.setdefault(token, value)
+    return index
+
+
 def _matching_remote_media(tokens: set[str], values) -> object | None:
+    if isinstance(values, dict):
+        for token in tokens:
+            match = values.get(token)
+            if match is not None:
+                return match
+        return None
     for value in values:
         media = value.media if isinstance(value, WatchedMovie) else value
         if tokens.intersection(_media_tokens(media)):

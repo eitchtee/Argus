@@ -966,3 +966,101 @@ class TraktSyncTests(TestCase):
         )
 
         self.assertTrue(TraktSyncIntent.objects.filter(id=intent.id).exists())
+
+    def test_watchlist_sync_keeps_the_original_watchlist_timestamp(self):
+        movie = Movie.objects.create(
+            external_id="550",
+            trakt_id="5500",
+            tmdb_id="550",
+            title="Fight Club",
+        )
+        added_at = timezone.now() - timedelta(days=30)
+        UserMovie.objects.create(
+            user=self.user,
+            movie=movie,
+            on_watchlist=True,
+            watchlist_added_at=added_at,
+        )
+        client = FakeTraktClient(
+            TraktSnapshot(
+                watchlist_movies=[{"movie": {"ids": {"trakt": 5500, "tmdb": 550}}}],
+                watchlist_shows=[],
+                watched_movies=[],
+                watched_shows=[],
+                dropped_shows=[],
+            )
+        )
+
+        sync_account(self.account.id, client_factory=client_factory(client))
+
+        state = UserMovie.objects.get(user=self.user, movie=movie)
+        self.assertTrue(state.on_watchlist)
+        self.assertAlmostEqual(
+            state.watchlist_added_at.timestamp(),
+            added_at.timestamp(),
+            places=3,
+        )
+
+    def test_a_failing_show_import_is_only_attempted_once_per_sync(self):
+        snapshot = TraktSnapshot(
+            watchlist_movies=[],
+            watchlist_shows=[{"show": {"title": "Nope", "ids": {"trakt": 4242}}}],
+            watched_movies=[],
+            watched_shows=[{"show": {"title": "Nope", "ids": {"trakt": 4242}}}],
+            dropped_shows=[],
+            watched_episodes=[
+                {
+                    "watched_at": timezone.now().isoformat(),
+                    "show": {"title": "Nope", "ids": {"trakt": 4242}},
+                    "episode": {"season": 1, "number": 1, "ids": {"trakt": 91}},
+                }
+            ],
+        )
+        client = FakeTraktClient(snapshot)
+
+        with patch(
+            "apps.trakt.sync.tv_services.import_show",
+            side_effect=ProviderError("missing"),
+        ) as import_show:
+            report = sync_account(self.account.id, client_factory=client_factory(client))
+
+        self.assertEqual(import_show.call_count, 0)
+        self.assertEqual(len(report.warnings), 1)
+        self.assertFalse(UserShow.objects.filter(user=self.user).exists())
+
+    def test_reused_episode_trakt_id_within_a_show_does_not_break_the_sync(self):
+        show = Show.objects.create(
+            provider="tvdb",
+            external_id="7000",
+            trakt_id="1000",
+            name="The Series",
+        )
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=1,
+            trakt_id="55",
+            name="First",
+        )
+        Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=2,
+            name="Second",
+        )
+        watched = WatchedEpisode(
+            show={"ids": {"trakt": 1000}},
+            episode={"ids": {"trakt": 55}, "title": "Second"},
+            season_number=1,
+            episode_number=2,
+            watched_at=timezone.now(),
+        )
+
+        episodes = _ensure_episodes_batch([(watched, show)])
+
+        moved = episodes[(show.id, 1, 2)]
+        self.assertEqual(moved.trakt_id, "55")
+        self.assertIsNone(Episode.objects.get(season_number=1, episode_number=1).trakt_id)
