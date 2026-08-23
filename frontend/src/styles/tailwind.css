@@ -963,6 +963,16 @@
     }
 }
 
+/* daisyUI ships `.modal` at z-999, which puts it under the z-1020 `.sidebar` and
+   leaves the sidebar poking through the backdrop. Lift modals over the sidebar but
+   keep them below SweetAlert2 (1060) and the toasts / tom-select dropdowns (1100),
+   which a modal can raise and which must stay on top of it.
+   Unlayered on purpose: daisyUI emits `.modal` into the `utilities` layer, which
+   outranks `components` no matter how specific the selector is. */
+dialog.modal {
+    z-index: 1050;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .detail-link,
     .provider-logo,
