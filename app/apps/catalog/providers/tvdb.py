@@ -134,6 +134,7 @@ class TVDBProvider(BaseProvider):
     artwork_base_url = "https://artworks.thetvdb.com/"
     token_cache_key = "catalog:tvdb:token"
     token_cache_timeout = 60 * 60 * 24
+    search_page_size = 20
 
     def __init__(self, *, api_key: str | None = None, opener=urlopen, timeout: int = 10):
         self.api_key = settings.TVDB_API_KEY if api_key is None else api_key
@@ -158,18 +159,14 @@ class TVDBProvider(BaseProvider):
                 "query": query,
                 "type": "series" if media_type == "tv" else "movie",
                 # Our UI pages are 1-indexed; TVDB exposes zero-indexed offsets.
-                "offset": page - 1,
-                "limit": 1,
+                "offset": (page - 1) * self.search_page_size,
+                "limit": self.search_page_size,
             },
         )
 
         results = []
         for item in payload.get("data", []):
-            item = self._localize_search_item(
-                item,
-                language=language,
-                media_type=media_type,
-            )
+            item = self._localize_search_item(item, language=language)
             results.append(
                 SearchResultDTO(
                     provider=self.name,
@@ -186,54 +183,21 @@ class TVDBProvider(BaseProvider):
             )
         return results
 
-    def _localize_search_item(
-        self,
-        item: dict,
-        *,
-        language: str,
-        media_type: str,
-    ) -> dict:
-        external_id = item.get("tvdb_id") or item.get("movie_id") or item.get("id")
-        if not external_id:
-            return item
-
-        entity = "series" if media_type == "tv" else "movies"
-        translated = self._search_translation(
-            entity,
-            external_id,
-            language,
-        )
-
-        if language != "eng" and (
-            not translated.get("name") or not translated.get("overview")
-        ):
-            english = self._search_translation(entity, external_id, "eng")
-            translated = {
-                **english,
-                **{key: value for key, value in translated.items() if value},
-            }
-
+    def _localize_search_item(self, item: dict, *, language: str) -> dict:
+        # Search results already carry every translated name and overview, so
+        # localizing them costs no extra request. Asking the translation
+        # endpoint per result is what forced the page size down to one.
+        names = item.get("translations") or {}
+        overviews = item.get("overviews") or {}
         return {
             **item,
-            "name": translated.get("name") or item.get("name"),
-            "overview": translated.get("overview") or item.get("overview"),
+            "name": names.get(language) or names.get("eng") or item.get("name"),
+            "overview": (
+                overviews.get(language)
+                or overviews.get("eng")
+                or item.get("overview")
+            ),
         }
-
-    def _search_translation(
-        self,
-        entity: str,
-        external_id: object,
-        language: str,
-    ) -> dict:
-        try:
-            payload = self._get_json(
-                f"/{entity}/{external_id}/translations/{language}"
-            )
-        except NotFound:
-            return {}
-
-        translation = payload.get("data") or {}
-        return translation if isinstance(translation, dict) else {}
 
     def fetch_detail(
         self,

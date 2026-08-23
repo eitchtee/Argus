@@ -124,7 +124,7 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(results[0].year, 2020)
         self.assertIn("type=movie", opener.requests[0][0].full_url)
 
-    def test_search_uses_requested_translation(self):
+    def test_search_uses_requested_translation_without_extra_requests(self):
         cache.set("catalog:tvdb:token", "existing-token")
         opener = SequenceOpener(
             [
@@ -137,15 +137,13 @@ class TVDBProviderTests(SimpleTestCase):
                             "year": "2022",
                             "image_url": "https://artworks.thetvdb.com/from.jpg",
                             "overview": "An English overview.",
+                            "translations": {"eng": "FROM", "por": "Origem"},
+                            "overviews": {
+                                "eng": "An English overview.",
+                                "por": "Uma sinopse em português.",
+                            },
                         }
                     ],
-                },
-                {
-                    "status": "success",
-                    "data": {
-                        "name": "Origem",
-                        "overview": "Uma sinopse em português.",
-                    },
                 },
             ]
         )
@@ -155,9 +153,36 @@ class TVDBProviderTests(SimpleTestCase):
 
         self.assertEqual(results[0].title, "Origem")
         self.assertEqual(results[0].overview, "Uma sinopse em português.")
-        self.assertIn("/series/401003/translations/por", opener.requests[1][0].full_url)
+        self.assertEqual(len(opener.requests), 1)
 
     def test_search_falls_back_to_english_translation(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener(
+            [
+                {
+                    "status": "success",
+                    "data": [
+                        {
+                            "tvdb_id": "394756",
+                            "name": "Lupin",
+                            "year": "2021",
+                            "overview": "Un cambrioleur français.",
+                            "translations": {"eng": "Lupin"},
+                            "overviews": {"eng": "A gentleman thief seeks revenge."},
+                        }
+                    ],
+                },
+            ]
+        )
+        provider = TVDBProvider(opener=opener)
+
+        results = provider.search("Lupin", language="por")
+
+        self.assertEqual(results[0].title, "Lupin")
+        self.assertEqual(results[0].overview, "A gentleman thief seeks revenge.")
+        self.assertEqual(len(opener.requests), 1)
+
+    def test_search_keeps_raw_values_when_no_translation_is_offered(self):
         cache.set("catalog:tvdb:token", "existing-token")
         opener = SequenceOpener(
             [
@@ -172,17 +197,6 @@ class TVDBProviderTests(SimpleTestCase):
                         }
                     ],
                 },
-                http_error(
-                    "https://api4.thetvdb.com/v4/series/394756/translations/por",
-                    404,
-                ),
-                {
-                    "status": "success",
-                    "data": {
-                        "name": "Lupin",
-                        "overview": "A gentleman thief seeks revenge.",
-                    },
-                },
             ]
         )
         provider = TVDBProvider(opener=opener)
@@ -190,9 +204,18 @@ class TVDBProviderTests(SimpleTestCase):
         results = provider.search("Lupin", language="por")
 
         self.assertEqual(results[0].title, "Lupin")
-        self.assertEqual(results[0].overview, "A gentleman thief seeks revenge.")
-        self.assertIn("/series/394756/translations/por", opener.requests[1][0].full_url)
-        self.assertIn("/series/394756/translations/eng", opener.requests[2][0].full_url)
+        self.assertEqual(results[0].overview, "Un cambrioleur français.")
+
+    def test_search_requests_a_full_page_and_offsets_by_page_size(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener([{"status": "success", "data": []}])
+        provider = TVDBProvider(opener=opener)
+
+        provider.search("lupin", language="eng", page=3)
+
+        url = opener.requests[0][0].full_url
+        self.assertIn(f"limit={TVDBProvider.search_page_size}", url)
+        self.assertIn(f"offset={2 * TVDBProvider.search_page_size}", url)
 
     def test_fetch_detail_normalizes_movie_extended_response(self):
         cache.set("catalog:tvdb:token", "existing-token")
@@ -303,23 +326,12 @@ class TVDBProviderTests(SimpleTestCase):
 
     def test_cached_token_avoids_login_call(self):
         cache.set("catalog:tvdb:token", "existing-token")
-        opener = SequenceOpener(
-            [
-                load_fixture("tvdb_search.json"),
-                {
-                    "status": "success",
-                    "data": {
-                        "name": "Game of Thrones",
-                        "overview": "Nine noble families fight for control.",
-                    },
-                },
-            ]
-        )
+        opener = SequenceOpener([load_fixture("tvdb_search.json")])
         provider = TVDBProvider(opener=opener)
 
         provider.search("game of thrones", language="eng")
 
-        self.assertEqual(len(opener.requests), 2)
+        self.assertEqual(len(opener.requests), 1)
         self.assertIn("/search", opener.requests[0][0].full_url)
         self.assertEqual(opener.requests[0][0].headers["Authorization"], "Bearer existing-token")
 
@@ -649,18 +661,6 @@ class TVDBProviderTests(SimpleTestCase):
             {"name": "Winter Is Coming", "overview": "Episode overview."},
         )
 
-    def test_fetch_episodes_uses_tvdb_aired_order(self):
-        cache.set("catalog:tvdb:token", "existing-token")
-        opener = SequenceOpener(
-            [
-                {
-                    "status": "success",
-                    "data": {
-                        "episodes": [
-                            {
-                                "seasonNumber": 1,
-                                "number": 1,
-                                "name": "2017: Wiley Giraffe Blower",
     def test_fetch_episodes_follows_pagination_until_the_show_is_whole(self):
         cache.set("catalog:tvdb:token", "existing-token")
         opener = SequenceOpener(
@@ -734,6 +734,18 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(len(episodes), 1)
         self.assertEqual(len(opener.requests), 2)
 
+    def test_fetch_episodes_uses_tvdb_aired_order(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener(
+            [
+                {
+                    "status": "success",
+                    "data": {
+                        "episodes": [
+                            {
+                                "seasonNumber": 1,
+                                "number": 1,
+                                "name": "2017: Wiley Giraffe Blower",
                                 "aired": "2017-12-13",
                             },
                             {
@@ -860,13 +872,6 @@ class TVDBProviderTests(SimpleTestCase):
                 http_error("https://api4.thetvdb.com/v4/search", 401),
                 load_fixture("tvdb_login.json"),
                 load_fixture("tvdb_search.json"),
-                {
-                    "status": "success",
-                    "data": {
-                        "name": "Game of Thrones",
-                        "overview": "Nine noble families fight for control.",
-                    },
-                },
             ]
         )
         provider = TVDBProvider(opener=opener)
@@ -874,7 +879,7 @@ class TVDBProviderTests(SimpleTestCase):
         results = provider.search("game of thrones", language="eng")
 
         self.assertEqual(results[0].external_id, "121361")
-        self.assertEqual(len(opener.requests), 4)
+        self.assertEqual(len(opener.requests), 3)
         self.assertEqual(opener.requests[0][0].headers["Authorization"], "Bearer expired-token")
         self.assertIn("/login", opener.requests[1][0].full_url)
         self.assertEqual(opener.requests[2][0].headers["Authorization"], "Bearer cached-tvdb-token")
