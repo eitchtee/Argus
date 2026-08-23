@@ -259,6 +259,15 @@ CACHES = {
     }
 }
 
+if "test" in sys.argv:
+    # The default cache is a directory on disk that a running container shares,
+    # so the cache.clear() calls throughout the suite would otherwise wipe live
+    # data -- including the metadata language catalog, leaving the settings page
+    # offering English alone until something refilled it.
+    CACHES = {
+        "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    }
+
 DJANGO_VITE_ASSETS_PATH = STATIC_ROOT
 DJANGO_VITE_MANIFEST_PATH = DJANGO_VITE_ASSETS_PATH / "manifest.json"
 DJANGO_VITE_DEV_MODE = os.getenv("DJANGO_VITE_DEV_MODE", "false").lower() == "true"
