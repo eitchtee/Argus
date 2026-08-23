@@ -320,6 +320,11 @@
 
     .poster-card__badge {
         @apply pointer-events-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full border shadow-md;
+        --lucide-scale: 1.05;
+    }
+
+    .poster-card__badge svg.lucide {
+        @apply block;
     }
 
     .poster-card__badge i {
