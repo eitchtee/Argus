@@ -3,6 +3,8 @@ from datetime import time
 from unittest.mock import Mock
 
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.test import TestCase
 from django.utils import timezone
 
@@ -316,6 +318,32 @@ class ShowImportTests(TestCase):
         preserved = UserEpisode.objects.get(user=user, episode=watched_episode)
         self.assertEqual(preserved.seen_at, seen_at)
         self.assertFalse(UserEpisode.objects.filter(user=user, episode=stale_episode).exists())
+
+    def test_import_show_query_count_does_not_grow_per_episode_lookup(self):
+        def reimport_queries(external_id, episode_count):
+            provider = FakeProvider(
+                detail=show_detail(external_id=external_id),
+                episodes=[
+                    episode(episode_number=number)
+                    for number in range(1, episode_count + 1)
+                ],
+                seasons=[SeasonDTO(season_number=1, name="Season 1")],
+            )
+            import_show(external_id, provider_getter=lambda _: provider)
+            with CaptureQueriesContext(connection) as captured:
+                import_show(external_id, provider_getter=lambda _: provider)
+            return len(captured)
+
+        small, large = 5, 40
+        marginal_queries = (
+            reimport_queries("900001", large) - reimport_queries("900002", small)
+        ) / (large - small)
+
+        # update_or_create already costs a savepoint pair plus a SELECT and a
+        # write per episode. Reading the stored translations must not add a
+        # fifth query on top, or a 900-episode show pays for it again in every
+        # hydrated language.
+        self.assertLessEqual(marginal_queries, 4)
 
     def test_import_show_creates_seasons_without_episodes(self):
         provider = FakeProvider(

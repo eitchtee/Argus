@@ -270,14 +270,19 @@ def import_show(
         }
         incoming_season_numbers = set(seasons_by_number)
         incoming_season_numbers.update(item.season_number for item in episodes)
+        # Translations are merged onto whatever is already stored, so the rows
+        # are read once up front rather than once per season and per episode.
+        # Long-running shows reconcile hundreds of episodes on every sync, and
+        # hydration repeats that for every translated language.
+        existing_seasons = {
+            season.season_number: season
+            for season in Season.objects.filter(show=show)
+        }
         seasons = {}
         for season_number in sorted(incoming_season_numbers):
             season_detail = seasons_by_number.get(season_number)
             selected_season = selected_seasons_by_number.get(season_number)
-            existing_season = Season.objects.filter(
-                show=show,
-                season_number=season_number,
-            ).first()
+            existing_season = existing_seasons.get(season_number)
             seasons[season_number] = Season.objects.update_or_create(
                 show=show,
                 season_number=season_number,
@@ -296,17 +301,16 @@ def import_show(
         incoming_episode_keys = {
             (item.season_number, item.episode_number) for item in episodes
         }
+        existing_episodes = {
+            (episode.season_number, episode.episode_number): episode
+            for episode in Episode.objects.filter(show=show)
+        }
         for item in episodes:
             season = seasons[item.season_number]
-            selected_item = selected_episodes_by_key.get(
-                (item.season_number, item.episode_number)
-            )
-            existing_episode = Episode.objects.filter(
-                show=show,
-                season_number=item.season_number,
-                episode_number=item.episode_number,
-            ).first()
-            Episode.objects.update_or_create(
+            episode_key = (item.season_number, item.episode_number)
+            selected_item = selected_episodes_by_key.get(episode_key)
+            existing_episode = existing_episodes.get(episode_key)
+            existing_episodes[episode_key], _ = Episode.objects.update_or_create(
                 show=show,
                 season_number=item.season_number,
                 episode_number=item.episode_number,
