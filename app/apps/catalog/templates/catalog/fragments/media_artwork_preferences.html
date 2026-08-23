@@ -4,7 +4,7 @@
   <div class="modal-box max-w-6xl border border-base-300 bg-base-100 p-0 shadow-2xl">
     <form method="dialog" class="contents">
       <button type="submit" class="btn btn-circle btn-ghost absolute right-3 top-3 z-10" aria-label="{% trans 'Close' %}">
-        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        <i data-lucide="x" aria-hidden="true"></i>
       </button>
     </form>
 
@@ -14,14 +14,14 @@
           class="space-y-7 p-5 sm:p-7">
       {% csrf_token %}
       <header class="max-w-2xl space-y-2 pr-10">
-        <p class="detail-eyebrow"><i class="fa-solid fa-wand-magic-sparkles text-primary" aria-hidden="true"></i>{% trans "Personalize this media" %}</p>
+        <p class="detail-eyebrow"><i data-lucide="wand-sparkles" class="text-primary" aria-hidden="true"></i>{% trans "Personalize this media" %}</p>
         <h2 class="text-2xl font-bold tracking-tight">{{ media_title }}</h2>
         <p class="text-sm leading-6 text-base-content/65">{% trans "These choices apply only to your profile. Automatic uses your profile language and the provider's default artwork." %}</p>
       </header>
 
       {% if form.non_field_errors %}
       <div class="alert alert-error" role="alert">
-        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+        <i data-lucide="circle-alert" aria-hidden="true"></i>
         <div>{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
       </div>
       {% endif %}
@@ -56,7 +56,7 @@
                 @click="expanded = ! expanded"
                 :aria-expanded="expanded"
                 aria-controls="poster-picker-content">
-          <i class="fa-solid fa-image text-primary" aria-hidden="true"></i>
+          <i data-lucide="image" class="text-primary" aria-hidden="true"></i>
           <span>{% trans "Poster" %}</span>
         </button>
         <div id="poster-picker-content"
@@ -68,7 +68,7 @@
           <div class="artwork-picker-grid">
             <label class="artwork-picker-card">
               <input type="radio" name="poster_artwork_id" value="" class="sr-only" {% if not form.poster_artwork_id.value %}checked{% endif %}>
-              <div class="artwork-picker-card__image artwork-picker-card__image--empty"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></div>
+              <div class="artwork-picker-card__image artwork-picker-card__image--empty"><i data-lucide="wand-sparkles" aria-hidden="true"></i></div>
               <span class="artwork-picker-card__title">{% trans "Automatic" %}</span>
               <span class="artwork-picker-card__meta">{% trans "Profile language" %}</span>
             </label>
@@ -95,7 +95,7 @@
                 @click="expanded = ! expanded"
                 :aria-expanded="expanded"
                 aria-controls="background-picker-content">
-          <i class="fa-solid fa-panorama text-primary" aria-hidden="true"></i>
+          <i data-lucide="gallery-horizontal-end" class="text-primary" aria-hidden="true"></i>
           <span>{% trans "Background" %}</span>
         </button>
         <div id="background-picker-content"
@@ -107,7 +107,7 @@
           <div class="artwork-picker-grid artwork-picker-grid--background">
             <label class="artwork-picker-card artwork-picker-card--wide">
               <input type="radio" name="background_artwork_id" value="" class="sr-only" {% if not form.background_artwork_id.value %}checked{% endif %}>
-              <div class="artwork-picker-card__image artwork-picker-card__image--empty"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></div>
+              <div class="artwork-picker-card__image artwork-picker-card__image--empty"><i data-lucide="wand-sparkles" aria-hidden="true"></i></div>
               <span class="artwork-picker-card__title">{% trans "Automatic" %}</span>
               <span class="artwork-picker-card__meta">{% trans "Provider default" %}</span>
             </label>
@@ -129,7 +129,7 @@
       <footer class="modal-action border-t border-base-300 pt-5">
         <button type="button" class="btn btn-ghost" onclick="this.closest('dialog').close()">{% trans "Cancel" %}</button>
         <button type="submit" class="btn btn-primary" hx-disabled-elt="this">
-          <i class="fa-solid fa-check" aria-hidden="true"></i>
+          <i data-lucide="check" aria-hidden="true"></i>
           {% trans "Save choices" %}
         </button>
       </footer>

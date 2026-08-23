@@ -364,7 +364,7 @@ class CalendarViewTests(TestCase):
 
         self.assertContains(response, 'href="/calendar/"')
         self.assertContains(response, "Calendar")
-        self.assertContains(response, "fa-calendar")
+        self.assertContains(response, 'data-lucide="calendar-days"')
         self.assertContains(fragment_response, 'class="modal"')
         self.assertContains(fragment_response, 'id="calendar-event-details"')
         self.assertContains(fragment_response, 'data-copy-target="#calendar-feed-url"')

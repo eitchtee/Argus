@@ -4,11 +4,11 @@
   <section class="calendar-month-bar">
     <nav class="calendar-month-nav" aria-label="{% trans 'Change month' %}">
       <a class="btn btn-ghost btn-sm btn-square" href="?{{ previous_query }}" hx-boost="true" aria-label="{% trans 'Previous month' %}">
-        <i class="fa-solid fa-chevron-left"></i>
+        <i data-lucide="chevron-left"></i>
       </a>
       <h2 class="calendar-month-name">{% user_month month %}</h2>
       <a class="btn btn-ghost btn-sm btn-square" href="?{{ next_query }}" hx-boost="true" aria-label="{% trans 'Next month' %}">
-        <i class="fa-solid fa-chevron-right"></i>
+        <i data-lucide="chevron-right"></i>
       </a>
     </nav>
     <a class="btn btn-outline btn-sm" href="?{{ current_query }}" hx-boost="true">{% trans "Today" %}</a>
@@ -52,7 +52,7 @@
 
   {% if not has_events %}
   <section class="calendar-empty-state surface-card rounded-box p-8 text-center" aria-live="polite">
-    <i class="fa-regular fa-calendar-xmark text-3xl text-primary/70"></i>
+    <i data-lucide="calendar-x" class="text-3xl text-primary/70"></i>
     <p class="mt-3 font-semibold">{% trans "No releases in this month" %}</p>
     <p class="mt-1 text-sm text-base-content/60">{% trans "Try another month or enable more release types." %}</p>
   </section>
@@ -121,7 +121,7 @@
                value="{{ feed_url }}" readonly aria-label="{% trans 'Calendar feed URL' %}">
         <button type="button" class="btn btn-outline h-10 min-h-10 shrink-0 text-xs" data-copy-target="#calendar-feed-url"
                 data-copied-label="{% trans 'Copied' %}">
-          <i class="fa-regular fa-copy"></i>
+          <i data-lucide="copy"></i>
           <span>{% trans "Copy" %}</span>
         </button>
       </div>

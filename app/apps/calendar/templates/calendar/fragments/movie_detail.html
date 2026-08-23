@@ -25,6 +25,6 @@
   </dl>
 
   <a class="btn btn-primary w-full" href="{% url 'movie-detail' external_id=event.external_id %}{% if event.provider != 'tmdb' %}?provider={{ event.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML">
-    {% trans "Open movie" %} <i class="fa-solid fa-arrow-up-right-from-square"></i>
+    {% trans "Open movie" %} <i data-lucide="external-link"></i>
   </a>
 </div>

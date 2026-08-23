@@ -88,7 +88,7 @@ class MovieWatchedViewTests(TestCase):
         )
 
         self.assertContains(response, "No Poster")
-        self.assertContains(response, "fa-film")
+        self.assertContains(response, 'data-lucide="film"')
         self.assertNotContains(response, 'src=""')
 
     def test_empty_watched_list_renders_empty_state(self):

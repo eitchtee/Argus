@@ -149,9 +149,9 @@ class HistoryViewTests(TestCase):
 
         response = self.client.get(reverse("history-page"), HTTP_HX_REQUEST="true")
 
-        self.assertContains(response, "fa-xmark")
+        self.assertContains(response, 'data-lucide="x"')
         self.assertContains(response, "text-error")
-        self.assertNotContains(response, "fa-rotate-left")
+        self.assertNotContains(response, 'data-lucide="rotate-ccw"')
 
     def test_empty_history_renders_empty_state(self):
         response = self.client.get(reverse("history-page"), HTTP_HX_REQUEST="true")

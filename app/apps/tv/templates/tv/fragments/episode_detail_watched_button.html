@@ -13,7 +13,7 @@
             class="btn btn-sm join-item media-action-button btn-success"
             hx-{% if watched %}delete{% else %}post{% endif %}="{% url 'tv-episode-detail-watched' external_id=show_external_id episode_id=episode_id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
             hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this">
-      <i class="fa-solid fa-{% if watched %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
+      <i data-lucide="{% if watched %}eye-off{% else %}eye{% endif %}" aria-hidden="true"></i>
     </button>
   </div>
 </div>

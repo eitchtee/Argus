@@ -118,7 +118,7 @@ class ShowDetailViewTests(TestCase):
 
         self.assertContains(response, 'class="media-status media-status--success"')
         self.assertContains(response, "Ended")
-        self.assertContains(response, "fa-circle-check")
+        self.assertContains(response, 'data-lucide="circle-check"')
 
     @patch("apps.tv.views._build_show_context")
     def test_htmx_page_shell_defers_show_context(self, build_show_context_mock):
@@ -569,7 +569,7 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, 'aria-label="Drop show"')
         self.assertContains(response, 'aria-label="Pause show"')
         self.assertContains(response, 'aria-label="Mark show unwatched"')
-        self.assertContains(response, "fa-circle-minus")
+        self.assertContains(response, 'data-lucide="circle-minus"')
         self.assertContains(episodes_response, f"/tv/123/episodes/{episode.id}/\"")
 
     def test_tracked_show_renders_status_and_watched_actions(self):
@@ -587,7 +587,7 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, 'aria-label="Drop show"')
         self.assertContains(response, 'aria-label="Delete show"')
         self.assertContains(response, 'aria-label="Mark show watched"')
-        self.assertNotContains(response, "fa-bookmark-minus")
+        self.assertNotContains(response, 'data-lucide="bookmark-minus"')
 
     def test_paused_show_renders_resume_drop_delete(self):
         show = Show.objects.create(external_id="123", name="Foo")

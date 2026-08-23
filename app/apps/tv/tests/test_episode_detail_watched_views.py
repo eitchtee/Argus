@@ -43,7 +43,7 @@ class EpisodeDetailWatchedViewTests(TestCase):
         self.assertContains(response, 'data-tippy-content="Mark unwatched"')
         self.assertNotContains(response, 'class="tooltip')
         self.assertNotContains(response, "data-tip=")
-        self.assertContains(response, "fa-eye-slash")
+        self.assertContains(response, 'data-lucide="eye-off"')
         self.assertTrue(UserEpisode.objects.filter(user=self.user, episode=self.episode).exists())
 
     def test_unmarking_watched_swaps_button_to_mark(self):
@@ -64,7 +64,7 @@ class EpisodeDetailWatchedViewTests(TestCase):
         self.assertContains(response, 'data-tippy-content="Mark watched"')
         self.assertNotContains(response, 'class="tooltip')
         self.assertNotContains(response, "data-tip=")
-        self.assertContains(response, "fa-eye")
+        self.assertContains(response, 'data-lucide="eye"')
         self.assertFalse(UserEpisode.objects.filter(user=self.user, episode=self.episode).exists())
 
     def test_requires_tracking(self):

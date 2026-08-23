@@ -13,7 +13,7 @@
       {% include "includes/theme_toggle.html" %}
       <button type="button" class="btn btn-ghost btn-sm btn-circle lg:hidden" data-bs-target="#sidebar"
               data-bs-dismiss="offcanvas" aria-label="{% trans 'Close' %}">
-        <i class="fa-solid fa-xmark"></i>
+        <i data-lucide="x"></i>
       </button>
     </div>
   </div>
@@ -24,48 +24,48 @@
       <li>
         <a href="{{ home_url }}" hx-boost="true"
            class="sidebar-item {% active_link 'index' css_class='menu-active' %}">
-          <i class="fa-solid fa-house fa-fw"></i>
+          <i data-lucide="house" class="lucide-fw"></i>
           <span>{% trans "Home" %}</span>
         </a>
       </li>
       <li>
         <a href="{% url 'catalog-search-page' %}" hx-boost="true"
            class="sidebar-item {% active_link 'catalog-search-page' css_class='menu-active' %}">
-          <i class="fa-solid fa-magnifying-glass fa-fw"></i>
+          <i data-lucide="search" class="lucide-fw"></i>
           <span>{% trans "Search" %}</span>
         </a>
       </li>
       <li>
         <a href="{% url 'history-page' %}" hx-boost="true"
            class="sidebar-item {% active_link 'history-page' css_class='menu-active' %}">
-          <i class="fa-solid fa-clock-rotate-left fa-fw"></i>
+          <i data-lucide="rotate-ccw-clock" class="lucide-fw"></i>
           <span>{% trans "History" %}</span>
         </a>
       </li>
       <li>
         <h2 class="menu-title px-3 pt-4 text-xs uppercase tracking-[0.18em] text-base-content/50">
-          <i class="fa-solid fa-tv fa-fw"></i>
+          <i data-lucide="tv" class="lucide-fw"></i>
           <span>{% trans "TV" %}</span>
         </h2>
         <ul>
           <li>
             <a href="{% url 'tv-up-next' %}" hx-boost="true"
                class="sidebar-item {% active_link 'tv-up-next' css_class='menu-active' %}">
-              <i class="fa-solid fa-forward-step fa-fw"></i>
+              <i data-lucide="skip-forward" class="lucide-fw"></i>
               <span>{% trans "Up next" %}</span>
             </a>
           </li>
           <li>
             <a href="{% url 'tv-upcoming' %}" hx-boost="true"
                class="sidebar-item {% active_link 'tv-upcoming' css_class='menu-active' %}">
-              <i class="fa-solid fa-calendar-days fa-fw"></i>
+              <i data-lucide="calendar-clock" class="lucide-fw"></i>
               <span>{% trans "Upcoming" %}</span>
             </a>
           </li>
           <li>
             <a href="{% url 'tv-watchlist' %}" hx-boost="true"
                class="sidebar-item {% active_link 'tv-watchlist' css_class='menu-active' %}">
-              <i class="fa-solid fa-bookmark fa-fw"></i>
+              <i data-lucide="bookmark" class="lucide-fw"></i>
               <span>{% trans "Watchlist" %}</span>
             </a>
           </li>
@@ -73,21 +73,21 @@
       </li>
       <li>
         <h2 class="menu-title px-3 pt-4 text-xs uppercase tracking-[0.18em] text-base-content/50">
-          <i class="fa-solid fa-film fa-fw"></i>
+          <i data-lucide="film" class="lucide-fw"></i>
           <span>{% trans "Movies" %}</span>
         </h2>
         <ul>
           <li>
             <a href="{% url 'movies-watchlist-page' %}" hx-boost="true"
                class="sidebar-item {% active_link 'movies-watchlist-page' css_class='menu-active' %}">
-              <i class="fa-solid fa-bookmark fa-fw"></i>
+              <i data-lucide="bookmark" class="lucide-fw"></i>
               <span>{% trans "Watchlist" %}</span>
             </a>
           </li>
           <li>
             <a href="{% url 'movies-watched-page' %}" hx-boost="true"
                class="sidebar-item {% active_link 'movies-watched-page' css_class='menu-active' %}">
-              <i class="fa-solid fa-eye fa-fw"></i>
+              <i data-lucide="eye" class="lucide-fw"></i>
               <span>{% trans "Watched" %}</span>
             </a>
           </li>
@@ -96,7 +96,7 @@
       <li>
         <a href="{% url 'calendar' %}" hx-boost="true"
            class="sidebar-item {% active_link 'calendar' css_class='menu-active' %}">
-          <i class="fa-solid fa-calendar-days fa-fw"></i>
+          <i data-lucide="calendar-days" class="lucide-fw"></i>
           <span>{% trans "Calendar" %}</span>
         </a>
       </li>
@@ -104,7 +104,7 @@
       <li>
         <a href="{% url 'admin:index' %}" target="_blank" rel="noopener noreferrer"
            hx-boost="false" class="sidebar-item">
-          <i class="fa-solid fa-screwdriver-wrench fa-fw"></i>
+          <i data-lucide="wrench" class="lucide-fw"></i>
           <span>{% trans "Admin" %}</span>
         </a>
       </li>
@@ -120,19 +120,19 @@
       <div class="dropdown dropdown-top dropdown-end shrink-0">
         <button type="button" class="btn btn-ghost btn-sm btn-square" tabindex="0"
                 aria-label="{% trans 'Settings' %}" aria-haspopup="menu">
-          <i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i>
+          <i data-lucide="settings" class="lucide-fw" aria-hidden="true"></i>
         </button>
         <ul class="dropdown-content menu menu-sm z-1 mb-2 w-56 rounded-box bg-base-100 p-2 shadow-xl"
             tabindex="0" role="menu">
           <li>
             <a href="{% url 'user_settings' %}" hx-boost="true" role="menuitem">
-              <i class="fa-solid fa-gear fa-fw me-2" aria-hidden="true"></i>{% translate 'Settings' %}
+              <i data-lucide="settings" class="lucide-fw me-2" aria-hidden="true"></i>{% translate 'Settings' %}
             </a>
           </li>
           <hr class="my-1 hr">
           <li>
             <a href="{% url 'logout' %}" role="menuitem">
-              <i class="fa-solid fa-door-open fa-fw me-2" aria-hidden="true"></i>{% translate 'Logout' %}
+              <i data-lucide="door-open" class="lucide-fw me-2" aria-hidden="true"></i>{% translate 'Logout' %}
             </a>
           </li>
           <hr class="my-1 hr">

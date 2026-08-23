@@ -32,7 +32,7 @@
       </div>
     {% elif import_job.status == 'succeeded' %}
       <div class="flex items-start gap-4 border border-success/30 bg-success/8 p-4 sm:p-5" role="status">
-        <i class="fa-solid fa-check mt-1 text-success" aria-hidden="true"></i>
+        <i data-lucide="check" class="mt-1 text-success" aria-hidden="true"></i>
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-success">{% trans "Trakt import" %}</p>
           <h3 class="mt-1 text-base font-semibold tracking-tight">{% trans "Your library is ready" %}</h3>
@@ -55,7 +55,7 @@
       </dl>
       {% if import_job.warning_messages %}
         <div class="flex items-start gap-2.5 border-l-2 border-warning pl-3 text-sm text-warning-content" role="note">
-          <i class="fa-solid fa-triangle-exclamation mt-0.5 text-warning" aria-hidden="true"></i>
+          <i data-lucide="triangle-alert" class="mt-0.5 text-warning" aria-hidden="true"></i>
           <div>
             <p class="font-semibold">{% trans "Some items were skipped" %}</p>
             <ul class="mt-1 list-inside list-disc text-sm text-base-content/70">
@@ -66,7 +66,7 @@
       {% endif %}
     {% elif import_job.status == 'failed' %}
       <div class="flex items-start gap-4 border border-error/30 bg-error/8 p-4 sm:p-5" role="alert">
-        <i class="fa-solid fa-xmark mt-1 text-error" aria-hidden="true"></i>
+        <i data-lucide="x" class="mt-1 text-error" aria-hidden="true"></i>
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-error">{% trans "Trakt import" %}</p>
           <h3 class="mt-1 text-base font-semibold tracking-tight">{% trans "The import needs another try" %}</h3>
@@ -85,7 +85,7 @@
   {% if not import_in_progress %}
     <div class="border-t border-base-300 pt-5">
       <div class="flex items-start gap-3">
-        <i class="fa-solid fa-file-arrow-up mt-1 text-lg text-primary" aria-hidden="true"></i>
+        <i data-lucide="file-up" class="mt-1 text-lg text-primary" aria-hidden="true"></i>
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{% trans "Upload an export" %}</p>
           <h3 class="mt-1 text-base font-semibold tracking-tight">{% trans "Bring your Trakt library to Argus" %}</h3>
@@ -104,7 +104,7 @@
         {% csrf_token %}
         {% if form.non_field_errors %}
           <div class="flex items-start gap-2.5 border-l-2 border-error pl-3 text-sm text-error" role="alert">
-            <i class="fa-solid fa-triangle-exclamation mt-0.5" aria-hidden="true"></i>
+            <i data-lucide="triangle-alert" class="mt-0.5" aria-hidden="true"></i>
             {{ form.non_field_errors }}
           </div>
         {% endif %}
@@ -123,11 +123,11 @@
         </div>
         <div class="flex flex-col-reverse items-start gap-4 border-t border-base-300 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p class="flex items-center gap-2 text-xs text-base-content/50">
-            <i class="fa-solid fa-shield-halved text-success" aria-hidden="true"></i>
+            <i data-lucide="shield-half" class="text-success" aria-hidden="true"></i>
             {% trans "The archive is removed after processing." %}
           </p>
           <button type="submit" class="btn btn-primary">
-            <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i>
+            <i data-lucide="share" aria-hidden="true"></i>
             {% trans "Start import" %}
           </button>
         </div>
@@ -136,7 +136,7 @@
   {% endif %}
 
   <p class="flex items-start gap-2 border-t border-base-300 pt-4 text-xs leading-5 text-base-content/50">
-    <i class="fa-solid fa-circle-info mt-0.5 shrink-0" aria-hidden="true"></i>
+    <i data-lucide="info" class="mt-0.5 shrink-0" aria-hidden="true"></i>
     {% trans "Argus imports watched movies, watched shows and episodes, and your Trakt watchlist. Ratings, collections, and social data are not imported." %}
   </p>
 </div>

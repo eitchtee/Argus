@@ -119,7 +119,7 @@ class SearchResultsViewTests(TestCase):
         self.assertContains(response, "Fight Club")
         self.assertContains(response, 'aria-label="Add to watchlist"')
         self.assertContains(response, 'data-tippy-content="Add to watchlist"')
-        self.assertContains(response, "fa-bookmark")
+        self.assertContains(response, 'data-lucide="bookmark"')
         self.assertContains(response, 'class="relative z-[2] flex shrink-0 items-center p-3"')
         self.assertNotContains(response, ">Track<")
         catalog_search.assert_called_once_with(
@@ -190,8 +190,8 @@ class SearchResultsViewTests(TestCase):
             HTTP_HX_REQUEST="true",
         )
         self.assertContains(response, 'aria-label="Mark watched"')
-        self.assertContains(response, "fa-eye")
-        self.assertNotContains(response, "fa-bookmark")
+        self.assertContains(response, 'data-lucide="eye"')
+        self.assertNotContains(response, 'data-lucide="bookmark"')
 
     @patch("apps.catalog.views.catalog_search")
     def test_results_show_watched_movie_state(self, catalog_search):
@@ -212,7 +212,7 @@ class SearchResultsViewTests(TestCase):
 
         self.assertContains(response, 'aria-label="Mark unwatched"')
         self.assertContains(response, 'data-tippy-content="Mark unwatched"')
-        self.assertContains(response, "fa-eye-slash")
+        self.assertContains(response, 'data-lucide="eye-off"')
         self.assertNotContains(response, 'aria-label="Mark watched"')
 
     @patch("apps.catalog.views.catalog_search")
@@ -243,10 +243,10 @@ class SearchResultsViewTests(TestCase):
         self.assertContains(response, 'aria-label="Switch to TVDB"')
         self.assertContains(response, 'data-tippy-content="Switch to TVDB"')
         self.assertContains(response, "from_external_id=550")
-        self.assertContains(response, "fa-right-left")
+        self.assertContains(response, 'data-lucide="arrow-right-left"')
         self.assertContains(response, "Swal.fire")
         self.assertNotContains(response, "Tracked on another provider")
-        self.assertNotContains(response, "fa-eye")
+        self.assertNotContains(response, 'data-lucide="eye"')
 
     @patch("apps.catalog.views.catalog_search")
     def test_tv_results_use_track_icon(self, catalog_search):
@@ -259,8 +259,8 @@ class SearchResultsViewTests(TestCase):
 
         self.assertContains(response, 'aria-label="Track show"')
         self.assertContains(response, 'data-tippy-content="Track show"')
-        self.assertContains(response, "fa-bookmark")
-        self.assertNotContains(response, "fa-eye")
+        self.assertContains(response, 'data-lucide="bookmark"')
+        self.assertNotContains(response, 'data-lucide="eye"')
 
     @patch("apps.catalog.views.catalog_search")
     def test_tv_results_do_not_render_watched_action_when_tracked(self, catalog_search):
@@ -278,8 +278,8 @@ class SearchResultsViewTests(TestCase):
         )
 
         self.assertContains(response, 'aria-label="Tracking"')
-        self.assertContains(response, "fa-bookmark")
-        self.assertNotContains(response, "fa-eye")
+        self.assertContains(response, 'data-lucide="bookmark"')
+        self.assertNotContains(response, 'data-lucide="eye"')
 
     @patch("apps.catalog.views.catalog_search")
     def test_movie_watched_action_marks_and_unmarks_movie(self, catalog_search):
@@ -357,8 +357,8 @@ class SearchResultsViewTests(TestCase):
             target_external_id="42",
         )
         self.assertContains(response, 'aria-label="Mark watched"')
-        self.assertContains(response, "fa-eye")
-        self.assertNotContains(response, "fa-right-left")
+        self.assertContains(response, 'data-lucide="eye"')
+        self.assertNotContains(response, 'data-lucide="arrow-right-left"')
 
     @patch("apps.catalog.views.catalog_search")
     @patch("apps.movies.services.queue_switch_movie_provider")
@@ -396,7 +396,7 @@ class SearchResultsViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Movies do not match across providers.")
-        self.assertContains(response, "fa-right-left")
+        self.assertContains(response, 'data-lucide="arrow-right-left"')
 
     @patch("apps.catalog.views.catalog_search")
     @patch("apps.tv.services.queue_switch_show_provider")
@@ -457,8 +457,8 @@ class SearchResultsViewTests(TestCase):
             target_external_id="1399",
         )
         self.assertContains(response, 'aria-label="Tracking"')
-        self.assertContains(response, "fa-bookmark")
-        self.assertNotContains(response, "fa-right-left")
+        self.assertContains(response, 'data-lucide="bookmark"')
+        self.assertNotContains(response, 'data-lucide="arrow-right-left"')
 
     @override_settings(DEMO=True)
     def test_search_provider_switch_is_blocked_in_demo_mode(self):
@@ -535,7 +535,7 @@ class TrackViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         queue_track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
         self.assertContains(response, 'aria-label="Mark watched"')
-        self.assertContains(response, "fa-eye")
+        self.assertContains(response, 'data-lucide="eye"')
 
     @patch("apps.movies.services.track_movie")
     @patch("apps.movies.services.queue_track_movie")

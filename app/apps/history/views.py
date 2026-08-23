@@ -126,7 +126,7 @@ def _history_entry_context(
             "title": localized_movie.title,
             "media_label": _("Movie"),
             "poster_url": localized_movie.poster_url,
-            "icon": "fa-film",
+            "icon": "film",
             "detail_url": _provider_url(
                 reverse("movie-detail", kwargs={"external_id": movie.external_id}),
                 movie.provider,
@@ -158,7 +158,7 @@ def _history_entry_context(
         "episode_name": localized_episode.name,
         "episode_label": episode_label,
         "poster_url": localized_show.poster_url,
-        "icon": "fa-tv",
+        "icon": "tv",
         "detail_url": _provider_url(
             reverse(
                 "tv-episode-detail",

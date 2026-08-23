@@ -13,3 +13,4 @@ import './js/hide_amounts.js';
 import './js/pulltorefresh.js';
 import './js/calendar.js';
 import './js/cuelume.js';
+import './js/icons.js';

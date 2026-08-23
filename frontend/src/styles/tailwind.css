@@ -314,16 +314,12 @@
         @apply outline outline-2 outline-offset-2 outline-error;
     }
 
+    .poster-card__badges {
+        @apply pointer-events-none absolute top-2 end-2 z-[2] flex items-center gap-1.5;
+    }
+
     .poster-card__badge {
-        @apply pointer-events-auto absolute top-2 z-[2] flex h-6 w-6 items-center justify-center rounded-full border shadow-md;
-    }
-
-    .poster-card__badge--start {
-        @apply start-2;
-    }
-
-    .poster-card__badge--end {
-        @apply end-2;
+        @apply pointer-events-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full border shadow-md;
     }
 
     .poster-card__badge i {

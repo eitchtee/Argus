@@ -22,7 +22,7 @@
           <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="aspect-2/3 w-full object-cover" loading="eager">
           {% else %}
           <div class="flex aspect-2/3 items-center justify-center bg-base-200 text-base-content/30">
-            <i class="fa-solid fa-tv text-4xl" aria-hidden="true"></i>
+            <i data-lucide="tv" class="text-4xl" aria-hidden="true"></i>
           </div>
           {% endif %}
         </figure>
@@ -33,7 +33,7 @@
         {% if show.normalized_status %}
         <div class="detail-eyebrow">
           <span class="media-status {% if show.normalized_status == 'Ended' %}media-status--success{% elif show.normalized_status == 'Continuing' %}media-status--info{% else %}media-status--warning{% endif %}">
-            <i class="fa-solid {% if show.normalized_status == 'Ended' %}fa-circle-check{% elif show.normalized_status == 'Continuing' %}fa-circle-play{% else %}fa-calendar-days{% endif %}" aria-hidden="true"></i>
+            <i data-lucide="{% if show.normalized_status == 'Ended' %}circle-check{% elif show.normalized_status == 'Continuing' %}circle-play{% else %}calendar-clock{% endif %}" aria-hidden="true"></i>
             {{ show.normalized_status }}
           </span>
         </div>
@@ -48,26 +48,26 @@
           {% if show.network %}
           <div class="detail-meta__item" title="{% trans 'Network' %}">
             <dt class="sr-only">{% trans "Network" %}</dt>
-            <dd><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i><span class="truncate">{{ show.network }}</span></dd>
+            <dd><i data-lucide="radio-tower" aria-hidden="true"></i><span class="truncate">{{ show.network }}</span></dd>
           </div>
           {% endif %}
           {% if show.release_date %}
           <div class="detail-meta__item" title="{% trans 'First aired' %}">
             <dt class="sr-only">{% trans "First aired" %}</dt>
-            <dd><i class="fa-regular fa-calendar" aria-hidden="true"></i>{% user_date show.release_date %}</dd>
+            <dd><i data-lucide="calendar" aria-hidden="true"></i>{% user_date show.release_date %}</dd>
           </div>
           {% endif %}
           {% if show.average_runtime %}
           <div class="detail-meta__item" title="{% trans 'Runtime' %}">
             <dt class="sr-only">{% trans "Runtime" %}</dt>
-            <dd><i class="fa-regular fa-clock" aria-hidden="true"></i>~{{ show.average_runtime }} {% trans "min" %}</dd>
+            <dd><i data-lucide="clock" aria-hidden="true"></i>~{{ show.average_runtime }} {% trans "min" %}</dd>
           </div>
           {% endif %}
           {% if show.next_air_date %}
           <div class="detail-meta__item detail-meta__item--accent" title="{% trans 'Next episode' %}">
             <dt class="sr-only">{% trans "Next episode" %}</dt>
             <dd>
-              <i class="fa-solid fa-forward" aria-hidden="true"></i>{% user_date show.next_air_date %}
+              <i data-lucide="fast-forward" aria-hidden="true"></i>{% user_date show.next_air_date %}
               {% if show.airs_time %}
               <time class="next-air-time" title="{% trans 'Original airing time' %}: {% user_time show.airs_source_time %} {{ show.airs_source_timezone }}">{% user_time show.airs_time %}</time>
               {% endif %}
@@ -76,7 +76,7 @@
           {% elif show.last_air_date %}
           <div class="detail-meta__item" title="{% trans 'Last aired' %}">
             <dt class="sr-only">{% trans "Last aired" %}</dt>
-            <dd><i class="fa-solid fa-forward" aria-hidden="true"></i>{% user_date show.last_air_date %}</dd>
+            <dd><i data-lucide="fast-forward" aria-hidden="true"></i>{% user_date show.last_air_date %}</dd>
           </div>
           {% endif %}
         </dl>
@@ -91,14 +91,14 @@
           {% for link in show.external_links %}
           <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
             <span>{{ link.label }}</span>
-            <i class="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden="true"></i>
+            <i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
           </a>
           {% endfor %}
           {% if show.trailer_url %}
           <a href="{{ show.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
-            <i class="fa-solid fa-circle-play" aria-hidden="true"></i>
+            <i data-lucide="circle-play" aria-hidden="true"></i>
             <span>{% trans "Watch trailer" %}</span>
-            <i class="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden="true"></i>
+            <i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
           </a>
           {% endif %}
         </div>
@@ -111,7 +111,7 @@
   {% if show.cast %}
   <section class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="show-cast-heading">
     <div class="section-heading mb-4">
-      <h2 id="show-cast-heading" class="text-base font-semibold tracking-tight"><i class="fa-solid fa-users me-2 text-primary" aria-hidden="true"></i>{% trans "Cast" %}<span class="ms-2 rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium text-base-content/60">{{ show.cast|length }}</span></h2>
+      <h2 id="show-cast-heading" class="text-base font-semibold tracking-tight"><i data-lucide="users" class="me-2 text-primary" aria-hidden="true"></i>{% trans "Cast" %}<span class="ms-2 rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium text-base-content/60">{{ show.cast|length }}</span></h2>
     </div>
     <div class="cast-rail">
       {% for member in show.cast %}
@@ -121,7 +121,7 @@
           <img src="{{ member.photo_url }}" alt="{{ member.name }}" loading="lazy">
           {% else %}
           <div class="flex items-center justify-center text-base-content/25">
-            <i class="fa-solid fa-user text-xl" aria-hidden="true"></i>
+            <i data-lucide="user" class="text-xl" aria-hidden="true"></i>
           </div>
           {% endif %}
         </div>
@@ -136,7 +136,7 @@
   <section class="space-y-4" aria-labelledby="show-episodes-heading">
     <div class="section-heading mb-0">
       <div>
-        <p class="detail-eyebrow mb-2"><i class="fa-solid fa-list-ol text-primary" aria-hidden="true"></i>{% trans "Series guide" %}</p>
+        <p class="detail-eyebrow mb-2"><i data-lucide="list-ordered" class="text-primary" aria-hidden="true"></i>{% trans "Series guide" %}</p>
         <h2 id="show-episodes-heading" class="text-2xl font-bold tracking-tight">{% trans "Episodes" %}</h2>
       </div>
       {% if show.tracked and show.has_episodes %}
@@ -158,7 +158,7 @@
                   })
                   if it.isConfirmed
                     trigger confirmed">
-        <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+        <i data-lucide="eye-off" aria-hidden="true"></i>
         <span class="hidden sm:inline">{% trans "Mark show unwatched" %}</span>
       </button>
       {% else %}
@@ -180,7 +180,7 @@
                   })
                   if it.isConfirmed
                     trigger confirmed">
-        <i class="fa-solid fa-eye" aria-hidden="true"></i>
+        <i data-lucide="eye" aria-hidden="true"></i>
         <span class="hidden sm:inline">{% trans "Mark show watched" %}</span>
       </button>
       {% endif %}

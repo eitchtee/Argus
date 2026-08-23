@@ -152,7 +152,7 @@ class IndexViewTests(TestCase):
         self.assertIn('data-theme-url="/user/session/toggle-theme/"', sidebar)
         self.assertIn('data-theme="argus_dark"', sidebar)
         self.assertIn("data-csrf-token=", sidebar)
-        self.assertIn("fa-moon", sidebar)
+        self.assertIn('data-lucide="moon"', sidebar)
         self.assertIn("Switch to light mode", sidebar)
         self.assertIn('_="on change', sidebar)
         self.assertIn("fetch my @data-theme-url as JSON", sidebar)
@@ -181,7 +181,7 @@ class IndexViewTests(TestCase):
 
         self.assertIn('data-theme="argus_light"', content)
         self.assertIn('data-theme="argus_light"', sidebar)
-        self.assertIn("fa-sun", sidebar)
+        self.assertIn('data-lucide="sun"', sidebar)
         self.assertIn("Switch to dark mode", sidebar)
         theme_toggle_start = sidebar.index('id="theme-toggle"')
         input_start = sidebar.index("<input", theme_toggle_start)

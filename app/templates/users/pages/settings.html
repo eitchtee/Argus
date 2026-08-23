@@ -20,7 +20,7 @@
     <div id="user-settings-panel" role="tabpanel" class="tab-content w-full border-base-300 bg-base-100 p-4 sm:p-6" aria-labelledby="user-settings-tab">
       <div class="space-y-5">
         <header class="flex items-start gap-3 border-b border-base-300 pb-4">
-          <i class="fa-solid fa-sliders mt-1 text-lg text-primary" aria-hidden="true"></i>
+          <i data-lucide="sliders-horizontal" class="mt-1 text-lg text-primary" aria-hidden="true"></i>
           <div>
             <h2 class="text-xl font-semibold tracking-tight">{% trans "Personal preferences" %}</h2>
             <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "Customize your language, metadata, and date preferences." %}</p>
@@ -40,7 +40,7 @@
       <div class="space-y-5">
         <header class="flex flex-col gap-3 border-b border-base-300 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div class="flex items-start gap-3">
-            <i class="fa-solid fa-arrows-rotate mt-1 text-lg text-success" aria-hidden="true"></i>
+            <i data-lucide="refresh-cw" class="mt-1 text-lg text-success" aria-hidden="true"></i>
             <div>
               <h2 class="text-xl font-semibold tracking-tight">{% trans "Trakt.tv" %}</h2>
               <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "Keep your watch history and lists aligned with Trakt.tv." %}</p>
@@ -48,12 +48,12 @@
           </div>
           {% if trakt_account %}
             <span class="inline-flex items-center gap-2 text-sm font-semibold text-success">
-              <i class="fa-solid fa-check" aria-hidden="true"></i>
+              <i data-lucide="check" aria-hidden="true"></i>
               {% trans "Connected" %}
             </span>
           {% else %}
             <span class="inline-flex items-center gap-2 text-sm font-semibold text-warning">
-              <i class="fa-solid fa-link-slash" aria-hidden="true"></i>
+              <i data-lucide="unlink" aria-hidden="true"></i>
               {% trans "Not connected" %}
             </span>
           {% endif %}
@@ -61,7 +61,7 @@
         {% if trakt_account %}
           <div class="flex flex-col gap-3 border-b border-base-300 pb-5 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex min-w-0 items-center gap-3">
-              <i class="fa-solid fa-user text-success" aria-hidden="true"></i>
+              <i data-lucide="user" class="text-success" aria-hidden="true"></i>
               <div class="min-w-0">
                 <p class="text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Connected account" %}</p>
                 <p class="mt-1 truncate text-sm font-semibold">
@@ -78,7 +78,7 @@
           </div>
           {% if trakt_account.last_error %}
             <div class="flex items-start gap-2.5 border-l-2 border-error pl-3 text-sm text-error" role="alert">
-              <i class="fa-solid fa-triangle-exclamation mt-0.5" aria-hidden="true"></i>
+              <i data-lucide="triangle-alert" class="mt-0.5" aria-hidden="true"></i>
               <span>{{ trakt_account.last_error }}</span>
             </div>
           {% endif %}
@@ -86,18 +86,18 @@
             <form method="post" action="{% url 'trakt_sync' %}" hx-post="{% url 'trakt_sync' %}" hx-swap="none">
               {% csrf_token %}
               <button type="submit" class="btn btn-primary btn-sm">
-                <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+                <i data-lucide="refresh-cw" aria-hidden="true"></i>
                 {% trans "Sync now" %}
               </button>
             </form>
             <a href="{% url 'trakt_connect' %}" class="btn btn-secondary btn-sm">
-              <i class="fa-solid fa-link" aria-hidden="true"></i>
+              <i data-lucide="link" aria-hidden="true"></i>
               {% trans "Reconnect" %}
             </a>
             <form method="post" action="{% url 'trakt_disconnect' %}" hx-post="{% url 'trakt_disconnect' %}" hx-swap="none" hx-confirm="{% trans 'Disconnect Trakt.tv?' %}">
               {% csrf_token %}
               <button type="submit" class="btn btn-ghost btn-sm">
-                <i class="fa-solid fa-link-slash" aria-hidden="true"></i>
+                <i data-lucide="unlink" aria-hidden="true"></i>
                 {% trans "Disconnect" %}
               </button>
             </form>
@@ -105,12 +105,12 @@
         {% else %}
           <div class="border-t border-base-300 pt-5">
             <div class="flex items-start gap-3">
-              <i class="fa-solid fa-link mt-1 text-lg text-primary" aria-hidden="true"></i>
+              <i data-lucide="link" class="mt-1 text-lg text-primary" aria-hidden="true"></i>
               <div>
                 <h3 class="text-base font-semibold">{% trans "Connect your Trakt library" %}</h3>
                 <p class="mt-1 max-w-xl text-sm leading-6 text-base-content/65">{% trans "Connect Trakt.tv to synchronize your library and keep your watch history in step." %}</p>
                 <a href="{% url 'trakt_connect' %}" class="btn btn-primary btn-sm mt-4">
-                  <i class="fa-solid fa-link" aria-hidden="true"></i>
+                  <i data-lucide="link" aria-hidden="true"></i>
                   {% trans "Connect Trakt.tv" %}
                 </a>
               </div>
@@ -127,22 +127,22 @@
       <div class="space-y-5">
         <header class="flex flex-col gap-3 border-b border-base-300 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div class="flex items-start gap-3">
-            <i class="fa-solid fa-arrows-rotate mt-1 text-lg text-info" aria-hidden="true"></i>
+            <i data-lucide="refresh-cw" class="mt-1 text-lg text-info" aria-hidden="true"></i>
             <div>
               <h2 class="text-xl font-semibold tracking-tight">{% trans "Stremio" %}</h2>
               <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "Synchronize your Stremio library and watch history with Argus." %}</p>
             </div>
           </div>
           {% if stremio_account %}
-            <span class="inline-flex items-center gap-2 text-sm font-semibold text-success"><i class="fa-solid fa-check" aria-hidden="true"></i>{% trans "Connected" %}</span>
+            <span class="inline-flex items-center gap-2 text-sm font-semibold text-success"><i data-lucide="check" aria-hidden="true"></i>{% trans "Connected" %}</span>
           {% else %}
-            <span class="inline-flex items-center gap-2 text-sm font-semibold text-warning"><i class="fa-solid fa-link-slash" aria-hidden="true"></i>{% trans "Not connected" %}</span>
+            <span class="inline-flex items-center gap-2 text-sm font-semibold text-warning"><i data-lucide="unlink" aria-hidden="true"></i>{% trans "Not connected" %}</span>
           {% endif %}
         </header>
         {% if stremio_account %}
           <div class="flex flex-col gap-3 border-b border-base-300 pb-5 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex min-w-0 items-center gap-3">
-              <i class="fa-solid fa-user text-info" aria-hidden="true"></i>
+              <i data-lucide="user" class="text-info" aria-hidden="true"></i>
               <div class="min-w-0">
                 <p class="text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Connected account" %}</p>
                 <p class="mt-1 truncate text-sm font-semibold">{{ stremio_account.stremio_username|default:_('Stremio user') }}</p>
@@ -150,14 +150,14 @@
             </div>
             {% if stremio_account.last_synced_at %}<div class="sm:text-right"><span class="block text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Last sync" %}</span><span class="mt-1 block text-xs text-base-content/70">{% user_datetime stremio_account.last_synced_at %}</span></div>{% endif %}
           </div>
-          {% if stremio_account.last_error %}<div class="flex items-start gap-2.5 border-l-2 border-error pl-3 text-sm text-error" role="alert"><i class="fa-solid fa-triangle-exclamation mt-0.5" aria-hidden="true"></i><span>{{ stremio_account.last_error }}</span></div>{% endif %}
+          {% if stremio_account.last_error %}<div class="flex items-start gap-2.5 border-l-2 border-error pl-3 text-sm text-error" role="alert"><i data-lucide="triangle-alert" class="mt-0.5" aria-hidden="true"></i><span>{{ stremio_account.last_error }}</span></div>{% endif %}
           <div class="flex flex-wrap gap-2">
-            <form method="post" action="{% url 'stremio_sync' %}" hx-post="{% url 'stremio_sync' %}" hx-swap="none">{% csrf_token %}<button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>{% trans "Sync now" %}</button></form>
-            <a href="{% url 'stremio_connect' %}" class="btn btn-secondary btn-sm"><i class="fa-solid fa-link" aria-hidden="true"></i>{% trans "Reconnect" %}</a>
-            <form method="post" action="{% url 'stremio_disconnect' %}" hx-post="{% url 'stremio_disconnect' %}" hx-swap="none" hx-confirm="{% trans 'Disconnect Stremio?' %}">{% csrf_token %}<button type="submit" class="btn btn-ghost btn-sm"><i class="fa-solid fa-link-slash" aria-hidden="true"></i>{% trans "Disconnect" %}</button></form>
+            <form method="post" action="{% url 'stremio_sync' %}" hx-post="{% url 'stremio_sync' %}" hx-swap="none">{% csrf_token %}<button type="submit" class="btn btn-primary btn-sm"><i data-lucide="refresh-cw" aria-hidden="true"></i>{% trans "Sync now" %}</button></form>
+            <a href="{% url 'stremio_connect' %}" class="btn btn-secondary btn-sm"><i data-lucide="link" aria-hidden="true"></i>{% trans "Reconnect" %}</a>
+            <form method="post" action="{% url 'stremio_disconnect' %}" hx-post="{% url 'stremio_disconnect' %}" hx-swap="none" hx-confirm="{% trans 'Disconnect Stremio?' %}">{% csrf_token %}<button type="submit" class="btn btn-ghost btn-sm"><i data-lucide="unlink" aria-hidden="true"></i>{% trans "Disconnect" %}</button></form>
           </div>
         {% else %}
-          <div class="border-t border-base-300 pt-5"><div class="flex items-start gap-3"><i class="fa-solid fa-link mt-1 text-lg text-primary" aria-hidden="true"></i><div><h3 class="text-base font-semibold">{% trans "Connect your Stremio library" %}</h3><p class="mt-1 max-w-xl text-sm leading-6 text-base-content/65">{% trans "Connect Stremio to synchronize your library and watch history." %}</p><a href="{% url 'stremio_connect' %}" class="btn btn-primary btn-sm mt-4"><i class="fa-solid fa-link" aria-hidden="true"></i>{% trans "Connect Stremio" %}</a></div></div></div>
+          <div class="border-t border-base-300 pt-5"><div class="flex items-start gap-3"><i data-lucide="link" class="mt-1 text-lg text-primary" aria-hidden="true"></i><div><h3 class="text-base font-semibold">{% trans "Connect your Stremio library" %}</h3><p class="mt-1 max-w-xl text-sm leading-6 text-base-content/65">{% trans "Connect Stremio to synchronize your library and watch history." %}</p><a href="{% url 'stremio_connect' %}" class="btn btn-primary btn-sm mt-4"><i data-lucide="link" aria-hidden="true"></i>{% trans "Connect Stremio" %}</a></div></div></div>
         {% endif %}
       </div>
     </div>
@@ -168,7 +168,7 @@
     <div id="import-settings-panel" role="tabpanel" class="tab-content w-full border-base-300 bg-base-100 p-4 sm:p-6" aria-labelledby="import-settings-tab">
       <div class="space-y-5">
         <header class="flex items-start gap-3 border-b border-base-300 pb-4">
-          <i class="fa-solid fa-file-import mt-1 text-lg text-info" aria-hidden="true"></i>
+          <i data-lucide="file-input" class="mt-1 text-lg text-info" aria-hidden="true"></i>
           <div>
             <h2 class="text-xl font-semibold tracking-tight">{% trans "Import your library" %}</h2>
             <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "Move your history and lists into Argus from another service." %}</p>

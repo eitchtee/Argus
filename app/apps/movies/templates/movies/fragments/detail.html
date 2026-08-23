@@ -15,7 +15,7 @@
           <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="aspect-2/3 w-full object-cover" loading="eager">
           {% else %}
           <div class="flex aspect-2/3 items-center justify-center bg-base-200 text-base-content/30">
-            <i class="fa-solid fa-film text-4xl" aria-hidden="true"></i>
+            <i data-lucide="film" class="text-4xl" aria-hidden="true"></i>
           </div>
           {% endif %}
         </figure>
@@ -26,7 +26,7 @@
         {% if movie.normalized_status %}
         <div class="detail-eyebrow">
           <span class="media-status {% if movie.normalized_status == 'Released' %}media-status--success{% elif movie.normalized_status == 'Canceled' %}media-status--error{% elif movie.normalized_status == 'Upcoming' %}media-status--warning{% else %}media-status--neutral{% endif %}">
-            <i class="fa-solid {% if movie.normalized_status == 'Released' %}fa-circle-check{% elif movie.normalized_status == 'Canceled' %}fa-circle-xmark{% elif movie.normalized_status == 'Upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
+            <i data-lucide="{% if movie.normalized_status == 'Released' %}circle-check{% elif movie.normalized_status == 'Canceled' %}circle-x{% elif movie.normalized_status == 'Upcoming' %}calendar-clock{% else %}circle-question-mark{% endif %}" aria-hidden="true"></i>
             {{ movie.normalized_status }}
           </span>
         </div>
@@ -43,25 +43,25 @@
           {% if movie.runtime %}
           <div class="detail-meta__item" title="{% trans 'Runtime' %}">
             <dt class="sr-only">{% trans "Runtime" %}</dt>
-            <dd><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ movie.runtime }} {% trans "min" %}</dd>
+            <dd><i data-lucide="clock" aria-hidden="true"></i>{{ movie.runtime }} {% trans "min" %}</dd>
           </div>
           {% endif %}
           {% if movie.release_date %}
           <div class="detail-meta__item" title="{% trans 'Release date' %}">
             <dt class="sr-only">{% trans "Released" %}</dt>
-            <dd><i class="fa-regular fa-calendar" aria-hidden="true"></i>{% user_date movie.release_date %}</dd>
+            <dd><i data-lucide="calendar" aria-hidden="true"></i>{% user_date movie.release_date %}</dd>
           </div>
           {% endif %}
           {% if movie.vote_average %}
           <div class="detail-meta__item detail-meta__item--rating" title="{% trans 'Rating' %}">
             <dt class="sr-only">{% trans "Rating" %}</dt>
-            <dd><i class="fa-solid fa-star" aria-hidden="true"></i>{{ movie.vote_average|floatformat:1 }}<span class="text-base-content/50">/10</span></dd>
+            <dd><i data-lucide="star" aria-hidden="true"></i>{{ movie.vote_average|floatformat:1 }}<span class="text-base-content/50">/10</span></dd>
           </div>
           {% endif %}
           {% if movie.director %}
           <div class="detail-meta__item" title="{% trans 'Directed by' %}">
             <dt class="sr-only">{% trans "Directed by" %}</dt>
-            <dd><i class="fa-solid fa-clapperboard" aria-hidden="true"></i><span class="truncate">{{ movie.director }}</span></dd>
+            <dd><i data-lucide="clapperboard" aria-hidden="true"></i><span class="truncate">{{ movie.director }}</span></dd>
           </div>
           {% endif %}
         </dl>
@@ -78,14 +78,14 @@
           {% for link in movie.external_links %}
           <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
             <span>{{ link.label }}</span>
-            <i class="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden="true"></i>
+            <i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
           </a>
           {% endfor %}
           {% if movie.trailer_url %}
           <a href="{{ movie.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
-            <i class="fa-solid fa-circle-play" aria-hidden="true"></i>
+            <i data-lucide="circle-play" aria-hidden="true"></i>
             <span>{% trans "Watch trailer" %}</span>
-            <i class="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden="true"></i>
+            <i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
           </a>
           {% endif %}
         </div>
@@ -98,7 +98,7 @@
   {% if movie.cast %}
   <section class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="movie-cast-heading">
     <div class="section-heading mb-4">
-      <h2 id="movie-cast-heading" class="text-base font-semibold tracking-tight"><i class="fa-solid fa-users me-2 text-primary" aria-hidden="true"></i>{% trans "Cast" %}<span class="ms-2 rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium text-base-content/60">{{ movie.cast|length }}</span></h2>
+      <h2 id="movie-cast-heading" class="text-base font-semibold tracking-tight"><i data-lucide="users" class="me-2 text-primary" aria-hidden="true"></i>{% trans "Cast" %}<span class="ms-2 rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium text-base-content/60">{{ movie.cast|length }}</span></h2>
     </div>
     <div class="cast-rail">
       {% for member in movie.cast %}
@@ -108,7 +108,7 @@
           <img src="{{ member.photo_url }}" alt="{{ member.name }}" loading="lazy">
           {% else %}
           <div class="flex items-center justify-center text-base-content/25">
-            <i class="fa-solid fa-user text-xl" aria-hidden="true"></i>
+            <i data-lucide="user" class="text-xl" aria-hidden="true"></i>
           </div>
           {% endif %}
         </div>

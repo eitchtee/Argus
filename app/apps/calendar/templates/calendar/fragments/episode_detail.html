@@ -30,6 +30,6 @@
   </dl>
 
   <a class="btn btn-primary w-full" href="{% url 'tv-episode-detail' external_id=event.external_id episode_id=event.episode_id %}{% if event.provider != 'tvdb' %}?provider={{ event.provider }}{% endif %}" hx-boost="true" hx-target="body" hx-swap="innerHTML">
-    {% trans "Open episode" %} <i class="fa-solid fa-arrow-up-right-from-square"></i>
+    {% trans "Open episode" %} <i data-lucide="external-link"></i>
   </a>
 </div>

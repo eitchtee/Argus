@@ -1,8 +1,22 @@
 @use "variables";
-@use "font-awesome";
 @use "bootstrap";
 @use "animations";
 @use "calendar";
+
+// Lucide icons are rendered client-side as inline SVGs from <i data-lucide="...">
+// placeholders. Icons scale with the surrounding text (like the old icon font),
+// multiplied by --lucide-scale. Tune the variable globally here or scope it to a
+// subtree (e.g. `.sidebar { --lucide-scale: 1.15 }`) without touching templates.
+svg.lucide {
+  $scale: var(--lucide-scale, 1.3);
+
+  display: inline-block;
+  width: calc(1em * #{$scale});
+  height: calc(1em * #{$scale});
+  flex-shrink: 0;
+  stroke-width: 1.75;
+  vertical-align: -0.2em;
+}
 
 
 .sticky-sidebar {

@@ -25,7 +25,7 @@
             class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'tv-detail-switch' external_id=show.external_id %}?provider={{ show.provider }}&from_provider={{ show.tracked_provider }}&from_external_id={{ show.tracked_external_id }}{% if show.imdb_id %}&target_imdb_id={{ show.imdb_id }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-right-left" aria-hidden="true"></i>
+      <i data-lucide="arrow-right-left" aria-hidden="true"></i>
       <span class="sr-only">{% trans "Tracked on another provider" %}</span>
     </button>
   {% elif not show.tracking_status %}
@@ -34,7 +34,7 @@
             class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+      <i data-lucide="bookmark" aria-hidden="true"></i>
     </button>
   {% elif show.tracking_status == "tracked" %}
     <button type="button" aria-label="{{ pause_show_label }}"
@@ -42,14 +42,14 @@
             class="btn btn-sm join-item media-action-button btn-warning"
             hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-pause" aria-hidden="true"></i>
+      <i data-lucide="pause" aria-hidden="true"></i>
     </button>
     <button type="button" aria-label="{{ drop_show_label }}"
             data-tippy-content="{{ drop_show_label }}"
             class="btn btn-sm join-item media-action-button btn-error"
             hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+      <i data-lucide="circle-minus" aria-hidden="true"></i>
     </button>
   {% elif show.tracking_status == "paused" %}
     <button type="button" aria-label="{{ resume_show_label }}"
@@ -57,14 +57,14 @@
             class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-play" aria-hidden="true"></i>
+      <i data-lucide="play" aria-hidden="true"></i>
     </button>
     <button type="button" aria-label="{{ drop_show_label }}"
             data-tippy-content="{{ drop_show_label }}"
             class="btn btn-sm join-item media-action-button btn-error"
             hx-post="{% url 'tv-detail-drop' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+      <i data-lucide="circle-minus" aria-hidden="true"></i>
     </button>
   {% else %}
     <button type="button" aria-label="{{ resume_show_label }}"
@@ -72,14 +72,14 @@
             class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'tv-detail-track' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-play" aria-hidden="true"></i>
+      <i data-lucide="play" aria-hidden="true"></i>
     </button>
     <button type="button" aria-label="{{ pause_show_label }}"
             data-tippy-content="{{ pause_show_label }}"
             class="btn btn-sm join-item media-action-button btn-warning"
             hx-post="{% url 'tv-detail-pause' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-pause" aria-hidden="true"></i>
+      <i data-lucide="pause" aria-hidden="true"></i>
     </button>
   {% endif %}
   {% if show.can_customize or show.tracking_status %}
@@ -90,7 +90,7 @@
             data-tippy-content="{{ more_options_label }}"
             @click="open = !open"
             class="btn btn-sm join-item media-action-button btn-secondary">
-      <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+      <i data-lucide="ellipsis" aria-hidden="true"></i>
       <span class="sr-only">{{ more_options_label }}</span>
     </button>
   {% endif %}
@@ -112,7 +112,7 @@
             hx-post="{% url 'tv-detail-refresh' external_id=show.external_id %}{% if show.provider and show.provider != 'tvdb' %}?provider={{ show.provider }}{% endif %}"
             hx-swap="none" hx-disabled-elt="this"
             @click="open = false">
-      <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+      <i data-lucide="refresh-cw" aria-hidden="true"></i>
       <span>{{ refresh_metadata_label }}</span>
     </button>
     <button type="button" role="menuitem" class="media-menu__item media-menu__item--danger"
@@ -132,7 +132,7 @@
                 })
                 if it.isConfirmed
                   trigger confirmed">
-      <i class="fa-solid fa-trash" aria-hidden="true"></i>
+      <i data-lucide="trash-2" aria-hidden="true"></i>
       <span>{{ delete_show_label }}</span>
     </button>
     {% endif %}
@@ -142,7 +142,7 @@
             hx-get="{% url 'media-artwork-preferences' media_type='tv' external_id=show.external_id %}?provider={{ show.provider }}"
             hx-target="#show-artwork-modal" hx-swap="innerHTML"
             @click="open = false">
-      <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+      <i data-lucide="square-pen" aria-hidden="true"></i>
       <span>{{ edit_artwork_label }}</span>
     </button>
     {% endif %}

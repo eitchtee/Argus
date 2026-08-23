@@ -25,7 +25,7 @@
             class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'movie-detail-switch' external_id=movie.external_id %}?provider={{ movie.provider }}&from_provider={{ movie.tracked_provider }}&from_external_id={{ movie.tracked_external_id }}{% if movie.imdb_id %}&target_imdb_id={{ movie.imdb_id }}{% endif %}"
             hx-disabled-elt="this">
-      <i class="fa-solid fa-right-left" aria-hidden="true"></i>
+      <i data-lucide="arrow-right-left" aria-hidden="true"></i>
       <span class="sr-only">{% trans "Tracked on another provider" %}</span>
     </button>
   {% elif not movie.on_watchlist and not movie.is_seen %}
@@ -34,7 +34,7 @@
             class="btn btn-sm join-item media-action-button btn-primary"
             hx-post="{% url 'movie-detail-track' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
-      <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+      <i data-lucide="bookmark" aria-hidden="true"></i>
     </button>
   {% else %}
     {% if movie.is_seen %}
@@ -43,7 +43,7 @@
             class="btn btn-sm join-item media-action-button btn-success"
             hx-delete="{% url 'movie-detail-watched' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
-      <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+      <i data-lucide="eye-off" aria-hidden="true"></i>
     </button>
     <button type="button" aria-label="{{ delete_movie_label }}"
             data-tippy-content="{{ delete_movie_label }}"
@@ -63,7 +63,7 @@
                 })
                 if it.isConfirmed
                   trigger confirmed">
-      <i class="fa-solid fa-trash" aria-hidden="true"></i>
+      <i data-lucide="trash-2" aria-hidden="true"></i>
     </button>
     {% else %}
     <button type="button" aria-label="{{ mark_watched_label }}"
@@ -72,14 +72,14 @@
             class="btn btn-sm join-item media-action-button btn-success"
             hx-post="{% url 'movie-detail-watched' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
-      <i class="fa-solid fa-eye" aria-hidden="true"></i>
+      <i data-lucide="eye" aria-hidden="true"></i>
     </button>
     <button type="button" aria-label="{{ remove_from_watchlist_label }}"
             data-tippy-content="{{ remove_from_watchlist_label }}"
             class="btn btn-sm join-item media-action-button btn-error"
             hx-delete="{% url 'movie-detail-track' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-target="#movie-actions" hx-swap="outerHTML" hx-disabled-elt="this">
-      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+      <i data-lucide="circle-minus" aria-hidden="true"></i>
     </button>
     {% endif %}
   {% endif %}
@@ -91,7 +91,7 @@
             data-tippy-content="{{ more_options_label }}"
             @click="open = !open"
             class="btn btn-sm join-item media-action-button btn-secondary">
-      <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+      <i data-lucide="ellipsis" aria-hidden="true"></i>
       <span class="sr-only">{{ more_options_label }}</span>
     </button>
   {% endif %}
@@ -114,7 +114,7 @@
             hx-post="{% url 'movie-detail-refresh' external_id=movie.external_id %}{% if movie.provider and movie.provider != 'tmdb' %}?provider={{ movie.provider }}{% endif %}"
             hx-swap="none" hx-disabled-elt="this"
             @click="open = false">
-      <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+      <i data-lucide="refresh-cw" aria-hidden="true"></i>
       <span>{{ refresh_metadata_label }}</span>
     </button>
     {% endif %}
@@ -125,7 +125,7 @@
             hx-get="{% url 'media-artwork-preferences' media_type='movie' external_id=movie.external_id %}?provider={{ movie.provider }}"
             hx-target="#movie-artwork-modal" hx-swap="innerHTML"
             @click="open = false">
-      <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+      <i data-lucide="square-pen" aria-hidden="true"></i>
       <span>{{ edit_artwork_label }}</span>
     </button>
     {% endif %}

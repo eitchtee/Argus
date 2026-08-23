@@ -120,7 +120,7 @@ class MovieWatchlistViewTests(TestCase):
         )
 
         self.assertContains(response, "No Poster")
-        self.assertContains(response, "fa-film")
+        self.assertContains(response, 'data-lucide="film"')
         self.assertNotContains(response, 'src=""')
 
     def test_watchlist_search_data_contains_translated_and_original_titles(self):

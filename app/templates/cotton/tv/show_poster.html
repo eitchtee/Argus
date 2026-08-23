@@ -14,26 +14,28 @@
          class="poster-card__image">
     {% else %}
     <div class="poster-card__fallback flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
-      <i class="fa-solid fa-tv text-4xl"></i>
+      <i data-lucide="tv" class="text-4xl"></i>
     </div>
     {% endif %}
     <div class="poster-card__gradient" aria-hidden="true"></div>
-    {% if show.normalized_status %}
-    <span class="poster-card__badge poster-card__badge--start
-                 {% if show.normalized_status == 'Ended' %}poster-card__badge--success{% elif show.normalized_status == 'Continuing' %}poster-card__badge--info{% else %}poster-card__badge--warning{% endif %}"
-          data-tippy-content="{{ show.normalized_status }}">
-      <i class="fa-solid {% if show.normalized_status == 'Ended' %}fa-circle-check{% elif show.normalized_status == 'Continuing' %}fa-circle-play{% else %}fa-calendar-days{% endif %}" aria-hidden="true"></i>
-      <span class="sr-only">{{ show.normalized_status }}</span>
-    </span>
-    {% endif %}
-    {% if show.user_condition %}
-    <span class="poster-card__badge poster-card__badge--end
-                 {% if show.user_condition == 'completed' %}poster-card__badge--success{% elif show.user_condition == 'dropped' %}poster-card__badge--error{% elif show.user_condition == 'paused' %}poster-card__badge--warning{% else %}poster-card__badge--info{% endif %}"
-          data-tippy-content="{% if show.user_condition == 'completed' %}{{ completed_label }}{% elif show.user_condition == 'dropped' %}{{ dropped_label }}{% elif show.user_condition == 'paused' %}{{ paused_label }}{% else %}{{ watching_label }}{% endif %}">
-      <i class="fa-solid {% if show.user_condition == 'completed' %}fa-check{% elif show.user_condition == 'dropped' %}fa-circle-minus{% elif show.user_condition == 'paused' %}fa-pause{% else %}fa-play{% endif %}" aria-hidden="true"></i>
-      <span class="sr-only">{% if show.user_condition == 'completed' %}{{ completed_label }}{% elif show.user_condition == 'dropped' %}{{ dropped_label }}{% elif show.user_condition == 'paused' %}{{ paused_label }}{% else %}{{ watching_label }}{% endif %}</span>
-    </span>
-    {% endif %}
+    <div class="poster-card__badges">
+      {% if show.normalized_status %}
+      <span class="poster-card__badge
+                   {% if show.normalized_status == 'Ended' %}poster-card__badge--success{% elif show.normalized_status == 'Continuing' %}poster-card__badge--info{% else %}poster-card__badge--warning{% endif %}"
+            data-tippy-content="{{ show.normalized_status }}">
+        <i data-lucide="{% if show.normalized_status == 'Ended' %}circle-check{% elif show.normalized_status == 'Continuing' %}circle-play{% else %}calendar-clock{% endif %}" aria-hidden="true"></i>
+        <span class="sr-only">{{ show.normalized_status }}</span>
+      </span>
+      {% endif %}
+      {% if show.user_condition %}
+      <span class="poster-card__badge
+                   {% if show.user_condition == 'completed' %}poster-card__badge--success{% elif show.user_condition == 'dropped' %}poster-card__badge--error{% elif show.user_condition == 'paused' %}poster-card__badge--warning{% else %}poster-card__badge--info{% endif %}"
+            data-tippy-content="{% if show.user_condition == 'completed' %}{{ completed_label }}{% elif show.user_condition == 'dropped' %}{{ dropped_label }}{% elif show.user_condition == 'paused' %}{{ paused_label }}{% else %}{{ watching_label }}{% endif %}">
+        <i data-lucide="{% if show.user_condition == 'completed' %}check{% elif show.user_condition == 'dropped' %}circle-minus{% elif show.user_condition == 'paused' %}pause{% else %}play{% endif %}" aria-hidden="true"></i>
+        <span class="sr-only">{% if show.user_condition == 'completed' %}{{ completed_label }}{% elif show.user_condition == 'dropped' %}{{ dropped_label }}{% elif show.user_condition == 'paused' %}{{ paused_label }}{% else %}{{ watching_label }}{% endif %}</span>
+      </span>
+      {% endif %}
+    </div>
     <div class="poster-card__copy">
       <h2 class="poster-card__title" title="{{ show.name }}">{{ show.name }}</h2>
       <div class="poster-card__progress-meta" aria-hidden="true">

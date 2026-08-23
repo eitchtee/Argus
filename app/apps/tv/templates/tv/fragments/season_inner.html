@@ -2,7 +2,7 @@
 <div id="season-{{ season.id|default:season.season_number }}" class="season-card">
   <div class="flex cursor-pointer items-center justify-between gap-4 p-4" @click="expanded = !expanded">
     <div class="flex min-w-0 items-center gap-3">
-      <i class="fa-solid fa-chevron-down fa-xs transition-transform duration-200" :class="{ 'rotate-180': expanded }"></i>
+      <i data-lucide="chevron-down" class="text-xs transition-transform duration-200" :class="{ 'rotate-180': expanded }"></i>
       <span class="truncate font-semibold">{{ season.name }}</span>
       {% if season.tracked %}
       <span class="text-subtle ms-2 whitespace-nowrap text-xs">{{ season.aired_watched_count }}/{{ season.aired_count }} {% trans "watched" %}</span>
@@ -42,15 +42,15 @@
       <div class="flex items-center gap-2 sm:shrink-0">
         {% if episode.air_status == "aired" %}
         <span role="img" aria-label="{% trans 'Aired' %}" data-tippy-content="{% trans 'Aired' %}">
-          <i class="fa-solid fa-circle-check text-success" aria-hidden="true"></i>
+          <i data-lucide="circle-check" class="text-success" aria-hidden="true"></i>
         </span>
         {% elif episode.air_status == "upcoming" %}
         <span role="img" aria-label="{% trans 'Upcoming' %}" data-tippy-content="{% trans 'Upcoming' %}">
-          <i class="fa-solid fa-calendar-days text-base-content/35" aria-hidden="true"></i>
+          <i data-lucide="calendar-clock" class="text-base-content/35" aria-hidden="true"></i>
         </span>
         {% else %}
         <span role="img" aria-label="{% trans 'TBA' %}" data-tippy-content="{% trans 'TBA' %}">
-          <i class="fa-solid fa-circle-question text-base-content/35" aria-hidden="true"></i>
+          <i data-lucide="circle-question-mark" class="text-base-content/35" aria-hidden="true"></i>
         </span>
         {% endif %}
         {% if episode.air_date %}

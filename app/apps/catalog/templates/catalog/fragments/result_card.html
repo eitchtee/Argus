@@ -22,7 +22,7 @@
     <img src="{{ item.poster_url }}" alt="{{ item.title }}" class="h-full w-full object-cover">
     {% else %}
     <div class="flex items-center justify-center h-full text-base-content/30">
-      <i class="fa-solid fa-image text-4xl"></i>
+      <i data-lucide="image" class="text-4xl"></i>
     </div>
     {% endif %}
   </figure>
@@ -54,7 +54,7 @@
                 })
                 if it.isConfirmed
                   trigger confirmed">
-      <i class="fa-solid fa-right-left" aria-hidden="true"></i>
+      <i data-lucide="arrow-right-left" aria-hidden="true"></i>
       <span class="sr-only">{{ switch_to_label }} {{ item.provider|upper }}</span>
     </button>
     {% elif media_type == "movie" and item.already_tracked %}
@@ -66,7 +66,7 @@
             class="btn btn-md btn-circle media-action-button btn-success"
             hx-{% if item.is_seen %}delete{% else %}post{% endif %}="{% url 'catalog-watched' %}?type=movie&provider={{ item.provider }}&external_id={{ item.external_id }}&q={{ query|urlencode }}&page={{ page }}"
             hx-target="closest .card" hx-swap="outerHTML" hx-disabled-elt="this">
-      <i class="fa-solid fa-{% if item.is_seen %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
+      <i data-lucide="{% if item.is_seen %}eye-off{% else %}eye{% endif %}" aria-hidden="true"></i>
       <span class="sr-only">{% if item.is_seen %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}</span>
     </button>
     {% elif media_type == "movie" %}
@@ -80,7 +80,7 @@
       <button type="submit" aria-label="{{ track_movie_label }}"
               data-tippy-content="{{ track_movie_label }}"
               class="btn btn-md btn-circle media-action-button btn-primary">
-        <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+        <i data-lucide="bookmark" aria-hidden="true"></i>
         <span class="sr-only">{{ track_movie_label }}</span>
       </button>
     </form>
@@ -88,7 +88,7 @@
     <button type="button" disabled aria-label="{{ tracking_label }}"
             data-tippy-content="{{ tracking_label }}"
             class="btn btn-md btn-circle media-action-button btn-success">
-      <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+      <i data-lucide="bookmark" aria-hidden="true"></i>
       <span class="sr-only">{{ tracking_label }}</span>
     </button>
     {% else %}
@@ -102,7 +102,7 @@
       <button type="submit" aria-label="{{ track_show_label }}"
               data-tippy-content="{{ track_show_label }}"
               class="btn btn-md btn-circle media-action-button btn-primary">
-        <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+        <i data-lucide="bookmark" aria-hidden="true"></i>
         <span class="sr-only">{{ track_show_label }}</span>
       </button>
     </form>

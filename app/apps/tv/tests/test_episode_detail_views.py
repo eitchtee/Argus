@@ -120,7 +120,7 @@ class EpisodeDetailViewTests(TestCase):
             content.index('<div class="episode-media-stack">'),
             content.index('<div id="episode-watched-button" class="media-poster-actions"'),
         )
-        self.assertContains(response, "fa-eye")
+        self.assertContains(response, 'data-lucide="eye"')
 
     def test_renders_unwatched_action_card_for_watched_episode(self):
         UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
@@ -134,7 +134,7 @@ class EpisodeDetailViewTests(TestCase):
         self.assertContains(response, 'id="episode-watched-button" class="media-poster-actions"')
         self.assertContains(response, 'data-tippy-content="Mark unwatched"')
         self.assertNotContains(response, 'class="fab"')
-        self.assertContains(response, "fa-eye-slash")
+        self.assertContains(response, 'data-lucide="eye-off"')
 
     def test_shows_finale_badge(self):
         self.episode.finale_type = "series"
@@ -204,7 +204,7 @@ class EpisodeDetailViewTests(TestCase):
 
         self.assertContains(response, '<button type="button" class="detail-link" disabled')
         self.assertContains(response, 'aria-label="Previous"')
-        self.assertContains(response, "fa-chevron-left")
+        self.assertContains(response, 'data-lucide="chevron-left"')
 
     def test_next_button_is_disabled_on_series_last_episode(self):
         response = self.client.get(
@@ -213,4 +213,4 @@ class EpisodeDetailViewTests(TestCase):
 
         self.assertContains(response, '<button type="button" class="detail-link" disabled')
         self.assertContains(response, 'aria-label="Next"')
-        self.assertContains(response, "fa-chevron-right")
+        self.assertContains(response, 'data-lucide="chevron-right"')

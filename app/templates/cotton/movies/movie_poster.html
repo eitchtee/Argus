@@ -14,24 +14,26 @@
            class="poster-card__image">
       {% else %}
       <div class="poster-card__fallback flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
-        <i class="fa-solid fa-film text-4xl"></i>
+        <i data-lucide="film" class="text-4xl"></i>
       </div>
       {% endif %}
       <div class="poster-card__gradient" aria-hidden="true"></div>
-      {% if movie.normalized_status %}
-      <span class="poster-card__badge poster-card__badge--start
-                   {% if movie.normalized_status == 'Released' %}poster-card__badge--success{% elif movie.normalized_status == 'Canceled' %}poster-card__badge--error{% elif movie.normalized_status == 'Upcoming' %}poster-card__badge--warning{% else %}poster-card__badge--neutral{% endif %}"
-            data-tippy-content="{{ movie.normalized_status }}">
-        <i class="fa-solid {% if movie.normalized_status == 'Released' %}fa-circle-check{% elif movie.normalized_status == 'Canceled' %}fa-circle-xmark{% elif movie.normalized_status == 'Upcoming' %}fa-calendar-days{% else %}fa-circle-question{% endif %}" aria-hidden="true"></i>
-        <span class="sr-only">{{ movie.normalized_status }}</span>
-      </span>
-      {% endif %}
-      <span class="poster-card__badge poster-card__badge--end
-                   {% if watched %}poster-card__badge--success{% else %}poster-card__badge--primary{% endif %}"
-            data-tippy-content="{% if watched %}{% trans 'Watched' %}{% else %}{% trans 'On watchlist' %}{% endif %}">
-        <i class="fa-solid fa-{% if watched %}eye{% else %}bookmark{% endif %}" aria-hidden="true"></i>
-        <span class="sr-only">{% if watched %}{% trans 'Watched' %}{% else %}{% trans 'On watchlist' %}{% endif %}</span>
-      </span>
+      <div class="poster-card__badges">
+        {% if movie.normalized_status %}
+        <span class="poster-card__badge
+                     {% if movie.normalized_status == 'Released' %}poster-card__badge--success{% elif movie.normalized_status == 'Canceled' %}poster-card__badge--error{% elif movie.normalized_status == 'Upcoming' %}poster-card__badge--warning{% else %}poster-card__badge--neutral{% endif %}"
+              data-tippy-content="{{ movie.normalized_status }}">
+          <i data-lucide="{% if movie.normalized_status == 'Released' %}circle-check{% elif movie.normalized_status == 'Canceled' %}circle-x{% elif movie.normalized_status == 'Upcoming' %}calendar-clock{% else %}circle-question-mark{% endif %}" aria-hidden="true"></i>
+          <span class="sr-only">{{ movie.normalized_status }}</span>
+        </span>
+        {% endif %}
+        <span class="poster-card__badge
+                     {% if watched %}poster-card__badge--success{% else %}poster-card__badge--primary{% endif %}"
+              data-tippy-content="{% if watched %}{% trans 'Watched' %}{% else %}{% trans 'On watchlist' %}{% endif %}">
+          <i data-lucide="{% if watched %}eye{% else %}bookmark{% endif %}" aria-hidden="true"></i>
+          <span class="sr-only">{% if watched %}{% trans 'Watched' %}{% else %}{% trans 'On watchlist' %}{% endif %}</span>
+        </span>
+      </div>
       <div class="poster-card__copy">
         <h2 class="poster-card__title" title="{{ movie.title }}">{{ movie.title }}</h2>
         {% if movie.release_date %}
@@ -61,7 +63,7 @@
                 })
                 if it.isConfirmed
                   trigger confirmed">
-      <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+      <i data-lucide="circle-minus" aria-hidden="true"></i>
       <span class="sr-only">{{ remove_from_watchlist_label }}</span>
     </button>
     {% endif %}

@@ -18,7 +18,6 @@ def build_external_links(
         url: str | None,
         *,
         icon: str,
-        icon_family: str = "solid",
         logo: str | None = None,
     ) -> None:
         if not url or any(link["url"] == url for link in links):
@@ -28,7 +27,6 @@ def build_external_links(
                 "label": label,
                 "url": url,
                 "icon": icon,
-                "icon_family": icon_family,
                 "logo": logo or label.lower(),
             }
         )
@@ -44,14 +42,14 @@ def build_external_links(
         add(
             "TMDB",
             f"https://www.themoviedb.org/movie/{provider_id}",
-            icon="fa-database",
+            icon="database",
             logo="tmdb",
         )
     elif provider == "tmdb" and media_type == "tv":
         add(
             "TMDB",
             f"https://www.themoviedb.org/tv/{provider_id}",
-            icon="fa-database",
+            icon="database",
             logo="tmdb",
         )
     elif provider == "tvdb":
@@ -59,7 +57,7 @@ def build_external_links(
         add(
             "TVDB",
             f"https://thetvdb.com/dereferrer/{entity}/{provider_id}",
-            icon="fa-database",
+            icon="database",
             logo="tvdb",
         )
 
@@ -68,7 +66,7 @@ def build_external_links(
         add(
             "TMDB",
             f"https://www.themoviedb.org/{path}/{tmdb_id}",
-            icon="fa-database",
+            icon="database",
             logo="tmdb",
         )
     if tvdb_id:
@@ -76,15 +74,14 @@ def build_external_links(
         add(
             "TVDB",
             f"https://thetvdb.com/dereferrer/{entity}/{tvdb_id}",
-            icon="fa-database",
+            icon="database",
             logo="tvdb",
         )
     if imdb_id:
         add(
             "IMDb",
             f"https://www.imdb.com/title/{imdb_id}/",
-            icon="fa-imdb",
-            icon_family="brands",
+            icon="star",
             logo="imdb",
         )
     if trakt_id:
@@ -97,7 +94,7 @@ def build_external_links(
             add(
                 "Trakt",
                 f"https://trakt.tv/{path}/{trakt_id}",
-                icon="fa-tv",
+                icon="tv",
                 logo="trakt",
             )
 
