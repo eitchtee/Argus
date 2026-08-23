@@ -661,6 +661,79 @@ class TVDBProviderTests(SimpleTestCase):
                                 "seasonNumber": 1,
                                 "number": 1,
                                 "name": "2017: Wiley Giraffe Blower",
+    def test_fetch_episodes_follows_pagination_until_the_show_is_whole(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener(
+            [
+                {
+                    "data": {
+                        "episodes": [
+                            {"seasonNumber": 1, "number": 1, "name": "One"},
+                            {"seasonNumber": 1, "number": 2, "name": "Two"},
+                        ]
+                    },
+                    "links": {
+                        "next": (
+                            "https://api4.thetvdb.com/v4"
+                            "/series/71663/episodes/official/eng?page=1"
+                        ),
+                        "total_items": 3,
+                        "page_size": 2,
+                    },
+                },
+                {
+                    "data": {
+                        "episodes": [
+                            {"seasonNumber": 2, "number": 1, "name": "Three"},
+                        ]
+                    },
+                    "links": {"next": None, "total_items": 3, "page_size": 2},
+                },
+            ]
+        )
+        provider = TVDBProvider(opener=opener)
+
+        episodes = provider.fetch_episodes("71663", language="eng")
+
+        self.assertEqual(
+            [(episode.season_number, episode.episode_number) for episode in episodes],
+            [(1, 1), (1, 2), (2, 1)],
+        )
+        self.assertEqual(len(opener.requests), 2)
+        self.assertIn("page=0", opener.requests[0][0].full_url)
+        self.assertIn("page=1", opener.requests[1][0].full_url)
+
+    def test_fetch_episodes_stops_when_a_page_reports_no_next_link(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener([load_fixture("tvdb_episodes_default.json")])
+        provider = TVDBProvider(opener=opener)
+
+        episodes = provider.fetch_episodes("121361", language="eng")
+
+        self.assertEqual(len(episodes), 2)
+        self.assertEqual(len(opener.requests), 1)
+
+    def test_fetch_episodes_stops_when_a_next_link_yields_an_empty_page(self):
+        cache.set("catalog:tvdb:token", "existing-token")
+        opener = SequenceOpener(
+            [
+                {
+                    "data": {"episodes": [{"seasonNumber": 1, "number": 1}]},
+                    "links": {"next": "https://api4.thetvdb.com/v4/next"},
+                },
+                {
+                    "data": {"episodes": []},
+                    "links": {"next": "https://api4.thetvdb.com/v4/next"},
+                },
+            ]
+        )
+        provider = TVDBProvider(opener=opener)
+
+        episodes = provider.fetch_episodes("71663", language="eng")
+
+        self.assertEqual(len(episodes), 1)
+        self.assertEqual(len(opener.requests), 2)
+
                                 "aired": "2017-12-13",
                             },
                             {

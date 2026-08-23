@@ -557,11 +557,23 @@ class TVDBProvider(BaseProvider):
         return trailers[0].get("url")
 
     def fetch_episodes(self, external_id: str, *, language: str) -> list[EpisodeDTO]:
-        payload = self._get_json(
-            f"/series/{external_id}/episodes/official/{language}"
-        )
-        data = payload.get("data", {})
-        episodes = data.get("episodes", data if isinstance(data, list) else [])
+        # TVDB caps this endpoint at 500 episodes per page. Long-running shows
+        # spill onto further pages, and a truncated list is not merely
+        # incomplete: import_show prunes every episode missing from it, taking
+        # the watch history with it. Follow links.next until the show is whole.
+        episodes = []
+        page = 0
+        while True:
+            payload = self._get_json(
+                f"/series/{external_id}/episodes/official/{language}",
+                params={"page": page},
+            )
+            data = payload.get("data", {})
+            page_episodes = data.get("episodes", data if isinstance(data, list) else [])
+            episodes.extend(page_episodes)
+            if not page_episodes or not (payload.get("links") or {}).get("next"):
+                break
+            page += 1
 
         return [
             EpisodeDTO(
