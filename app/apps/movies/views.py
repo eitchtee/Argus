@@ -37,7 +37,7 @@ from apps.movies.services import (
     mark_seen,
     normalize_movie_status,
     remove_from_watchlist,
-    queue_switch_movie_provider,
+    switch_movie_provider,
     queue_track_movie,
     refresh_movie,
     unmark_seen,
@@ -191,7 +191,7 @@ def movie_switch(request, external_id):
         }
         if target_imdb_id:
             switch_kwargs["target_imdb_id"] = target_imdb_id
-        queue_switch_movie_provider(
+        switch_movie_provider(
             request.user,
             **switch_kwargs,
         )

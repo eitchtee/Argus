@@ -137,32 +137,6 @@ class TVTranslationTaskTests(TransactionTestCase):
         self.assertEqual(state.status, UserShow.Status.PAUSED)
         self.assertFalse(state.on_watchlist)
 
-    @patch("apps.tv.tasks.tv_services.switch_show_provider", create=True)
-    def test_switch_show_provider_task_reloads_user_and_delegates(self, switch_show_provider):
-        from apps.tv.tasks import switch_show_provider as switch_task
-
-        user = get_user_model().objects.create_user("switched@example.com")
-        switch_show_provider.return_value = "switched"
-
-        result = switch_task.func(
-            user.id,
-            source_provider="tvdb",
-            source_external_id="121361",
-            target_provider="tmdb",
-            target_external_id="1399",
-            target_imdb_id="tt0944947",
-        )
-
-        switch_show_provider.assert_called_once_with(
-            user,
-            source_provider="tvdb",
-            source_external_id="121361",
-            target_provider="tmdb",
-            target_external_id="1399",
-            target_imdb_id="tt0944947",
-        )
-        self.assertEqual(result, "switched")
-
     @patch("apps.tv.tasks.hydrate_show_translations")
     @patch("apps.tv.tasks.tv_services.import_show")
     def test_sync_show_refreshes_metadata_and_returns_translation_task_id(

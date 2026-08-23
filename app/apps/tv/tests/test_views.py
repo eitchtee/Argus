@@ -817,14 +817,14 @@ class ShowSwitchViewTests(TestCase):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
         self.client.login(username="user@example.com", password="password")
 
-    @patch("apps.tv.views.queue_switch_show_provider")
-    def test_post_switches_show_provider_and_redirects(self, queue_switch_show_provider_mock):
+    @patch("apps.tv.views.switch_show_provider")
+    def test_post_switches_show_provider_and_redirects(self, switch_show_provider_mock):
         response = self.client.post(
             "/tv/1399/switch/?provider=tmdb&from_provider=tvdb&from_external_id=121361",
             HTTP_HX_REQUEST="true",
         )
 
-        queue_switch_show_provider_mock.assert_called_once_with(
+        switch_show_provider_mock.assert_called_once_with(
             self.user,
             source_provider="tvdb",
             source_external_id="121361",
@@ -833,18 +833,18 @@ class ShowSwitchViewTests(TestCase):
         )
         self.assertEqual(response["HX-Redirect"], "/tv/1399/?provider=tmdb")
 
-    @patch("apps.tv.views.queue_switch_show_provider")
-    def test_switch_requires_source_state_parameters(self, queue_switch_show_provider_mock):
+    @patch("apps.tv.views.switch_show_provider")
+    def test_switch_requires_source_state_parameters(self, switch_show_provider_mock):
         response = self.client.post(
             "/tv/1399/switch/?provider=tmdb",
             HTTP_HX_REQUEST="true",
         )
 
         self.assertEqual(response.status_code, 400)
-        queue_switch_show_provider_mock.assert_not_called()
+        switch_show_provider_mock.assert_not_called()
 
-    @patch("apps.tv.views.queue_switch_show_provider")
-    def test_demo_mode_blocks_switch(self, queue_switch_show_provider_mock):
+    @patch("apps.tv.views.switch_show_provider")
+    def test_demo_mode_blocks_switch(self, switch_show_provider_mock):
         with self.settings(DEMO=True):
             response = self.client.post(
                 "/tv/1399/switch/?provider=tmdb&from_provider=tvdb&from_external_id=121361",
@@ -852,19 +852,19 @@ class ShowSwitchViewTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 403)
-        queue_switch_show_provider_mock.assert_not_called()
+        switch_show_provider_mock.assert_not_called()
 
-    @patch("apps.tv.views.queue_switch_show_provider")
+    @patch("apps.tv.views.switch_show_provider")
     def test_post_queues_show_provider_switch_without_calling_heavy_service(
         self,
-        queue_switch_show_provider_mock,
+        switch_show_provider_mock,
     ):
         response = self.client.post(
             "/tv/1399/switch/?provider=tmdb&from_provider=tvdb&from_external_id=121361",
             HTTP_HX_REQUEST="true",
         )
 
-        queue_switch_show_provider_mock.assert_called_once_with(
+        switch_show_provider_mock.assert_called_once_with(
             self.user,
             source_provider="tvdb",
             source_external_id="121361",

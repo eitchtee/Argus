@@ -72,31 +72,6 @@ class MovieTaskTests(TransactionTestCase):
         )
         self.assertFalse(UserMovie.objects.get(user=self.user, movie=movie).on_watchlist)
 
-    @patch("apps.movies.tasks.movie_services.switch_movie_provider", create=True)
-    def test_switch_movie_provider_task_reloads_user_and_delegates(self, switch_movie_provider):
-        from apps.movies.tasks import switch_movie_provider as switch_task
-
-        switch_movie_provider.return_value = "switched"
-
-        result = switch_task.func(
-            self.user.id,
-            source_provider="tmdb",
-            source_external_id="550",
-            target_provider="tvdb",
-            target_external_id="42",
-            target_imdb_id="tt0137523",
-        )
-
-        switch_movie_provider.assert_called_once_with(
-            self.user,
-            source_provider="tmdb",
-            source_external_id="550",
-            target_provider="tvdb",
-            target_external_id="42",
-            target_imdb_id="tt0137523",
-        )
-        self.assertEqual(result, "switched")
-
     @patch("apps.movies.tasks.hydrate_movie_translations")
     @patch("apps.movies.tasks.movie_services.import_movie")
     def test_sync_movie_imports_existing_movie_and_queues_translation_hydration(

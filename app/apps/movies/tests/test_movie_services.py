@@ -238,38 +238,6 @@ class MovieServiceTests(TestCase):
             movie_id=movie.id,
         )
 
-    @patch("apps.movies.tasks.switch_movie_provider", create=True)
-    def test_queue_switch_movie_provider_defers_state_migration(self, switch_task):
-        from apps.movies.services import queue_switch_movie_provider
-
-        source = Movie.objects.create(
-            provider="tmdb",
-            external_id="550",
-            tvdb_id="42",
-            title="Fight Club",
-        )
-        UserMovie.objects.create(user=self.user, movie=source, on_watchlist=True)
-
-        target = queue_switch_movie_provider(
-            self.user,
-            source_provider="tmdb",
-            source_external_id="550",
-            target_provider="tvdb",
-            target_external_id="42",
-        )
-
-        self.assertEqual(target.sync_status, SyncStatus.PENDING)
-        self.assertTrue(UserMovie.objects.filter(user=self.user, movie=source).exists())
-        self.assertTrue(UserMovie.objects.filter(user=self.user, movie=target).exists())
-        switch_task.defer.assert_called_once_with(
-            user_id=self.user.id,
-            source_provider="tmdb",
-            source_external_id="550",
-            target_provider="tvdb",
-            target_external_id="42",
-            target_imdb_id=None,
-        )
-
     def test_switch_movie_provider_moves_state_and_enqueues_sync(self):
         source = Movie.objects.create(
             provider="tmdb",

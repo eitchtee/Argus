@@ -139,7 +139,7 @@ def switch(request):
     if error is None:
         try:
             if media_type == "movie":
-                from apps.movies.services import queue_switch_movie_provider
+                from apps.movies.services import switch_movie_provider
 
                 switch_kwargs = {
                     "source_provider": source_provider,
@@ -149,9 +149,9 @@ def switch(request):
                 }
                 if target_imdb_id:
                     switch_kwargs["target_imdb_id"] = target_imdb_id
-                queue_switch_movie_provider(request.user, **switch_kwargs)
+                switch_movie_provider(request.user, **switch_kwargs)
             else:
-                from apps.tv.services import queue_switch_show_provider
+                from apps.tv.services import switch_show_provider
 
                 switch_kwargs = {
                     "source_provider": source_provider,
@@ -161,7 +161,7 @@ def switch(request):
                 }
                 if target_imdb_id:
                     switch_kwargs["target_imdb_id"] = target_imdb_id
-                queue_switch_show_provider(request.user, **switch_kwargs)
+                switch_show_provider(request.user, **switch_kwargs)
         except ValueError as exc:
             error = str(exc) or _("Provider error.")
 

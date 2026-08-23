@@ -173,10 +173,8 @@ class TrackShowServiceTests(TestCase):
             show_id=show.id,
         )
 
-    @patch("apps.tv.tasks.switch_show_provider", create=True)
-    def test_queue_switch_show_provider_defers_catalog_migration(self, switch_task):
-        from apps.tv.services import queue_switch_show_provider
-
+    def test_switch_show_provider_carries_catalog_without_a_worker(self):
+        sync_calls = []
         source = Show.objects.create(
             provider="tvdb",
             external_id="121361",
@@ -192,26 +190,23 @@ class TrackShowServiceTests(TestCase):
         )
         UserShow.objects.create(user=self.user, show=source, status=UserShow.Status.TRACKED)
 
-        target = queue_switch_show_provider(
+        target = switch_show_provider(
             self.user,
             source_provider="tvdb",
             source_external_id="121361",
             target_provider="tmdb",
             target_external_id="1399",
+            sync_func=sync_calls.append,
         )
 
+        # The catalog has to land before the deferred provider sync runs, otherwise a
+        # backed-up worker leaves the switched show with no episodes at all.
         self.assertEqual(target.sync_status, SyncStatus.PENDING)
-        self.assertEqual(target.seasons.count(), 0)
-        self.assertTrue(UserShow.objects.filter(user=self.user, show=source).exists())
+        self.assertEqual(target.seasons.count(), 1)
+        self.assertEqual(target.episodes.count(), 1)
+        self.assertFalse(UserShow.objects.filter(user=self.user, show=source).exists())
         self.assertTrue(UserShow.objects.filter(user=self.user, show=target).exists())
-        switch_task.defer.assert_called_once_with(
-            user_id=self.user.id,
-            source_provider="tvdb",
-            source_external_id="121361",
-            target_provider="tmdb",
-            target_external_id="1399",
-            target_imdb_id=None,
-        )
+        self.assertEqual(sync_calls, [target.id])
 
     def test_switch_show_provider_moves_state_and_matching_watched_episodes(self):
         source = Show.objects.create(

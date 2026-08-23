@@ -56,7 +56,7 @@ from apps.tv.services import (
     mark_season_watched,
     mark_show_watched,
     pause_show,
-    queue_switch_show_provider,
+    switch_show_provider,
     queue_track_show,
     refresh_show,
     unmark_episode_watched,
@@ -286,7 +286,7 @@ def show_switch(request, external_id):
         }
         if target_imdb_id:
             switch_kwargs["target_imdb_id"] = target_imdb_id
-        queue_switch_show_provider(
+        switch_show_provider(
             request.user,
             **switch_kwargs,
         )

@@ -323,14 +323,14 @@ class MovieSwitchViewTests(TestCase):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
         self.client.login(username="user@example.com", password="password")
 
-    @patch("apps.movies.views.queue_switch_movie_provider")
-    def test_post_switches_movie_provider_and_redirects(self, queue_switch_movie_provider_mock):
+    @patch("apps.movies.views.switch_movie_provider")
+    def test_post_switches_movie_provider_and_redirects(self, switch_movie_provider_mock):
         response = self.client.post(
             "/movies/42/switch/?provider=tvdb&from_provider=tmdb&from_external_id=550",
             HTTP_HX_REQUEST="true",
         )
 
-        queue_switch_movie_provider_mock.assert_called_once_with(
+        switch_movie_provider_mock.assert_called_once_with(
             self.user,
             source_provider="tmdb",
             source_external_id="550",
@@ -339,18 +339,18 @@ class MovieSwitchViewTests(TestCase):
         )
         self.assertEqual(response["HX-Redirect"], "/movies/42/?provider=tvdb")
 
-    @patch("apps.movies.views.queue_switch_movie_provider")
-    def test_switch_requires_source_state_parameters(self, queue_switch_movie_provider_mock):
+    @patch("apps.movies.views.switch_movie_provider")
+    def test_switch_requires_source_state_parameters(self, switch_movie_provider_mock):
         response = self.client.post(
             "/movies/42/switch/?provider=tvdb",
             HTTP_HX_REQUEST="true",
         )
 
         self.assertEqual(response.status_code, 400)
-        queue_switch_movie_provider_mock.assert_not_called()
+        switch_movie_provider_mock.assert_not_called()
 
-    @patch("apps.movies.views.queue_switch_movie_provider")
-    def test_demo_mode_blocks_switch(self, queue_switch_movie_provider_mock):
+    @patch("apps.movies.views.switch_movie_provider")
+    def test_demo_mode_blocks_switch(self, switch_movie_provider_mock):
         with self.settings(DEMO=True):
             response = self.client.post(
                 "/movies/42/switch/?provider=tvdb&from_provider=tmdb&from_external_id=550",
@@ -358,19 +358,19 @@ class MovieSwitchViewTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 403)
-        queue_switch_movie_provider_mock.assert_not_called()
+        switch_movie_provider_mock.assert_not_called()
 
-    @patch("apps.movies.views.queue_switch_movie_provider")
+    @patch("apps.movies.views.switch_movie_provider")
     def test_post_queues_movie_provider_switch_without_calling_heavy_service(
         self,
-        queue_switch_movie_provider_mock,
+        switch_movie_provider_mock,
     ):
         response = self.client.post(
             "/movies/42/switch/?provider=tvdb&from_provider=tmdb&from_external_id=550",
             HTTP_HX_REQUEST="true",
         )
 
-        queue_switch_movie_provider_mock.assert_called_once_with(
+        switch_movie_provider_mock.assert_called_once_with(
             self.user,
             source_provider="tmdb",
             source_external_id="550",

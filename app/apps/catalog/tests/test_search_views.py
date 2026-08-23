@@ -307,10 +307,10 @@ class SearchResultsViewTests(TestCase):
         self.assertContains(response, 'aria-label="Mark watched"')
 
     @patch("apps.catalog.views.catalog_search")
-    @patch("apps.movies.services.queue_switch_movie_provider")
+    @patch("apps.movies.services.switch_movie_provider")
     def test_movie_provider_switch_replaces_switch_with_watched_action(
         self,
-        queue_switch_movie_provider_mock,
+        switch_movie_provider_mock,
         catalog_search,
     ):
         source = Movie.objects.create(
@@ -330,7 +330,7 @@ class SearchResultsViewTests(TestCase):
             UserMovie.objects.create(user=user, movie=target, on_watchlist=True)
             return target
 
-        queue_switch_movie_provider_mock.side_effect = switch_movie
+        switch_movie_provider_mock.side_effect = switch_movie
         catalog_search.return_value = [
             SearchResultDTO(
                 provider="tvdb",
@@ -349,7 +349,7 @@ class SearchResultsViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        queue_switch_movie_provider_mock.assert_called_once_with(
+        switch_movie_provider_mock.assert_called_once_with(
             self.user,
             source_provider="tmdb",
             source_external_id="550",
@@ -361,10 +361,10 @@ class SearchResultsViewTests(TestCase):
         self.assertNotContains(response, 'data-lucide="arrow-right-left"')
 
     @patch("apps.catalog.views.catalog_search")
-    @patch("apps.movies.services.queue_switch_movie_provider")
+    @patch("apps.movies.services.switch_movie_provider")
     def test_movie_provider_switch_renders_service_error(
         self,
-        queue_switch_movie_provider_mock,
+        switch_movie_provider_mock,
         catalog_search,
     ):
         source = Movie.objects.create(
@@ -374,7 +374,7 @@ class SearchResultsViewTests(TestCase):
             title="Fight Club",
         )
         UserMovie.objects.create(user=self.user, movie=source, on_watchlist=True)
-        queue_switch_movie_provider_mock.side_effect = ValueError(
+        switch_movie_provider_mock.side_effect = ValueError(
             "Movies do not match across providers."
         )
         catalog_search.return_value = [
@@ -399,10 +399,10 @@ class SearchResultsViewTests(TestCase):
         self.assertContains(response, 'data-lucide="arrow-right-left"')
 
     @patch("apps.catalog.views.catalog_search")
-    @patch("apps.tv.services.queue_switch_show_provider")
+    @patch("apps.tv.services.switch_show_provider")
     def test_tv_provider_switch_replaces_switch_with_tracking_action(
         self,
-        queue_switch_show_provider_mock,
+        switch_show_provider_mock,
         catalog_search,
     ):
         source = Show.objects.create(
@@ -430,7 +430,7 @@ class SearchResultsViewTests(TestCase):
             )
             return target
 
-        queue_switch_show_provider_mock.side_effect = switch_show
+        switch_show_provider_mock.side_effect = switch_show
         catalog_search.return_value = [
             SearchResultDTO(
                 provider="tmdb",
@@ -449,7 +449,7 @@ class SearchResultsViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        queue_switch_show_provider_mock.assert_called_once_with(
+        switch_show_provider_mock.assert_called_once_with(
             self.user,
             source_provider="tvdb",
             source_external_id="123",

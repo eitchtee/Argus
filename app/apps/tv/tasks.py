@@ -29,27 +29,6 @@ def track_show(user_id: int, show_id: int):
     }
 
 
-@app.task(name="switch_show_provider")
-def switch_show_provider(
-    user_id: int,
-    *,
-    source_provider: str,
-    source_external_id: str,
-    target_provider: str,
-    target_external_id: str,
-    target_imdb_id: str | None = None,
-):
-    user = get_user_model().objects.get(id=user_id)
-    return tv_services.switch_show_provider(
-        user,
-        source_provider=source_provider,
-        source_external_id=source_external_id,
-        target_provider=target_provider,
-        target_external_id=target_external_id,
-        target_imdb_id=target_imdb_id,
-    )
-
-
 @app.task(name="hydrate_show_translations")
 def hydrate_show_translations(show_id: int):
     return tv_services.hydrate_show_translations_sync(show_id)

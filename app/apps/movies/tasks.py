@@ -31,27 +31,6 @@ def track_movie(user_id: int, movie_id: int):
     }
 
 
-@app.task(name="switch_movie_provider")
-def switch_movie_provider(
-    user_id: int,
-    *,
-    source_provider: str,
-    source_external_id: str,
-    target_provider: str,
-    target_external_id: str,
-    target_imdb_id: str | None = None,
-):
-    user = get_user_model().objects.get(id=user_id)
-    return movie_services.switch_movie_provider(
-        user,
-        source_provider=source_provider,
-        source_external_id=source_external_id,
-        target_provider=target_provider,
-        target_external_id=target_external_id,
-        target_imdb_id=target_imdb_id,
-    )
-
-
 @app.task(name="hydrate_movie_translations")
 def hydrate_movie_translations(movie_id: int):
     movie = Movie.objects.get(id=movie_id)
