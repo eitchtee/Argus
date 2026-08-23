@@ -360,7 +360,7 @@
     }
 
     .poster-card__title {
-        @apply m-0 block w-full overflow-hidden text-sm font-semibold leading-5 text-white drop-shadow-md;
+        @apply m-0 block w-full overflow-hidden text-xs font-semibold leading-5 text-white drop-shadow-md;
         display: -webkit-box;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 1;
@@ -373,11 +373,8 @@
 
     .poster-card:hover .poster-card__title,
     .poster-card:focus-visible .poster-card__title {
-        display: block;
-        -webkit-line-clamp: unset;
-        max-height: 10rem;
-        overflow: visible;
-        text-overflow: clip;
+        -webkit-line-clamp: 3;
+        max-height: 3.75rem;
         white-space: normal;
     }
 
