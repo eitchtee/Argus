@@ -226,3 +226,6 @@ data/
 .idea/
 docs/
 .claude/
+
+# archives
+*.zip
