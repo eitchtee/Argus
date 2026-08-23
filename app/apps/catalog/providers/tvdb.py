@@ -588,7 +588,7 @@ class TVDBProvider(BaseProvider):
                     season_number=season.get("number") or 0,
                     name="",
                     overview=season.get("overview") or "",
-                    poster_path=season.get("image"),
+                    poster_path=self._artwork_url(season.get("image")),
                     translations={
                         code: values
                         for code, values in translations.items()
