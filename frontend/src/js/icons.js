@@ -141,8 +141,13 @@ renderIcons();
 // task as the DOM insertion, so replacing them here happens before the browser
 // paints the new content - no flash of unrendered <i> placeholders. afterSettle
 // runs on a timer (settleDelay) and would let a frame slip through.
+//
+// Use event.target, not event.detail.target: htmx dispatches afterSwap on the
+// newly inserted elements, but detail.target still points to the ORIGINAL swap
+// target, which hx-swap="outerHTML" has just detached from the DOM. Rendering
+// into that stale node leaves the live placeholders unrendered (empty icons).
 function renderSwappedIcons(event) {
-    const root = event.detail?.target || event.target;
+    const root = event.target;
 
     if (root instanceof Element && root.matches('[data-lucide]')) {
         // outerHTML swap of a placeholder itself: querySelectorAll skips the root.
