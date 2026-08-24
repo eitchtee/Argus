@@ -26,6 +26,7 @@ dependencies = [
     "psycopg[binary,pool]==3.3.4",
     "python-dateutil~=2.9.0.post0",
     "pytz>=2025.2",
+    "watchdog~=6.0",
     "watchfiles==1.2.0",
     "whitenoise[brotli]==6.12.0",
 ]
