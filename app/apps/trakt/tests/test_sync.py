@@ -2,9 +2,11 @@ from datetime import timedelta
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
+from apps.catalog.models import MediaRating
 from apps.movies.models import Movie, UserMovie
 from apps.movies.services import unmark_seen
 from apps.catalog.providers.exceptions import ProviderError
@@ -53,6 +55,13 @@ class FakeTraktClient:
         self.dropped_calls.append((shows, remove))
 
 
+def _rating_filter(media):
+    return {
+        "content_type": ContentType.objects.get_for_model(type(media)),
+        "object_id": media.pk,
+    }
+
+
 def client_factory(client):
     return lambda _account: client
 
@@ -67,6 +76,230 @@ class TraktSyncTests(TestCase):
             user=self.user,
             access_token="access",
             refresh_token="refresh",
+        )
+
+    def test_remote_ratings_are_pulled_onto_local_media(self):
+        watched_at = timezone.now()
+        movie = Movie.objects.create(
+            external_id="550",
+            trakt_id="5500",
+            tmdb_id="550",
+            title="Fight Club",
+        )
+        show = Show.objects.create(
+            external_id="1000",
+            trakt_id="1000",
+            name="Lucifer",
+        )
+        season = Season.objects.create(show=show, season_number=1)
+        episode = Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=2,
+            name="Episode",
+        )
+        UserEpisode.objects.create(user=self.user, episode=episode, seen_at=watched_at)
+
+        client = FakeTraktClient(
+            TraktSnapshot(
+                watchlist_movies=[],
+                watchlist_shows=[],
+                watched_movies=[
+                    {
+                        "watched_at": watched_at.isoformat(),
+                        "movie": {"ids": {"trakt": 5500, "tmdb": 550}},
+                    }
+                ],
+                watched_shows=[{"show": {"ids": {"trakt": 1000}}}],
+                dropped_shows=[],
+                rated_movies=[
+                    {"rating": 7, "movie": {"ids": {"trakt": 5500, "tmdb": 550}}}
+                ],
+                rated_shows=[{"rating": 10, "show": {"ids": {"trakt": 1000}}}],
+                rated_episodes=[
+                    {
+                        "rating": 3,
+                        "show": {"ids": {"trakt": 1000}},
+                        "episode": {"season": 1, "number": 2},
+                    }
+                ],
+            )
+        )
+
+        report = sync_account(self.account.id, client_factory=client_factory(client))
+
+        self.assertEqual(report.ratings_applied, 3)
+        self.assertEqual(
+            str(MediaRating.objects.get(**_rating_filter(movie)).score),
+            "3.5",
+        )
+        self.assertEqual(
+            str(MediaRating.objects.get(**_rating_filter(show)).score),
+            "5.0",
+        )
+        self.assertEqual(
+            str(MediaRating.objects.get(**_rating_filter(episode)).score),
+            "1.5",
+        )
+
+    def test_remote_ratings_overwrite_a_stale_local_score(self):
+        watched_at = timezone.now()
+        movie = Movie.objects.create(
+            external_id="550",
+            trakt_id="5500",
+            title="Fight Club",
+        )
+        UserMovie.objects.create(
+            user=self.user,
+            movie=movie,
+            is_seen=True,
+            seen_at=watched_at,
+        )
+        MediaRating.objects.create(
+            user=self.user,
+            media_type=MediaRating.MediaType.MOVIE,
+            score="1.0",
+            **_rating_filter(movie),
+        )
+
+        client = FakeTraktClient(
+            TraktSnapshot(
+                watchlist_movies=[],
+                watchlist_shows=[],
+                watched_movies=[],
+                watched_shows=[],
+                dropped_shows=[],
+                rated_movies=[{"rating": 9, "movie": {"ids": {"trakt": 5500}}}],
+            )
+        )
+
+        report = sync_account(self.account.id, client_factory=client_factory(client))
+
+        self.assertEqual(report.ratings_applied, 1)
+        self.assertEqual(
+            str(MediaRating.objects.get(**_rating_filter(movie)).score),
+            "4.5",
+        )
+
+    def test_rating_for_media_in_neither_library_is_ignored(self):
+        """Rated on Trakt, but not watched or watchlisted on either side."""
+        client = FakeTraktClient(
+            TraktSnapshot(
+                watchlist_movies=[],
+                watchlist_shows=[],
+                watched_movies=[],
+                watched_shows=[],
+                dropped_shows=[],
+                rated_movies=[
+                    {"rating": 8, "movie": {"ids": {"trakt": 4242, "tmdb": 4242}}}
+                ],
+            )
+        )
+
+        with patch("apps.trakt.sync.movie_services.import_movie") as import_movie:
+            report = sync_account(
+                self.account.id,
+                client_factory=client_factory(client),
+            )
+
+        import_movie.assert_not_called()
+        self.assertEqual(report.ratings_applied, 0)
+        self.assertFalse(Movie.objects.exists())
+        self.assertFalse(MediaRating.objects.exists())
+
+    def test_rated_episode_of_a_show_in_neither_library_is_ignored(self):
+        """The Lucifer case: rated on Trakt, but the show is not in either library."""
+        client = FakeTraktClient(
+            TraktSnapshot(
+                watchlist_movies=[],
+                watchlist_shows=[],
+                watched_movies=[],
+                watched_shows=[],
+                dropped_shows=[],
+                rated_episodes=[
+                    {
+                        "rating": 8,
+                        "show": {"ids": {"trakt": 98990, "tvdb": 295685}},
+                        "episode": {"season": 2, "number": 11, "title": "Stewardess"},
+                    }
+                ],
+            )
+        )
+
+        with patch("apps.trakt.sync.tv_services.import_show") as import_show:
+            report = sync_account(
+                self.account.id,
+                client_factory=client_factory(client),
+            )
+
+        import_show.assert_not_called()
+        self.assertEqual(report.ratings_applied, 0)
+        self.assertFalse(Show.objects.exists())
+        self.assertFalse(Episode.objects.exists())
+        self.assertFalse(MediaRating.objects.exists())
+
+    def test_rating_syncs_onto_media_tracked_only_in_argus(self):
+        """Not in the Trakt snapshot's libraries, but already tracked locally."""
+        movie = Movie.objects.create(
+            external_id="550",
+            trakt_id="5500",
+            title="Fight Club",
+        )
+        UserMovie.objects.create(
+            user=self.user,
+            movie=movie,
+            on_watchlist=True,
+            watchlist_added_at=timezone.now(),
+        )
+        client = FakeTraktClient(
+            TraktSnapshot(
+                watchlist_movies=[],
+                watchlist_shows=[],
+                watched_movies=[],
+                watched_shows=[],
+                dropped_shows=[],
+                rated_movies=[{"rating": 9, "movie": {"ids": {"trakt": 5500}}}],
+            )
+        )
+
+        report = sync_account(self.account.id, client_factory=client_factory(client))
+
+        self.assertEqual(report.ratings_applied, 1)
+        self.assertEqual(
+            str(MediaRating.objects.get(**_rating_filter(movie)).score),
+            "4.5",
+        )
+
+    def test_rating_syncs_without_changing_an_existing_show_status(self):
+        show = Show.objects.create(
+            external_id="1000",
+            trakt_id="1000",
+            name="Lucifer",
+        )
+        UserShow.objects.create(
+            user=self.user,
+            show=show,
+            status=UserShow.Status.DROPPED,
+        )
+        client = FakeTraktClient(
+            TraktSnapshot(
+                watchlist_movies=[],
+                watchlist_shows=[],
+                watched_movies=[],
+                watched_shows=[],
+                dropped_shows=[],
+                rated_shows=[{"rating": 10, "show": {"ids": {"trakt": 1000}}}],
+            )
+        )
+
+        sync_account(self.account.id, client_factory=client_factory(client))
+
+        state = UserShow.objects.get(user=self.user, show=show)
+        self.assertEqual(state.status, UserShow.Status.DROPPED)
+        self.assertEqual(
+            str(MediaRating.objects.get(**_rating_filter(show)).score),
+            "5.0",
         )
 
     def test_duplicate_remote_movie_watches_keep_latest_timestamp(self):

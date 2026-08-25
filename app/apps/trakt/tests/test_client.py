@@ -90,6 +90,9 @@ class TraktClientTests(SimpleTestCase):
             FakeResponse([]),
             FakeResponse([]),
             FakeResponse(history),
+            FakeResponse([]),
+            FakeResponse([]),
+            FakeResponse([]),
         ]
 
         snapshot = self.client.get_snapshot(
@@ -97,7 +100,15 @@ class TraktClientTests(SimpleTestCase):
         )
 
         self.assertEqual(snapshot.watched_episodes, history)
-        self.assertIn("start_at=2026-07-19T23%3A55%3A00Z", self.opener.requests[-1][0].full_url)
+        history_urls = [
+            request.full_url
+            for request, *_rest in self.opener.requests
+            if "/sync/history/episodes" in request.full_url
+        ]
+        self.assertTrue(
+            any("start_at=2026-07-19T23%3A55%3A00Z" in url for url in history_urls),
+            history_urls,
+        )
 
     def test_rate_limit_exposes_retry_after(self):
         from urllib.error import HTTPError
