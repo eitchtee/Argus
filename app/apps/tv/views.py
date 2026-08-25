@@ -32,6 +32,7 @@ from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
 from apps.catalog.links import build_external_links
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
+from apps.catalog.ratings import build_rating_url, format_score, get_user_score
 from apps.catalog.tracking import find_tracking_match
 from apps.catalog.services import (
     SUPPORTED_PROVIDERS,
@@ -451,6 +452,8 @@ def episode_detail_content(request, external_id, episode_id):
         "show_provider": provider,
         "tracked": tracked,
         "watched": watched,
+        "user_rating": format_score(get_user_score(request.user, episode)) if watched else None,
+        "rating_url": build_rating_url("episode", episode.id),
         "previous_episode": _adjacent_episode(episode, direction="previous"),
         "next_episode": _adjacent_episode(episode, direction="next"),
     }
@@ -497,6 +500,11 @@ def episode_detail_watched(request, external_id, episode_id):
         "show_external_id": external_id,
         "show_provider": provider,
         "episode_id": episode.id,
+        "user_rating": (
+            format_score(get_user_score(request.user, episode)) if request.method == "POST" else None
+        ),
+        "rating_url": build_rating_url("episode", episode.id),
+        "rating_oob": True,
     }
     return render(request, "tv/fragments/episode_detail_watched_button.html", context)
 
@@ -748,6 +756,8 @@ def _build_show_context(user, external_id, provider="tvdb"):
         "show_fully_watched": (
             tracked and _show_is_fully_watched(user, show)
         ),
+        "user_rating": format_score(get_user_score(user, show)),
+        "rating_url": build_rating_url("show", show.external_id, show.provider),
         "external_links": build_external_links(
             "tv",
             provider=show.provider,
@@ -985,6 +995,8 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         "can_delete": False,
         "has_episodes": False,
         "show_fully_watched": False,
+        "user_rating": None,
+        "rating_url": build_rating_url("show", external_id, provider),
         "external_links": build_external_links(
             "tv",
             provider=provider,

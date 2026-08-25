@@ -17,3 +17,15 @@
     </button>
   </div>
 </div>
+
+{% if rating_oob %}
+<div id="episode-rating" class="media-rating-slot" hx-swap-oob="true">
+  {% if watched %}
+  <c-media-rating media_type="episode"
+                  external_id="{{ episode_id }}"
+                  score="{{ user_rating }}"
+                  url="{{ rating_url }}"
+                  rateable="True" />
+  {% endif %}
+</div>
+{% endif %}

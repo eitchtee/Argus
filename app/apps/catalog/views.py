@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.core.exceptions import ObjectDoesNotExist
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import render
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
@@ -12,8 +13,9 @@ from apps.catalog.artwork import (
 from apps.catalog.forms import MediaArtworkPreferenceForm, SearchForm
 from apps.catalog.languages import language_display_name
 from apps.catalog.localization import metadata_language_for_user, resolve_title
-from apps.catalog.models import MediaArtwork, SyncStatus, UserMediaArtworkPreference
+from apps.catalog.models import MediaArtwork, MediaRating, SyncStatus, UserMediaArtworkPreference
 from apps.catalog.providers.exceptions import ProviderError
+from apps.catalog import ratings
 from apps.catalog.services import (
     SEARCH_TYPE_PROVIDERS,
     SUPPORTED_PROVIDERS,
@@ -348,6 +350,54 @@ def media_artwork_preferences(request, media_type, external_id):
                 if artwork.kind == MediaArtwork.Kind.BACKGROUND
             ],
             "form": form,
+        },
+    )
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST"])
+def media_rating(request, media_type, external_id):
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+
+    provider = request.GET.get("provider", "").strip().lower() or None
+    if media_type not in MediaRating.MediaType.values:
+        return HttpResponseBadRequest("Unsupported media type.")
+    if media_type != MediaRating.MediaType.EPISODE and (
+        provider is not None and provider not in SUPPORTED_PROVIDERS
+    ):
+        return HttpResponseBadRequest("Invalid provider.")
+
+    try:
+        media = ratings.resolve_media(
+            media_type,
+            external_id=external_id,
+            provider=provider,
+        )
+        raw_score = (request.POST.get("score") or "").strip()
+        if raw_score:
+            score = ratings.parse_score(raw_score)
+            rating = ratings.rate_media(request.user, media_type, media, score)
+        else:
+            ratings.clear_rating(request.user, media)
+            rating = None
+    except ObjectDoesNotExist:
+        raise Http404("Media not found.")
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+
+    rating_url = ratings.build_rating_url(media_type, external_id, provider)
+
+    return render(
+        request,
+        "cotton/media_rating.html",
+        {
+            "media_type": media_type,
+            "external_id": str(external_id),
+            "score": ratings.format_score(rating.score) if rating else None,
+            "rateable": True,
+            "url": rating_url,
         },
     )
 

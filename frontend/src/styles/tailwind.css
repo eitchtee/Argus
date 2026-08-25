@@ -525,6 +525,18 @@
         border-bottom-right-radius: var(--radius-box);
     }
 
+    .media-rating-slot {
+        @apply mt-2;
+    }
+
+    .media-rating {
+        @apply flex w-full items-center justify-center rounded-box border border-base-300 bg-base-200 px-3 py-2.5;
+    }
+
+    .media-rating fieldset.rating {
+        @apply m-0 border-0 p-0;
+    }
+
     .media-menu {
         @apply absolute end-0 top-full z-50 mt-2 w-52 origin-top-right rounded-box border border-base-300 bg-base-100 py-1 shadow-xl rtl:origin-top-left;
     }

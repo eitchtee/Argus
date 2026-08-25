@@ -132,3 +132,15 @@
   </div>
   {% endif %}
 </div>
+
+{% if rating_oob %}
+<div id="movie-rating" class="media-rating-slot" hx-swap-oob="true">
+  {% if movie.is_seen and movie.rating_url %}
+  <c-media-rating media_type="movie"
+                  external_id="{{ movie.external_id }}"
+                  score="{{ movie.user_rating }}"
+                  url="{{ movie.rating_url }}"
+                  rateable="True" />
+  {% endif %}
+</div>
+{% endif %}

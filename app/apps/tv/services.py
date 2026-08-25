@@ -18,6 +18,11 @@ from apps.catalog.localization import (
 )
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
+from apps.catalog.ratings import (
+    delete_episode_ratings_for_show,
+    delete_ratings_for,
+    transfer_rating,
+)
 from apps.catalog.tracking import find_tracking_match, identity_keys
 from apps.trakt.changes import record_intent
 from apps.trakt.identities import episode_payload, show_payload
@@ -664,6 +669,7 @@ def switch_show_provider(
         target_state.on_watchlist = source_state.on_watchlist
         target_state.tracking_started_at = source_state.tracking_started_at
         target_state.tier = source_state.tier
+        transfer_rating(user, source=source, target=target)
         target_state.save(
             update_fields=[
                 "status",
@@ -700,6 +706,7 @@ def switch_show_provider(
                 ):
                     target_user_episode.seen_at = source_user_episode.seen_at
                     target_user_episode.save(update_fields=["seen_at"])
+                transfer_rating(user, source=source_episode, target=target_episode)
             source_user_episode.delete()
 
         source_state.delete()
@@ -909,6 +916,8 @@ def delete_show_data(user, show: Show) -> None:
         show_payload(show),
         desired=False,
     )
+    delete_ratings_for(user, show)
+    delete_episode_ratings_for_show(user, show)
     UserEpisode.objects.filter(user=user, episode__show=show).delete()
     UserShow.objects.filter(user=user, show=show).delete()
 

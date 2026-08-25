@@ -20,6 +20,15 @@
           {% endif %}
         </figure>
         {% include "movies/fragments/actions.html" %}
+        <div id="movie-rating" class="media-rating-slot">
+          {% if movie.is_seen %}
+          <c-media-rating media_type="movie"
+                          external_id="{{ movie.external_id }}"
+                          score="{{ movie.user_rating }}"
+                          url="{{ movie.rating_url }}"
+                          rateable="True" />
+          {% endif %}
+        </div>
       </div>
 
       <div class="min-w-0 space-y-6">

@@ -1,0 +1,149 @@
+{% load i18n %}
+{% trans "Your rating" as rating_group_label %}
+{% trans "No rating" as no_rating_label %}
+
+{% if rateable %}
+<div class="media-rating"
+     data-score="{% if score %}{{ score }}{% endif %}"
+     _="on init
+          set stars to Array.from(me.querySelectorAll('input'))
+          repeat for el in stars
+            if el.value == my @data-score
+              set el's checked to true
+            else
+              set el's checked to false
+            end
+          end
+        end
+
+        on pointermove[event]
+          call event.target.closest('input')
+          if it
+            set it's checked to true
+          end
+        end
+
+        on pointerdown[event]
+          if event.target.hasPointerCapture(event.pointerId)
+            call event.target.releasePointerCapture(event.pointerId)
+          end
+        end
+
+        on pointerup[event]
+          call event.target.closest('input')
+          if it
+            set it's checked to true
+            send change to it
+          end
+        end
+
+        on pointerleave
+          if my @data-score is ''
+            set currentStar to me.querySelector('input:checked')
+            if currentStar
+              set currentStar's checked to false
+            end
+          else
+            set stars to Array.from(me.querySelectorAll('input'))
+            repeat for el in stars
+              if el.value == my @data-score
+                set el's checked to true
+              else
+                set el's checked to false
+              end
+            end
+          end
+        end">
+  <fieldset class="rating rating-md rating-half">
+    <legend class="sr-only">{{ rating_group_label }}</legend>
+    <input type="radio" name="score" value=""
+           aria-label="{{ no_rating_label }}"
+           data-tippy-content="{{ no_rating_label }}"
+           class="rating-hidden"
+           {% if not score %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="0.5"
+           aria-label="0.5"
+           data-tippy-content="0.5"
+           class="mask mask-star-2 mask-half-1 bg-warning"
+           {% if score == '0.5' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="1.0"
+           aria-label="1.0"
+           data-tippy-content="1.0"
+           class="mask mask-star-2 mask-half-2 bg-warning"
+           {% if score == '1.0' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="1.5"
+           aria-label="1.5"
+           data-tippy-content="1.5"
+           class="mask mask-star-2 mask-half-1 bg-warning"
+           {% if score == '1.5' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="2.0"
+           aria-label="2.0"
+           data-tippy-content="2.0"
+           class="mask mask-star-2 mask-half-2 bg-warning"
+           {% if score == '2.0' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="2.5"
+           aria-label="2.5"
+           data-tippy-content="2.5"
+           class="mask mask-star-2 mask-half-1 bg-warning"
+           {% if score == '2.5' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="3.0"
+           aria-label="3.0"
+           data-tippy-content="3.0"
+           class="mask mask-star-2 mask-half-2 bg-warning"
+           {% if score == '3.0' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="3.5"
+           aria-label="3.5"
+           data-tippy-content="3.5"
+           class="mask mask-star-2 mask-half-1 bg-warning"
+           {% if score == '3.5' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="4.0"
+           aria-label="4.0"
+           data-tippy-content="4.0"
+           class="mask mask-star-2 mask-half-2 bg-warning"
+           {% if score == '4.0' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="4.5"
+           aria-label="4.5"
+           data-tippy-content="4.5"
+           class="mask mask-star-2 mask-half-1 bg-warning"
+           {% if score == '4.5' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+    <input type="radio" name="score" value="5.0"
+           aria-label="5.0"
+           data-tippy-content="5.0"
+           class="mask mask-star-2 mask-half-2 bg-warning"
+           {% if score == '5.0' %}checked{% endif %}
+           hx-post="{{ url }}" hx-trigger="change"
+           hx-target="closest .media-rating" hx-swap="outerHTML"
+           hx-sync="closest .media-rating:replace" hx-disabled-elt="this">
+  </fieldset>
+</div>
+{% endif %}

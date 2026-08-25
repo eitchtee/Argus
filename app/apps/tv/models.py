@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.utils import timezone
 
@@ -47,6 +48,7 @@ class Show(ProviderBackedModel):
     network = models.CharField(max_length=255, null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True, related_name="shows")
     aired_episode_count = models.PositiveIntegerField(default=0)
+    ratings = GenericRelation("catalog.MediaRating")
 
     class Meta(ProviderBackedModel.Meta):
         ordering = ("name",)
@@ -130,6 +132,7 @@ class Episode(models.Model):
             ("series", "Series"),
         ],
     )
+    ratings = GenericRelation("catalog.MediaRating")
 
     class Meta:
         ordering = ("show__name", "season_number", "episode_number")

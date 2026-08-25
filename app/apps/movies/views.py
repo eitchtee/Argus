@@ -23,6 +23,7 @@ from apps.catalog.localization import (
     resolve_from_map,
     resolve_title,
 )
+from apps.catalog.ratings import build_rating_url, format_score, get_user_score
 from apps.catalog.services import get_movie_detail
 from apps.catalog.services import SUPPORTED_PROVIDERS
 from apps.catalog.tracking import find_tracking_match
@@ -127,6 +128,10 @@ def movie_track(request, external_id):
             "can_customize": True,
             "on_watchlist": user_movie.on_watchlist,
             "is_seen": user_movie.is_seen,
+            "user_rating": format_score(get_user_score(request.user, user_movie.movie)),
+            "rating_url": build_rating_url(
+                "movie", user_movie.movie.external_id, user_movie.movie.provider
+            ),
         }
     else:
         movie = Movie.objects.filter(provider=provider, external_id=external_id).first()
@@ -141,9 +146,15 @@ def movie_track(request, external_id):
             "can_customize": movie is not None,
             "on_watchlist": False,
             "is_seen": is_seen,
+            "user_rating": format_score(get_user_score(request.user, movie)) if movie else None,
+            "rating_url": build_rating_url("movie", external_id, provider),
         }
 
-    return render(request, "movies/fragments/actions.html", {"movie": movie_state})
+    return render(
+        request,
+        "movies/fragments/actions.html",
+        {"movie": movie_state, "rating_oob": True},
+    )
 
 
 @only_htmx
@@ -209,7 +220,11 @@ def movie_watched(request, external_id):
         return HttpResponseForbidden("Demo mode is read-only.")
 
     movie_state = _toggle_movie_watched(request, external_id)
-    return render(request, "movies/fragments/actions.html", {"movie": movie_state})
+    return render(
+        request,
+        "movies/fragments/actions.html",
+        {"movie": movie_state, "rating_oob": True},
+    )
 
 
 @only_htmx
@@ -268,6 +283,8 @@ def _toggle_movie_watched(request, external_id):
                 "can_customize": False,
                 "on_watchlist": False,
                 "is_seen": False,
+                "user_rating": None,
+                "rating_url": build_rating_url("movie", external_id, provider),
             }
         user_movie = unmark_seen(request.user, movie)
 
@@ -277,6 +294,8 @@ def _toggle_movie_watched(request, external_id):
         "can_customize": True,
         "on_watchlist": user_movie.on_watchlist,
         "is_seen": user_movie.is_seen,
+        "user_rating": format_score(get_user_score(request.user, movie)),
+        "rating_url": build_rating_url("movie", movie.external_id, movie.provider),
     }
 
 
@@ -302,7 +321,10 @@ def movie_delete(request, external_id):
                 "can_customize": movie is not None,
                 "on_watchlist": False,
                 "is_seen": False,
-            }
+                "user_rating": None,
+                "rating_url": build_rating_url("movie", external_id, provider),
+            },
+            "rating_oob": True,
         },
     )
 
@@ -355,6 +377,8 @@ def _build_movie_context(user, external_id, provider="tmdb"):
             ),
             "on_watchlist": user_movie.on_watchlist if user_movie else False,
             "is_seen": user_movie.is_seen if user_movie else False,
+            "user_rating": format_score(get_user_score(user, movie)),
+            "rating_url": build_rating_url("movie", movie.external_id, movie.provider),
             **tracking_state,
         }
 
@@ -417,6 +441,8 @@ def _build_movie_context(user, external_id, provider="tmdb"):
         ),
         "on_watchlist": False,
         "is_seen": False,
+        "user_rating": None,
+        "rating_url": build_rating_url("movie", detail.external_id, provider),
         **_tracking_state_from_ids(
             user,
             "movie",

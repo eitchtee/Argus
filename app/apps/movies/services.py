@@ -14,6 +14,7 @@ from apps.catalog.localization import (
 )
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
+from apps.catalog.ratings import delete_ratings_for, transfer_rating
 from apps.catalog.tracking import find_tracking_match, identity_keys
 from apps.movies.models import Movie, UserMovie
 from apps.trakt.changes import record_intent
@@ -395,6 +396,7 @@ def switch_movie_provider(
         target_state.is_seen = source_state.is_seen
         target_state.seen_at = source_state.seen_at
         target_state.tier = source_state.tier
+        transfer_rating(user, source=source, target=target)
         target_state.save(
             update_fields=[
                 "on_watchlist",
@@ -519,6 +521,7 @@ def delete_movie_data(user, movie: Movie) -> None:
         movie_payload(movie),
         desired=False,
     )
+    delete_ratings_for(user, movie)
     UserMovie.objects.filter(user=user, movie=movie).delete()
 
 

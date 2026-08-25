@@ -44,6 +44,15 @@
         {% if tracked %}
         {% include "tv/fragments/episode_detail_watched_button.html" with tracked=tracked watched=watched show_external_id=show.external_id show_provider=show_provider episode_id=episode.id %}
         {% endif %}
+        <div id="episode-rating" class="media-rating-slot">
+          {% if watched %}
+          <c-media-rating media_type="episode"
+                          external_id="{{ episode.id }}"
+                          score="{{ user_rating }}"
+                          url="{{ rating_url }}"
+                          rateable="True" />
+          {% endif %}
+        </div>
       </div>
 
       <div class="min-w-0 space-y-5">

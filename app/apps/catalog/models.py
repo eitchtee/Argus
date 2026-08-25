@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -105,6 +107,49 @@ class MediaArtwork(models.Model):
 
     def __str__(self):
         return f"{self.provider}:{self.media_type}:{self.external_id} {self.kind}"
+
+
+class MediaRating(models.Model):
+    class MediaType(models.TextChoices):
+        MOVIE = "movie", "Movie"
+        SHOW = "show", "TV Show"
+        EPISODE = "episode", "Episode"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="media_ratings",
+    )
+    media_type = models.CharField(max_length=8, choices=MediaType.choices)
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        related_name="media_ratings",
+    )
+    object_id = models.PositiveBigIntegerField()
+    content_object = GenericForeignKey("content_type", "object_id")
+    score = models.DecimalField(max_digits=3, decimal_places=1)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "content_type", "object_id"],
+                name="catalog_mediarating_user_content_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["content_type", "object_id"],
+                name="catrating_content_idx",
+            ),
+        ]
+        ordering = ("-updated_at",)
+
+    def __str__(self):
+        return f"{self.user} - {self.media_type}:{self.object_id} {self.score}"
 
 
 class UserMediaArtworkPreference(models.Model):

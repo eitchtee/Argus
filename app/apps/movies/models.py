@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
 from apps.catalog.models import Genre, ProviderBackedModel, Tier
@@ -39,6 +40,7 @@ class Movie(ProviderBackedModel):
     vote_average = models.FloatField(null=True, blank=True)
     vote_count = models.PositiveIntegerField(null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True, related_name="movies")
+    ratings = GenericRelation("catalog.MediaRating")
 
     class Meta(ProviderBackedModel.Meta):
         ordering = ("title",)

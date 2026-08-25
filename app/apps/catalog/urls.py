@@ -13,4 +13,9 @@ urlpatterns = [
         views.media_artwork_preferences,
         name="media-artwork-preferences",
     ),
+    path(
+        "media/<str:media_type>/<str:external_id>/rating/",
+        views.media_rating,
+        name="media-rating",
+    ),
 ]
