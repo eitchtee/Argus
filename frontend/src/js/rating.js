@@ -194,3 +194,59 @@ document.addEventListener(
     },
     true,
 );
+
+// daisyUI plays its `rating` keyframe on every child of `.rating`, and a CSS
+// animation replays whenever its element is inserted. This component swaps its
+// own outerHTML on each rating POST, so all eleven inputs arrive as new
+// elements and the pop fires across the whole row -- which with `rating-half`
+// drags a dark seam down every star. The stylesheet disables it wholesale;
+// replay it here on the one half-star that was actually picked, which is the
+// selection feedback daisyUI gives when nothing is being re-inserted.
+
+let pendingPulse = false;
+
+function pulse(star) {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        return;
+    }
+    star.style.animation = '0.25s ease-out rating';
+    star.addEventListener(
+        'animationend',
+        () => {
+            star.style.animation = '';
+        },
+        {once: true},
+    );
+}
+
+// Covers both the change we dispatch on pointerup and a native keyboard one.
+document.addEventListener('change', (event) => {
+    const star = event.target.closest?.(STAR);
+    if (star && star.closest(CONTAINER) && star.value) {
+        pendingPulse = true;
+    }
+});
+
+document.addEventListener('htmx:afterSwap', (event) => {
+    if (!pendingPulse) {
+        return;
+    }
+    const root = event.target;
+    const container = root?.matches?.(CONTAINER)
+        ? root
+        : root?.querySelector?.(CONTAINER);
+    if (!container) {
+        return;
+    }
+    pendingPulse = false;
+    const star = container.querySelector(`${STAR}:checked`);
+    if (star && star.value) {
+        pulse(star);
+    }
+});
+
+// A rejected rating never swaps, so drop the intent rather than leaving it to
+// fire on some later unrelated swap.
+document.addEventListener('htmx:afterRequest', () => {
+    pendingPulse = false;
+});

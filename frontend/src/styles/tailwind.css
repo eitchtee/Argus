@@ -993,6 +993,22 @@ dialog.modal {
     z-index: 1050;
 }
 
+/* daisyUI animates its `rating` pop on every child of `.rating`, and a CSS
+   animation replays whenever its element is inserted. This component swaps its
+   own outerHTML on each rating POST, so all eleven inputs are new elements and
+   the pop fires across the whole row every time -- something the daisyUI demo
+   never shows, because nothing there is ever re-inserted. With `rating-half` it
+   also leaves artefacts: each half-star scales and filters as its own composited
+   layer, and the two antialiased mask edges meeting along the star's centre line
+   never sum back to a solid pixel, so a dark seam runs down every star.
+   Disable it here and let rating.js replay daisyUI's own keyframe on just the
+   half-star that was picked, which is the feedback the animation exists for.
+   Unlayered on purpose, same as `dialog.modal` above: daisyUI emits `.rating`
+   into the `utilities` layer, which outranks `components` at any specificity. */
+.media-rating .rating * {
+    animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .detail-link,
     .provider-logo,
