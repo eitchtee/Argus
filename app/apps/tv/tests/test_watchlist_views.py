@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -6,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.catalog.models import UserMediaArtworkPreference
+from apps.catalog.ratings import rate_media
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
@@ -168,6 +170,25 @@ class WatchlistViewTests(TestCase):
         )
         self.assertContains(fragment_response, "My Show")
         self.assertContains(fragment_response, "Completed Show")
+
+    def test_rated_show_shows_rating_badge_on_grid(self):
+        rate_media(self.user, "show", self.show, Decimal("4.0"))
+
+        response = self.client.get(
+            reverse("tv-watchlist"), HTTP_HX_REQUEST="true"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="poster-card__rating"')
+        self.assertContains(response, ">4.0<")
+
+    def test_unrated_show_has_no_rating_badge_on_grid(self):
+        response = self.client.get(
+            reverse("tv-watchlist"), HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(response, "My Show")
+        self.assertNotContains(response, 'class="poster-card__rating"')
 
     def test_htmx_request_returns_only_the_filtered_grid(self):
         completed, completed_season = self.make_show(

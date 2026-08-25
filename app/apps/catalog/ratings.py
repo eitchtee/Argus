@@ -1,3 +1,4 @@
+from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.contenttypes.models import ContentType
@@ -149,6 +150,34 @@ def get_user_rating(user, media) -> MediaRating | None:
 def get_user_score(user, media) -> Decimal | None:
     rating = get_user_rating(user, media)
     return rating.score if rating else None
+
+
+def attach_user_scores(user, media_items) -> None:
+    """Stamp ``user_rating`` onto each media object with the viewer's score.
+
+    Poster cards read the attribute to badge rated items; ``None`` means
+    unrated. Ratings are fetched in one query per media type instead of one
+    per card.
+    """
+    items = list(media_items)
+    if user is None or getattr(user, "pk", None) is None or not items:
+        return
+
+    grouped = defaultdict(list)
+    for media in items:
+        content_type = ContentType.objects.get_for_model(type(media))
+        grouped[content_type].append(media)
+
+    for content_type, group in grouped.items():
+        scores = dict(
+            MediaRating.objects.filter(
+                user=user,
+                content_type=content_type,
+                object_id__in=[media.pk for media in group],
+            ).values_list("object_id", "score")
+        )
+        for media in group:
+            media.user_rating = scores.get(media.pk)
 
 
 def transfer_rating(user, *, source, target) -> None:

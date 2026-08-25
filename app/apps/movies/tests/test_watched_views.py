@@ -1,9 +1,11 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from apps.catalog.ratings import rate_media
 from apps.movies.models import Movie, UserMovie
 
 
@@ -78,6 +80,37 @@ class MovieWatchedViewTests(TestCase):
         self.assertContains(response, 'class="poster-card')
         self.assertNotContains(response, "Unwatched")
         self.assertNotContains(response, "<c-movies.movie-poster")
+
+    def test_rated_watched_movie_shows_rating_badge(self):
+        watched = Movie.objects.create(
+            external_id="550",
+            title="Fight Club",
+            poster_path="/poster.jpg",
+        )
+        UserMovie.objects.create(user=self.user, movie=watched, is_seen=True)
+        rate_media(self.user, "movie", watched, Decimal("4.5"))
+
+        response = self.client.get(
+            reverse("movies-watched-page"), HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(response, 'class="poster-card__rating"')
+        self.assertContains(response, ">4.5<")
+        self.assertContains(response, 'data-lucide="star"')
+
+    def test_unrated_watched_movie_has_no_rating_badge(self):
+        watched = Movie.objects.create(
+            external_id="550",
+            title="Fight Club",
+            poster_path="/poster.jpg",
+        )
+        UserMovie.objects.create(user=self.user, movie=watched, is_seen=True)
+
+        response = self.client.get(
+            reverse("movies-watched-page"), HTTP_HX_REQUEST="true"
+        )
+
+        self.assertNotContains(response, 'class="poster-card__rating"')
 
     def test_missing_poster_renders_movie_placeholder(self):
         movie = Movie.objects.create(external_id="1", title="No Poster")

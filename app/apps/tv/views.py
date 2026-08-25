@@ -32,7 +32,12 @@ from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
 from apps.catalog.links import build_external_links
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
-from apps.catalog.ratings import build_rating_url, format_score, get_user_score
+from apps.catalog.ratings import (
+    attach_user_scores,
+    build_rating_url,
+    format_score,
+    get_user_score,
+)
 from apps.catalog.tracking import find_tracking_match
 from apps.catalog.services import (
     SUPPORTED_PROVIDERS,
@@ -130,6 +135,7 @@ def watchlist(request):
             if show.pk in filtered_show_ids
         ]
         context["shows"] = localized_media_records(shows, request.user)
+        _attach_show_ratings(request.user, context["shows"])
         return render(request, "tv/fragments/watchlist_grid.html", context)
     return render(request, "tv/pages/watchlist.html", context)
 
@@ -156,12 +162,12 @@ def watchlist_tab(request, section):
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
 
+    records = localized_media_records(shows, request.user)
+    _attach_show_ratings(request.user, records)
     return render(
         request,
         "tv/fragments/watchlist_grid.html",
-        {
-            "shows": localized_media_records(shows, request.user),
-        },
+        {"shows": records},
     )
 
 
@@ -585,6 +591,10 @@ def home_upcoming(request):
 
 def _localize_show(show, user):
     return localized_media_record(show, user)
+
+
+def _attach_show_ratings(user, records):
+    attach_user_scores(user, [record.source for record in records])
 
 
 def _localized_show_map(shows, user):

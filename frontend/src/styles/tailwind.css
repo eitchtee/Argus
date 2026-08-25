@@ -363,6 +363,18 @@
         @apply border-neutral/60 bg-neutral/90 text-neutral-content;
     }
 
+    .poster-card__rating {
+        @apply pointer-events-none absolute start-2 top-2 z-[2] flex h-6 items-center gap-1 rounded-full border border-white/25 bg-black/70 px-2 text-xs font-semibold leading-none text-white shadow-md;
+    }
+
+    .poster-card__rating svg.lucide {
+        @apply block;
+    }
+
+    .poster-card__rating i {
+        @apply text-sm leading-none text-warning;
+    }
+
     .poster-card__copy {
         @apply pointer-events-none absolute inset-x-0 bottom-0 z-[2] p-3 text-left;
     }

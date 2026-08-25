@@ -19,6 +19,13 @@
       </div>
       {% endif %}
       <div class="poster-card__gradient" aria-hidden="true"></div>
+      {% if watched and movie.user_rating %}
+      <span class="poster-card__rating"
+            aria-label="{% trans 'Your rating' %}: {{ movie.user_rating }}">
+        <i data-lucide="star" aria-hidden="true"></i>
+        <span class="tabular-nums">{{ movie.user_rating }}</span>
+      </span>
+      {% endif %}
       <div class="poster-card__badges">
         {% if movie.normalized_status %}
         <span class="poster-card__badge

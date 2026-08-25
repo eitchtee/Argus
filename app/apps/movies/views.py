@@ -23,7 +23,12 @@ from apps.catalog.localization import (
     resolve_from_map,
     resolve_title,
 )
-from apps.catalog.ratings import build_rating_url, format_score, get_user_score
+from apps.catalog.ratings import (
+    attach_user_scores,
+    build_rating_url,
+    format_score,
+    get_user_score,
+)
 from apps.catalog.services import get_movie_detail
 from apps.catalog.services import SUPPORTED_PROVIDERS
 from apps.catalog.tracking import find_tracking_match
@@ -97,15 +102,15 @@ def movie_watched_list(request):
     if not is_htmx_fragment_request(request):
         return render(request, "movies/pages/watched.html")
 
+    records = localized_media_records(
+        get_watched_movies(request.user),
+        request.user,
+    )
+    attach_user_scores(request.user, [record.source for record in records])
     return render(
         request,
         "movies/fragments/watched.html",
-        {
-            "movies": localized_media_records(
-                get_watched_movies(request.user),
-                request.user,
-            ),
-        },
+        {"movies": records},
     )
 
 

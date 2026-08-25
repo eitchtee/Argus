@@ -18,6 +18,13 @@
     </div>
     {% endif %}
     <div class="poster-card__gradient" aria-hidden="true"></div>
+    {% if show.user_rating %}
+    <span class="poster-card__rating"
+          aria-label="{% trans 'Your rating' %}: {{ show.user_rating }}">
+      <i data-lucide="star" aria-hidden="true"></i>
+      <span class="tabular-nums">{{ show.user_rating }}</span>
+    </span>
+    {% endif %}
     <div class="poster-card__badges">
       {% if show.normalized_status %}
       <span class="poster-card__badge
