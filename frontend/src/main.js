@@ -14,3 +14,4 @@ import './js/pulltorefresh.js';
 import './js/calendar.js';
 import './js/cuelume.js';
 import './js/icons.js';
+import './js/rating.js';
