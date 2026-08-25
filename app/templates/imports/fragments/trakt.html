@@ -39,7 +39,7 @@
           <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "The export was imported into your Argus account." %}</p>
         </div>
       </div>
-      <dl class="grid divide-y border-y border-base-300 py-3 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <dl class="grid divide-y border-y border-base-300 py-3 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
         <div class="py-2 sm:px-4 sm:py-0">
           <dt class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Movies" %}</dt>
           <dd class="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{{ import_job.movies_imported }}</dd>
@@ -51,6 +51,10 @@
         <div class="py-2 sm:px-4 sm:py-0">
           <dt class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Episodes" %}</dt>
           <dd class="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{{ import_job.episodes_marked }}</dd>
+        </div>
+        <div class="py-2 sm:px-4 sm:py-0">
+          <dt class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Ratings" %}</dt>
+          <dd class="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{{ import_job.ratings_applied }}</dd>
         </div>
       </dl>
       {% if import_job.warning_messages %}

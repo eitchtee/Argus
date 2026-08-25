@@ -59,6 +59,7 @@ def import_trakt_job(import_job_id: int):
             movies_imported=report.movies_imported,
             shows_imported=report.shows_imported,
             episodes_marked=report.episodes_marked,
+            ratings_applied=report.ratings_applied,
             warning_messages=report.warnings,
             finished_at=finished_at,
             updated_at=finished_at,

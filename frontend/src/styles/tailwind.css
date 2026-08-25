@@ -534,7 +534,7 @@
     }
 
     .media-rating fieldset.rating {
-        @apply m-0 border-0 p-0;
+        @apply m-0 touch-none select-none border-0 p-0;
     }
 
     .media-menu {

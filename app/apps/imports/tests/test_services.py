@@ -70,8 +70,39 @@ class TraktExportParserTests(SimpleTestCase):
 
         self.assertEqual(snapshot.dropped_shows, hidden_shows)
 
+    def test_load_trakt_export_reads_ratings_members(self):
+        snapshot = load_trakt_export(
+            archive_with(
+                **{
+                    "ratings-movies-2.json": [
+                        {"rating": 6, "movie": {"ids": {"trakt": 2}}}
+                    ],
+                    "ratings-movies-1.json": [
+                        {"rating": 8, "movie": {"ids": {"trakt": 1}}}
+                    ],
+                    "ratings-shows.json": [
+                        {"rating": 10, "show": {"ids": {"trakt": 3}}}
+                    ],
+                    "ratings-episodes.json": [
+                        {
+                            "rating": 7,
+                            "show": {"ids": {"trakt": 3}},
+                            "episode": {"season": 1, "number": 2},
+                        }
+                    ],
+                }
+            )
+        )
+
+        self.assertEqual(
+            [item["movie"]["ids"]["trakt"] for item in snapshot.rated_movies],
+            [1, 2],
+        )
+        self.assertEqual(snapshot.rated_shows[0]["rating"], 10)
+        self.assertEqual(snapshot.rated_episodes[0]["episode"]["number"], 2)
+
     def test_load_trakt_export_rejects_an_archive_without_supported_data(self):
-        stream = archive_with(**{"ratings-movies-1.json": []})
+        stream = archive_with(**{"user-profile.json": []})
 
         with self.assertRaisesMessage(TraktExportError, "supported Trakt export data"):
             load_trakt_export(stream)

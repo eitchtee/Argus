@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
 from cachalot.api import cachalot_disabled
@@ -9,6 +11,8 @@ from cachalot.api import cachalot_disabled
 from apps.catalog.localization import (
     PROVIDER_DEFAULT_LANGUAGES,
 )
+from apps.catalog.models import MediaRating
+from apps.catalog.ratings import HALF_STEP, MAX_SCORE, MIN_SCORE, SCORE_QUANTUM
 from apps.catalog.providers.exceptions import ProviderError
 from apps.movies import services as movie_services
 from apps.movies.models import Movie, UserMovie
@@ -48,6 +52,21 @@ class WatchedEpisode:
     watched_at: datetime
 
 
+@dataclass(frozen=True)
+class RatedMedia:
+    media: dict
+    score: Decimal
+
+
+@dataclass(frozen=True)
+class RatedEpisode:
+    show: dict
+    episode: dict
+    season_number: int
+    episode_number: int
+    score: Decimal
+
+
 @dataclass
 class RemoteSnapshot:
     watchlist_movies: dict[str, dict] = field(default_factory=dict)
@@ -56,6 +75,9 @@ class RemoteSnapshot:
     watched_movies: dict[str, WatchedMovie] = field(default_factory=dict)
     watched_episodes: dict[str, WatchedEpisode] = field(default_factory=dict)
     dropped_shows: dict[str, dict] = field(default_factory=dict)
+    rated_movies: dict[str, RatedMedia] = field(default_factory=dict)
+    rated_shows: dict[str, RatedMedia] = field(default_factory=dict)
+    rated_episodes: dict[str, RatedEpisode] = field(default_factory=dict)
 
 
 @dataclass
@@ -72,6 +94,7 @@ class SyncReport:
     movies_imported: int = 0
     shows_imported: int = 0
     episodes_marked: int = 0
+    ratings_applied: int = 0
     intents_sent: int = 0
     warnings: list[str] = field(default_factory=list)
 
@@ -97,6 +120,7 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
         with suppress_local_intents():
             _apply_remote_movies(account.user, remote, intents, local, report, initial=initial)
             _apply_remote_shows(account.user, remote, intents, local, report, initial=initial)
+            _apply_remote_ratings(account.user, remote, report)
 
         outbound = _build_outbound(
             account.user,
@@ -131,6 +155,10 @@ def normalize_snapshot(snapshot: TraktSnapshot) -> RemoteSnapshot:
         if media:
             normalized.watched_shows[media_identity_key(media)] = media
 
+    normalized.rated_movies = _merge_rated_media(snapshot.rated_movies, "movie")
+    normalized.rated_shows = _merge_rated_media(snapshot.rated_shows, "show")
+    normalized.rated_episodes = _merge_rated_episodes(snapshot.rated_episodes)
+
     normalized.watched_movies = _merge_watched_movies(snapshot.watched_movies)
     normalized.watched_episodes = _merge_watched_episodes(
         snapshot.watched_episodes or snapshot.watched_shows
@@ -147,6 +175,7 @@ def apply_remote_snapshot(user, snapshot: TraktSnapshot) -> SyncReport:
         with suppress_local_intents():
             _apply_remote_movies(user, remote, [], local, report, initial=True)
             _apply_remote_shows(user, remote, [], local, report, initial=True)
+            _apply_remote_ratings(user, remote, report)
     return report
 
 
@@ -161,6 +190,193 @@ def _merge_latest_watches(records: list[dict], media_type: str = "movie") -> dic
         if key not in result or watched_at > result[key]:
             result[key] = watched_at
     return result
+
+
+def _local_score(raw) -> Decimal | None:
+    """Convert a Trakt 1-10 rating into the local 0.5-5 half-star scale."""
+    if raw in (None, ""):
+        return None
+    try:
+        score = (Decimal(str(raw)) / 2).quantize(SCORE_QUANTUM)
+    except (InvalidOperation, ArithmeticError, ValueError):
+        return None
+    # Trakt only ever sends whole numbers, but round anything else onto the
+    # nearest half star so an odd payload does not fail model validation.
+    score = (score / HALF_STEP).quantize(Decimal("1")) * HALF_STEP
+    if score < MIN_SCORE or score > MAX_SCORE:
+        return None
+    return score.quantize(SCORE_QUANTUM)
+
+
+def _merge_rated_media(records: list[dict], media_type: str) -> dict[str, RatedMedia]:
+    result: dict[str, RatedMedia] = {}
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        score = _local_score(record.get("rating"))
+        if score is None:
+            continue
+        media = unwrap_media(record, media_type)
+        if not media:
+            continue
+        result[media_identity_key(media)] = RatedMedia(media=media, score=score)
+    return result
+
+
+def _merge_rated_episodes(records: list[dict]) -> dict[str, RatedEpisode]:
+    result: dict[str, RatedEpisode] = {}
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        score = _local_score(record.get("rating"))
+        if score is None:
+            continue
+        show = record.get("show")
+        episode = record.get("episode")
+        if not isinstance(show, dict) or not isinstance(episode, dict):
+            continue
+        season_number = _as_int(episode.get("season"), default=-1)
+        episode_number = _as_int(episode.get("number"), default=0)
+        if season_number < 0 or episode_number <= 0:
+            continue
+        key = episode_identity_key(
+            {"show": show},
+            season_number=season_number,
+            episode_number=episode_number,
+        )
+        result[key] = RatedEpisode(
+            show=show,
+            episode=episode,
+            season_number=season_number,
+            episode_number=episode_number,
+            score=score,
+        )
+    return result
+
+
+def _apply_remote_ratings(user, remote, report) -> None:
+    """Pull Trakt ratings onto media that already exists on one side or other.
+
+    Ratings travel remote -> local only, and this pass never adds anything to
+    the catalog: it runs after the watched and watchlist passes, so anything
+    in the Trakt library has a row by now, and anything tracked only in Argus
+    already had one. A rating for media in neither library is dropped rather
+    than dragged in on its own -- a bare score is not a reason to track
+    something.
+    """
+    resolved: list[tuple[str, object, Decimal]] = []
+
+    for rated in remote.rated_movies.values():
+        movie = _find_by_ids(
+            Movie,
+            rated.media,
+            user=user,
+            user_state_relation="user_states",
+        )
+        if movie is not None:
+            resolved.append((MediaRating.MediaType.MOVIE, movie, rated.score))
+
+    show_cache: dict[str, Show | None] = {}
+
+    def find_show(media: dict) -> Show | None:
+        cache_key = media_identity_key(media)
+        if cache_key not in show_cache:
+            show_cache[cache_key] = _find_by_ids(
+                Show,
+                media,
+                user=user,
+                user_state_relation="user_states",
+            )
+        return show_cache[cache_key]
+
+    for rated in remote.rated_shows.values():
+        show = find_show(rated.media)
+        if show is not None:
+            resolved.append((MediaRating.MediaType.SHOW, show, rated.score))
+
+    episode_requests: list[tuple[Show, RatedEpisode]] = []
+    for rated in remote.rated_episodes.values():
+        show = find_show(rated.show)
+        if show is not None:
+            episode_requests.append((show, rated))
+
+    if episode_requests:
+        wanted = {
+            (show.id, rated.season_number, rated.episode_number)
+            for show, rated in episode_requests
+        }
+        episodes = {
+            (episode.show_id, episode.season_number, episode.episode_number): episode
+            for episode in Episode.objects.filter(
+                show_id__in={show.id for show, _rated in episode_requests}
+            ).only("id", "show_id", "season_number", "episode_number")
+            if (episode.show_id, episode.season_number, episode.episode_number) in wanted
+        }
+        for show, rated in episode_requests:
+            episode = episodes.get((show.id, rated.season_number, rated.episode_number))
+            if episode is None:
+                # The show is tracked, so the episode belongs here even if the
+                # metadata provider never listed it -- same fallback the
+                # watched-episode pass uses.
+                episode = _ensure_episode(
+                    show,
+                    rated.season_number,
+                    rated.episode_number,
+                    rated.episode,
+                )
+                episodes[(show.id, rated.season_number, rated.episode_number)] = episode
+            resolved.append((MediaRating.MediaType.EPISODE, episode, rated.score))
+
+    if not resolved:
+        return
+
+    content_types = {
+        media_type: ContentType.objects.get_for_model(type(media))
+        for media_type, media, _score in resolved
+    }
+    existing_ratings = {
+        (rating.content_type_id, rating.object_id): rating
+        for rating in MediaRating.objects.filter(
+            user=user,
+            content_type__in=set(content_types.values()),
+        )
+    }
+
+    to_create = []
+    to_update = []
+    for media_type, media, score in resolved:
+        content_type = content_types[media_type]
+        current = existing_ratings.get((content_type.id, media.pk))
+        if current is None:
+            to_create.append(
+                MediaRating(
+                    user=user,
+                    media_type=media_type,
+                    content_type=content_type,
+                    object_id=media.pk,
+                    score=score,
+                )
+            )
+        elif current.score != score:
+            current.score = score
+            current.media_type = media_type
+            # bulk_update skips auto_now, so stamp the change by hand.
+            current.updated_at = timezone.now()
+            to_update.append(current)
+
+    if to_create:
+        MediaRating.objects.bulk_create(
+            to_create,
+            batch_size=500,
+            ignore_conflicts=True,
+        )
+    if to_update:
+        MediaRating.objects.bulk_update(
+            to_update,
+            ["media_type", "score", "updated_at"],
+            batch_size=500,
+        )
+    report.ratings_applied += len(to_create) + len(to_update)
 
 
 def _merge_watched_movies(records: list[dict]) -> dict[str, WatchedMovie]:

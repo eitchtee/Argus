@@ -52,6 +52,9 @@ class TraktSnapshot:
     watched_shows: list[dict]
     dropped_shows: list[dict]
     watched_episodes: list[dict] = field(default_factory=list)
+    rated_movies: list[dict] = field(default_factory=list)
+    rated_shows: list[dict] = field(default_factory=list)
+    rated_episodes: list[dict] = field(default_factory=list)
 
 
 class TraktClient:
@@ -168,6 +171,9 @@ class TraktClient:
                 "/sync/history/episodes",
                 params=episode_history_params,
             ),
+            rated_movies=self.get_paginated("/sync/ratings/movies"),
+            rated_shows=self.get_paginated("/sync/ratings/shows"),
+            rated_episodes=self.get_paginated("/sync/ratings/episodes"),
         )
 
     def post_watchlist(self, items_by_type: dict[str, list[dict]], *, remove: bool = False):
