@@ -11,14 +11,11 @@ from apps.catalog.artwork import (
     use_original_title_for_media,
 )
 from apps.catalog.localization import metadata_language_for_user, resolve_title
-from apps.catalog.models import Tier
 from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
-    clear_tier,
     mark_seen,
     queue_track_movie,
     remove_from_watchlist,
-    set_tier,
     unmark_seen,
 )
 
@@ -33,7 +30,6 @@ class MovieStateSerializer(serializers.Serializer):
     on_watchlist = serializers.BooleanField()
     is_seen = serializers.BooleanField()
     seen_at = serializers.DateTimeField(allow_null=True)
-    tier = serializers.ChoiceField(choices=Tier.choices, allow_null=True)
 
 
 class MovieListResponseSerializer(serializers.Serializer):
@@ -43,10 +39,6 @@ class MovieListResponseSerializer(serializers.Serializer):
 class TrackMovieRequestSerializer(serializers.Serializer):
     provider = serializers.CharField()
     external_id = serializers.CharField()
-
-
-class TierRequestSerializer(serializers.Serializer):
-    tier = serializers.ChoiceField(choices=Tier.choices)
 
 
 class ErrorResponseSerializer(serializers.Serializer):
@@ -69,13 +61,6 @@ class MovieListAPIView(APIView):
                 bool,
                 OpenApiParameter.QUERY,
                 description="When true, return only movies seen by the current user.",
-            ),
-            OpenApiParameter(
-                "tier",
-                str,
-                OpenApiParameter.QUERY,
-                enum=Tier.values,
-                description="Return only seen movies with this tier.",
             ),
         ],
         responses=MovieListResponseSerializer,
@@ -104,15 +89,6 @@ class MovieListAPIView(APIView):
             )
         if seen is not None:
             queryset = queryset.filter(is_seen=seen)
-
-        tier = request.query_params.get("tier")
-        if tier:
-            if tier not in Tier.values:
-                return Response(
-                    {"tier": ["Must be one of S, A, B, C, D, E, F."]},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            queryset = queryset.filter(tier=tier)
 
         rows = list(queryset)
         original_title_keys = original_title_preference_keys(
@@ -178,7 +154,7 @@ class MovieSeenAPIView(APIView):
     @extend_schema(
         request=None,
         responses={200: MovieStateSerializer, 404: ErrorResponseSerializer},
-        description="Mark a movie unseen for the current user and clear its tier.",
+        description="Mark a movie unseen for the current user.",
     )
     def delete(self, request, movie_id):
         movie = _get_movie(movie_id)
@@ -186,49 +162,6 @@ class MovieSeenAPIView(APIView):
             return _not_found()
 
         return Response(_serialize_user_movie(unmark_seen(request.user, movie)))
-
-
-class MovieTierAPIView(APIView):
-    permission_classes = [IsAuthenticated, NotInDemoMode]
-
-    @extend_schema(
-        request=TierRequestSerializer,
-        responses={
-            200: MovieStateSerializer,
-            400: ErrorResponseSerializer,
-            404: ErrorResponseSerializer,
-        },
-        description="Set a tier on a movie that the current user has marked seen.",
-    )
-    def put(self, request, movie_id):
-        movie = _get_movie(movie_id)
-        if movie is None:
-            return _not_found()
-
-        serializer = TierRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            user_movie = set_tier(request.user, movie, serializer.validated_data["tier"])
-        except ValueError as exc:
-            return Response(
-                {"detail": str(exc)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        return Response(_serialize_user_movie(user_movie))
-
-    @extend_schema(
-        request=None,
-        responses={200: MovieStateSerializer, 404: ErrorResponseSerializer},
-        description="Clear the current user's tier for this movie.",
-    )
-    def delete(self, request, movie_id):
-        movie = _get_movie(movie_id)
-        if movie is None:
-            return _not_found()
-
-        return Response(_serialize_user_movie(clear_tier(request.user, movie)))
 
 
 class MovieWatchlistAPIView(APIView):
@@ -292,12 +225,10 @@ def _serialize_user_movie(user_movie, *, use_original_title=None):
         "on_watchlist": user_movie.on_watchlist,
         "is_seen": user_movie.is_seen,
         "seen_at": user_movie.seen_at.isoformat() if user_movie.seen_at else None,
-        "tier": user_movie.tier,
     }
 
 
 movie_list_view = MovieListAPIView.as_view()
 movie_track_view = MovieTrackAPIView.as_view()
 movie_seen_view = MovieSeenAPIView.as_view()
-movie_tier_view = MovieTierAPIView.as_view()
 movie_watchlist_view = MovieWatchlistAPIView.as_view()

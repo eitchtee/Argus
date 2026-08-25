@@ -5,16 +5,14 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.catalog.models import SyncStatus, Tier
+from apps.catalog.models import SyncStatus
 from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
-    clear_tier,
     get_watched_movies,
     get_watchlist_movies,
     mark_seen,
     remove_from_watchlist,
     refresh_movie,
-    set_tier,
     switch_movie_provider,
     track_movie,
     unmark_seen,
@@ -257,7 +255,6 @@ class MovieServiceTests(TestCase):
             watchlist_added_at=added_at,
             is_seen=True,
             seen_at=seen_at,
-            tier=Tier.A,
         )
         sync_calls = []
 
@@ -282,7 +279,6 @@ class MovieServiceTests(TestCase):
         self.assertEqual(moved.watchlist_added_at, added_at)
         self.assertTrue(moved.is_seen)
         self.assertEqual(moved.seen_at, seen_at)
-        self.assertEqual(moved.tier, Tier.A)
         self.assertEqual(sync_calls, [target.id])
         self.assertFalse(UserMovie.objects.filter(user=self.user, movie=source).exists())
         self.assertFalse(Movie.objects.filter(id=source.id).exists())
@@ -399,20 +395,14 @@ class MovieServiceTests(TestCase):
         self.assertFalse(user_movie.on_watchlist)
         self.assertIsNone(user_movie.watchlist_added_at)
 
-    def test_unmark_seen_clears_seen_at_and_tier(self):
+    def test_unmark_seen_clears_seen_at(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
-        UserMovie.objects.create(
-            user=self.user,
-            movie=movie,
-            is_seen=True,
-            tier=Tier.S,
-        )
+        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
 
         user_movie = unmark_seen(self.user, movie)
 
         self.assertFalse(user_movie.is_seen)
         self.assertIsNone(user_movie.seen_at)
-        self.assertIsNone(user_movie.tier)
 
     def test_unmark_seen_restores_watchlist_tracking_after_mark_seen(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
@@ -424,26 +414,3 @@ class MovieServiceTests(TestCase):
         self.assertFalse(user_movie.is_seen)
         self.assertTrue(user_movie.on_watchlist)
         self.assertIsNotNone(user_movie.watchlist_added_at)
-
-    def test_set_tier_requires_seen_movie(self):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-        UserMovie.objects.create(user=self.user, movie=movie, is_seen=False)
-
-        with self.assertRaisesMessage(ValueError, "Cannot tier an unseen movie"):
-            set_tier(self.user, movie, Tier.S)
-
-    def test_set_tier_updates_seen_movie(self):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
-
-        user_movie = set_tier(self.user, movie, Tier.A)
-
-        self.assertEqual(user_movie.tier, Tier.A)
-
-    def test_clear_tier_sets_tier_to_none(self):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True, tier=Tier.B)
-
-        user_movie = clear_tier(self.user, movie)
-
-        self.assertIsNone(user_movie.tier)

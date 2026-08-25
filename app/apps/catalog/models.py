@@ -5,16 +5,6 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
-class Tier(models.TextChoices):
-    S = "S", "S"
-    A = "A", "A"
-    B = "B", "B"
-    C = "C", "C"
-    D = "D", "D"
-    E = "E", "E"
-    F = "F", "F"
-
-
 class SyncStatus(models.TextChoices):
     PENDING = "pending", "Pending"
     OK = "ok", "OK"

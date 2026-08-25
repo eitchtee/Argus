@@ -668,14 +668,12 @@ def switch_show_provider(
         target_state.status = source_state.status
         target_state.on_watchlist = source_state.on_watchlist
         target_state.tracking_started_at = source_state.tracking_started_at
-        target_state.tier = source_state.tier
         transfer_rating(user, source=source, target=target)
         target_state.save(
             update_fields=[
                 "status",
                 "on_watchlist",
                 "tracking_started_at",
-                "tier",
                 "updated_at",
             ]
         )

@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
-from apps.catalog.models import SyncStatus, Tier
+from apps.catalog.models import SyncStatus
 from apps.tv.services import (
     delete_show_data,
     drop_show,
@@ -259,7 +259,6 @@ class TrackShowServiceTests(TestCase):
             user=self.user,
             show=source,
             status=UserShow.Status.PAUSED,
-            tier=Tier.B,
         )
         UserShow.objects.create(user=other_user, show=source)
         seen_at = timezone.now() - timedelta(days=4)
@@ -281,7 +280,6 @@ class TrackShowServiceTests(TestCase):
         self.assertEqual(switched.sync_status, SyncStatus.PENDING)
         moved = UserShow.objects.get(user=self.user, show=target)
         self.assertEqual(moved.status, UserShow.Status.PAUSED)
-        self.assertEqual(moved.tier, Tier.B)
         self.assertTrue(
             UserEpisode.objects.filter(user=self.user, episode=target_episode).exists()
         )

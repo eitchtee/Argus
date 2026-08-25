@@ -47,8 +47,8 @@ class EpisodeAdmin(admin.ModelAdmin):
 
 @admin.register(UserShow)
 class UserShowAdmin(admin.ModelAdmin):
-    list_display = ("user", "show", "status", "tier", "tracking_started_at")
-    list_filter = ("status", "tier")
+    list_display = ("user", "show", "status", "tracking_started_at")
+    list_filter = ("status",)
     search_fields = ("user__email", "show__name")
 
 

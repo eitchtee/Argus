@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.catalog.models import Tier, UserMediaArtworkPreference
+from apps.catalog.models import UserMediaArtworkPreference
 from apps.movies.models import Movie, UserMovie
 
 
@@ -51,13 +51,12 @@ class MovieAPITests(TestCase):
                         user_movie,
                         on_watchlist=True,
                         is_seen=False,
-                        tier=None,
                     )
                 ]
             },
         )
 
-    def test_list_filters_by_watchlist_seen_and_tier(self):
+    def test_list_filters_by_watchlist_and_seen(self):
         watchlist_movie = self._create_user_movie(
             self.user,
             title="Watchlist",
@@ -69,13 +68,11 @@ class MovieAPITests(TestCase):
             title="Seen",
             external_id="2",
             is_seen=True,
-            tier=Tier.S,
         )
         self.client.force_authenticate(self.user)
 
         watchlist_response = self.client.get("/api/movies/", {"watchlist": "true"})
         seen_response = self.client.get("/api/movies/", {"seen": "true"})
-        tier_response = self.client.get("/api/movies/", {"tier": Tier.S})
 
         self.assertEqual(watchlist_response.status_code, 200)
         self.assertEqual(
@@ -89,18 +86,6 @@ class MovieAPITests(TestCase):
                 self._expected_movie_payload(
                     seen_movie,
                     is_seen=True,
-                    tier=Tier.S,
-                )
-            ],
-        )
-        self.assertEqual(tier_response.status_code, 200)
-        self.assertEqual(
-            tier_response.json()["results"],
-            [
-                self._expected_movie_payload(
-                    seen_movie,
-                    is_seen=True,
-                    tier=Tier.S,
                 )
             ],
         )
@@ -173,13 +158,12 @@ class MovieAPITests(TestCase):
         self.assertTrue(other_user_movie.on_watchlist)
         self.assertFalse(other_user_movie.is_seen)
 
-    def test_unmark_seen_clears_tier(self):
+    def test_unmark_seen_clears_seen_state(self):
         user_movie = self._create_user_movie(
             self.user,
             title="Fight Club",
             external_id="550",
             is_seen=True,
-            tier=Tier.S,
         )
         self.client.force_authenticate(self.user)
 
@@ -188,45 +172,7 @@ class MovieAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         user_movie.refresh_from_db()
         self.assertFalse(user_movie.is_seen)
-        self.assertIsNone(user_movie.tier)
-
-    def test_set_tier_rejects_unseen_movie(self):
-        user_movie = self._create_user_movie(
-            self.user,
-            title="Fight Club",
-            external_id="550",
-        )
-        self.client.force_authenticate(self.user)
-
-        response = self.client.put(
-            f"/api/movies/{user_movie.movie_id}/tier",
-            {"tier": Tier.S},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "Cannot tier an unseen movie.")
-
-    def test_set_and_clear_tier(self):
-        user_movie = self._create_user_movie(
-            self.user,
-            title="Fight Club",
-            external_id="550",
-            is_seen=True,
-        )
-        self.client.force_authenticate(self.user)
-
-        set_response = self.client.put(
-            f"/api/movies/{user_movie.movie_id}/tier",
-            {"tier": Tier.S},
-            format="json",
-        )
-        clear_response = self.client.delete(f"/api/movies/{user_movie.movie_id}/tier")
-
-        self.assertEqual(set_response.status_code, 200)
-        self.assertEqual(set_response.json()["tier"], Tier.S)
-        self.assertEqual(clear_response.status_code, 200)
-        self.assertIsNone(clear_response.json()["tier"])
+        self.assertIsNone(user_movie.seen_at)
 
     def test_remove_from_watchlist_deletes_empty_user_state(self):
         user_movie = self._create_user_movie(
@@ -277,5 +223,4 @@ class MovieAPITests(TestCase):
             "on_watchlist": overrides.get("on_watchlist", user_movie.on_watchlist),
             "is_seen": overrides.get("is_seen", user_movie.is_seen),
             "seen_at": None,
-            "tier": overrides.get("tier", user_movie.tier),
         }

@@ -395,7 +395,6 @@ def switch_movie_provider(
         target_state.watchlist_added_at = source_state.watchlist_added_at
         target_state.is_seen = source_state.is_seen
         target_state.seen_at = source_state.seen_at
-        target_state.tier = source_state.tier
         transfer_rating(user, source=source, target=target)
         target_state.save(
             update_fields=[
@@ -403,7 +402,6 @@ def switch_movie_provider(
                 "watchlist_added_at",
                 "is_seen",
                 "seen_at",
-                "tier",
                 "updated_at",
             ]
         )
@@ -506,7 +504,7 @@ def remove_from_watchlist(user, movie: Movie) -> UserMovie | None:
     user_movie.on_watchlist = False
     user_movie.watchlist_added_at = None
 
-    if not user_movie.is_seen and user_movie.tier is None:
+    if not user_movie.is_seen:
         user_movie.delete()
         return None
 
@@ -559,14 +557,12 @@ def unmark_seen(user, movie: Movie) -> UserMovie:
     watched_at = user_movie.seen_at
     user_movie.is_seen = False
     user_movie.seen_at = None
-    user_movie.tier = None
     user_movie.on_watchlist = True
     user_movie.watchlist_added_at = timezone.now()
     user_movie.save(
         update_fields=[
             "is_seen",
             "seen_at",
-            "tier",
             "on_watchlist",
             "watchlist_added_at",
             "updated_at",
@@ -583,24 +579,6 @@ def unmark_seen(user, movie: Movie) -> UserMovie:
         TraktSyncIntent.Kind.MOVIE_WATCHLIST,
         movie_payload(movie),
     )
-    return user_movie
-
-
-def set_tier(user, movie: Movie, tier: str) -> UserMovie:
-    user_movie, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
-
-    if not user_movie.is_seen:
-        raise ValueError("Cannot tier an unseen movie.")
-
-    user_movie.tier = tier
-    user_movie.save(update_fields=["tier", "updated_at"])
-    return user_movie
-
-
-def clear_tier(user, movie: Movie) -> UserMovie:
-    user_movie, _created = UserMovie.objects.get_or_create(user=user, movie=movie)
-    user_movie.tier = None
-    user_movie.save(update_fields=["tier", "updated_at"])
     return user_movie
 
 

@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import TestCase
 
-from apps.catalog.models import Genre, Tier
+from apps.catalog.models import Genre
 from apps.movies.models import Movie, UserMovie
 
 
@@ -52,12 +52,6 @@ class MovieModelTests(TestCase):
         self.assertIsNone(user_movie.watchlist_added_at)
         self.assertFalse(user_movie.is_seen)
         self.assertIsNone(user_movie.seen_at)
-        self.assertIsNone(user_movie.tier)
-
-    def test_user_movie_tier_uses_shared_tier_choices(self):
-        field = UserMovie._meta.get_field("tier")
-
-        self.assertEqual([choice[0] for choice in field.choices], Tier.values)
 
     def test_movie_poster_url_builds_full_tmdb_url(self):
         from django.test import override_settings

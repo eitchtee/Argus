@@ -7,7 +7,6 @@ from apps.catalog.models import (
     MediaArtwork,
     ProviderBackedModel,
     SyncStatus,
-    Tier,
     UserMediaArtworkPreference,
 )
 
@@ -17,12 +16,6 @@ class CatalogModelTests(TransactionTestCase):
         genre = Genre.objects.create(provider="tmdb", external_id="18", name="Drama")
 
         self.assertEqual(genre.translations, {})
-
-    def test_tier_choices_are_s_through_f(self):
-        self.assertEqual(
-            Tier.values,
-            ["S", "A", "B", "C", "D", "E", "F"],
-        )
 
     def test_sync_status_choices_cover_import_lifecycle(self):
         self.assertEqual(

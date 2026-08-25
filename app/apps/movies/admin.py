@@ -12,6 +12,6 @@ class MovieAdmin(admin.ModelAdmin):
 
 @admin.register(UserMovie)
 class UserMovieAdmin(admin.ModelAdmin):
-    list_display = ("user", "movie", "on_watchlist", "is_seen", "tier")
-    list_filter = ("on_watchlist", "is_seen", "tier")
+    list_display = ("user", "movie", "on_watchlist", "is_seen")
+    list_filter = ("on_watchlist", "is_seen")
     search_fields = ("user__email", "movie__title")

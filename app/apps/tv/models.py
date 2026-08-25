@@ -3,7 +3,7 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.utils import timezone
 
-from apps.catalog.models import Genre, ProviderBackedModel, Tier
+from apps.catalog.models import Genre, ProviderBackedModel
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 
 
@@ -171,12 +171,6 @@ class UserShow(models.Model):
     )
     on_watchlist = models.BooleanField(default=False)
     tracking_started_at = models.DateTimeField(default=timezone.now)
-    tier = models.CharField(
-        max_length=1,
-        choices=Tier.choices,
-        null=True,
-        blank=True,
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -3,7 +3,7 @@ from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.catalog.models import Genre, Tier
+from apps.catalog.models import Genre
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
@@ -81,16 +81,13 @@ class TvModelTests(TestCase):
                 name="Duplicate",
             )
 
-    def test_user_show_is_unique_per_user_show_and_uses_shared_tiers(self):
+    def test_user_show_is_unique_per_user_show(self):
         user = get_user_model().objects.create_user("user@example.com")
         show = Show.objects.create(external_id="series-1", name="The Expanse")
         UserShow.objects.create(user=user, show=show)
 
         with self.assertRaises(IntegrityError):
             UserShow.objects.create(user=user, show=show)
-
-        field = UserShow._meta.get_field("tier")
-        self.assertEqual([choice[0] for choice in field.choices], Tier.values)
 
     def test_user_show_defaults_to_tracked_status(self):
         user = get_user_model().objects.create_user("user@example.com")
@@ -104,7 +101,6 @@ class TvModelTests(TestCase):
             {"tracked", "paused", "dropped"},
         )
         self.assertIsNotNone(user_show.tracking_started_at)
-        self.assertIsNone(user_show.tier)
 
     def test_user_episode_is_sparse_seen_state_unique_per_user_episode(self):
         user = get_user_model().objects.create_user("user@example.com")
