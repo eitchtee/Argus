@@ -30,6 +30,9 @@ class _ExportMember:
 _SPLIT_MEMBERS = {
     "watched_movies": re.compile(r"^watched-movies(?:-(\d+))?\.json$"),
     "watched_history": re.compile(r"^watched-history(?:-(\d+))?\.json$"),
+    "rated_movies": re.compile(r"^ratings-movies(?:-(\d+))?\.json$"),
+    "rated_shows": re.compile(r"^ratings-shows(?:-(\d+))?\.json$"),
+    "rated_episodes": re.compile(r"^ratings-episodes(?:-(\d+))?\.json$"),
 }
 
 
@@ -49,6 +52,9 @@ def load_trakt_export(stream) -> TraktSnapshot:
 
         watched_movies = _read_split_arrays(archive, members["watched_movies"])
         watched_history = _read_split_arrays(archive, members["watched_history"])
+        rated_movies = _read_split_arrays(archive, members["rated_movies"])
+        rated_shows = _read_split_arrays(archive, members["rated_shows"])
+        rated_episodes = _read_split_arrays(archive, members["rated_episodes"])
         watched_shows = _read_array(archive, "watched-shows.json")
         dropped_shows = _read_array(archive, "hidden-progress-watched.json")
         watchlist = _read_array(archive, "lists-watchlist.json")
@@ -71,6 +77,9 @@ def load_trakt_export(stream) -> TraktSnapshot:
         watched_shows=[item for item in watched_shows if isinstance(item, dict)],
         dropped_shows=[item for item in dropped_shows if isinstance(item, dict)],
         watched_episodes=[item for item in watched_history if isinstance(item, dict)],
+        rated_movies=[item for item in rated_movies if isinstance(item, dict)],
+        rated_shows=[item for item in rated_shows if isinstance(item, dict)],
+        rated_episodes=[item for item in rated_episodes if isinstance(item, dict)],
     )
 
 

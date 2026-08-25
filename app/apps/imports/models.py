@@ -36,6 +36,7 @@ class ImportJob(models.Model):
     movies_imported = models.PositiveIntegerField(default=0)
     shows_imported = models.PositiveIntegerField(default=0)
     episodes_marked = models.PositiveIntegerField(default=0)
+    ratings_applied = models.PositiveIntegerField(default=0)
     warning_messages = models.JSONField(default=list, blank=True)
     error_message = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
