@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -14,7 +14,6 @@ from apps.common.htmx import is_htmx_fragment_request
 
 from .events import (
     filter_query_params,
-    get_calendar_event,
     get_calendar_events,
     get_calendar_feed,
     get_feed_window,
@@ -83,34 +82,6 @@ def calendar_page(request):
     return render(request, "calendar/fragments/content.html", context)
 
 
-@htmx_login_required
-@require_GET
-def calendar_episode_detail(request, episode_id):
-    event = get_calendar_event(request.user, episode_id)
-    if event is None:
-        raise Http404
-
-    return render(
-        request,
-        "calendar/fragments/episode_detail.html",
-        {"event": event, "status_label": _status_label(event.status)},
-    )
-
-
-@htmx_login_required
-@require_GET
-def calendar_movie_detail(request, movie_id):
-    event = get_calendar_event(request.user, movie_id, kind="movie")
-    if event is None:
-        raise Http404
-
-    return render(
-        request,
-        "calendar/fragments/movie_detail.html",
-        {"event": event, "status_label": _status_label(event.status)},
-    )
-
-
 @require_GET
 def calendar_feed(request, uuid):
     feed = get_object_or_404(CalendarFeed, uuid=uuid)
@@ -148,14 +119,6 @@ def _display_date(event) -> date:
     if event.starts_at is not None:
         return timezone.localtime(event.starts_at).date()
     return event.release_date
-
-
-def _status_label(status: str) -> str:
-    return {
-        "tracked": "Tracked",
-        "paused": "Paused",
-        "dropped": "Dropped",
-    }.get(status, status)
 
 
 def _previous_month(month: date) -> date:

@@ -125,41 +125,6 @@ def get_calendar_events(
     return sorted(events, key=_event_sort_key)
 
 
-def get_calendar_event(
-    user,
-    object_id: int,
-    *,
-    kind: str = "episode",
-) -> CalendarEvent | None:
-    if kind == "movie":
-        return _get_movie_event(user, object_id)
-    if kind != "episode":
-        return None
-
-    episode = (
-        Episode.objects.filter(id=object_id, show__user_states__user=user)
-        .select_related("show", "season")
-        .prefetch_related(
-            Prefetch(
-                "show__user_states",
-                queryset=UserShow.objects.filter(user=user),
-                to_attr="_calendar_user_states",
-            )
-        )
-        .first()
-    )
-    if episode is None or episode.air_date is None:
-        return None
-
-    status = UserShow.objects.get(user=user, show=episode.show).status
-    return _episode_event(
-        episode,
-        status=status,
-        language=metadata_language_for_user(user, episode.show.provider),
-        user=user,
-    )
-
-
 def get_calendar_feed(user) -> CalendarFeed:
     with cachalot_disabled():
         feed, _created = CalendarFeed.objects.get_or_create(user=user)
@@ -227,28 +192,6 @@ def _get_movie_events(user, start_date, end_date):
         )
         for movie in movies
     ]
-
-
-def _get_movie_event(
-    user,
-    movie_id: int,
-    language: str | None = None,
-) -> CalendarEvent | None:
-    movie = (
-        Movie.objects.filter(
-            id=movie_id,
-            user_states__user=user,
-            user_states__on_watchlist=True,
-            release_date__isnull=False,
-        )
-        .prefetch_related("genres")
-        .first()
-    )
-    if movie is None:
-        return None
-    if language is None:
-        language = metadata_language_for_user(user, movie.provider)
-    return _movie_event(movie, language, user=user)
 
 
 def _episode_event(

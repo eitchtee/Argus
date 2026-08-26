@@ -202,30 +202,6 @@ class CalendarViewTests(TestCase):
         self.assertLess(content.index("No releases in this month"), content.index('class="calendar-scroll"'))
         self.assertLess(content.index('class="calendar-scroll"'), content.index("Subscribe to this calendar"))
 
-    def test_episode_details_are_scoped_to_the_current_user(self):
-        episode = self.make_episode(
-            "Tracked", UserShow.Status.TRACKED, date(2026, 7, 10)
-        )
-
-        response = self.client.get(f"/calendar/episodes/{episode.id}/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Tracked")
-        self.assertContains(response, episode.name)
-        self.assertContains(response, "Summary")
-        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
-
-    def test_episode_details_for_another_users_show_are_not_found(self):
-        episode = self.make_episode(
-            "Tracked", UserShow.Status.TRACKED, date(2026, 7, 10)
-        )
-        other_user = get_user_model().objects.create_user("other@example.com")
-        UserShow.objects.filter(user=self.user, show=episode.show).update(user=other_user)
-
-        response = self.client.get(f"/calendar/episodes/{episode.id}/")
-
-        self.assertEqual(response.status_code, 404)
-
     def test_invalid_month_falls_back_to_the_current_month(self):
         response = self.client.get("/calendar/?month=not-a-month")
 
@@ -267,33 +243,6 @@ class CalendarViewTests(TestCase):
         self.assertEqual(cells[date(2026, 7, 10)], [])
         self.assertContains(response, 'calendar-event-time">14:00</span>')
 
-    def test_movie_details_are_scoped_to_watchlisted_movies(self):
-        movie = self.make_movie(
-            "Tracked Movie",
-            on_watchlist=True,
-            release_date=date(2026, 7, 10),
-        )
-
-        response = self.client.get(f"/calendar/movies/{movie.id}/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Tracked Movie")
-        self.assertContains(response, "Summary")
-        self.assertContains(response, "Example Director")
-        self.assertContains(response, "Drama")
-        self.assertContains(response, 'hx-boost="true" hx-target="body" hx-swap="innerHTML"')
-
-    def test_unwatchlisted_movie_details_return_404(self):
-        movie = self.make_movie(
-            "Not Tracked",
-            on_watchlist=False,
-            release_date=date(2026, 7, 10),
-        )
-
-        response = self.client.get(f"/calendar/movies/{movie.id}/")
-
-        self.assertEqual(response.status_code, 404)
-
     def test_movie_feed_is_opt_in(self):
         feed = get_calendar_feed(self.user)
         movie = self.make_movie(
@@ -308,7 +257,7 @@ class CalendarViewTests(TestCase):
         self.assertNotIn(f"movie-{movie.id}@argus", default_response.content.decode())
         self.assertIn(f"movie-{movie.id}@argus", movie_response.content.decode())
 
-    def test_movie_events_keep_movie_detail_and_fallback_links(self):
+    def test_movie_events_link_to_the_movie_detail_page_in_a_new_tab(self):
         movie = self.make_movie(
             "Calendar Movie",
             on_watchlist=True,
@@ -319,8 +268,9 @@ class CalendarViewTests(TestCase):
             "/calendar/?month=2026-07&movies=1", HTTP_HX_REQUEST="true"
         )
 
-        self.assertContains(response, f"/calendar/movies/{movie.id}/")
         self.assertContains(response, f"/movies/{movie.external_id}/")
+        self.assertNotContains(response, f"/calendar/movies/{movie.id}/")
+        self.assertContains(response, 'target="_blank" rel="noopener"')
 
     def test_feed_returns_utc_ical_and_invalid_uuid_is_not_found(self):
         feed = get_calendar_feed(self.user)
@@ -356,7 +306,7 @@ class CalendarViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-    def test_sidebar_contains_calendar_entry_and_daisyui_modal(self):
+    def test_sidebar_contains_calendar_entry_and_feed_copy_button(self):
         response = self.client.get("/calendar/?month=2026-07")
         fragment_response = self.client.get(
             "/calendar/?month=2026-07", HTTP_HX_REQUEST="true"
@@ -365,6 +315,5 @@ class CalendarViewTests(TestCase):
         self.assertContains(response, 'href="/calendar/"')
         self.assertContains(response, "Calendar")
         self.assertContains(response, 'data-lucide="calendar-days"')
-        self.assertContains(fragment_response, 'class="modal"')
-        self.assertContains(fragment_response, 'id="calendar-event-details"')
+        self.assertNotContains(fragment_response, 'id="calendar-event-details"')
         self.assertContains(fragment_response, 'data-copy-target="#calendar-feed-url"')

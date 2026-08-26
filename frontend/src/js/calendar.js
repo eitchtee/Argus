@@ -28,18 +28,6 @@ const copyText = async (value) => {
 };
 
 document.addEventListener('click', (event) => {
-    const eventLink = event.target.closest('[data-calendar-event]');
-    if (eventLink) {
-        const dialog = document.getElementById('calendar-event-details');
-        if (dialog?.showModal && window.htmx) {
-            event.preventDefault();
-            if (!dialog.open) {
-                dialog.showModal();
-            }
-        }
-        return;
-    }
-
     const copyButton = event.target.closest('[data-copy-target]');
     if (!copyButton) {
         return;

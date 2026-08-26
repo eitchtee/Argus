@@ -80,10 +80,7 @@
             {% if event.kind == "movie" %}
             <a class="calendar-event calendar-event--movie"
                href="{% url 'movie-detail' external_id=event.external_id %}{% if event.provider != 'tmdb' %}?provider={{ event.provider }}{% endif %}"
-               hx-get="{% url 'calendar-movie-detail' movie_id=event.movie_id %}"
-               hx-target="#calendar-event-details-body" hx-swap="innerHTML"
-               data-calendar-event
-               aria-controls="calendar-event-details" aria-haspopup="dialog"
+               target="_blank" rel="noopener"
                aria-label="{{ event.title }} {% trans 'movie release' %}">
               <span class="calendar-event-time">{% trans "All day" %}</span>
               <span class="calendar-event-title">{{ event.title }}</span>
@@ -92,10 +89,7 @@
             {% else %}
             <a class="calendar-event calendar-event--{{ event.status }}"
                href="{% url 'tv-episode-detail' external_id=event.external_id episode_id=event.episode_id %}{% if event.provider != 'tvdb' %}?provider={{ event.provider }}{% endif %}"
-               hx-get="{% url 'calendar-episode-detail' episode_id=event.episode_id %}"
-               hx-target="#calendar-event-details-body" hx-swap="innerHTML"
-               data-calendar-event
-               aria-controls="calendar-event-details" aria-haspopup="dialog"
+               target="_blank" rel="noopener"
                aria-label="{{ event.show_name }} {{ event.subtitle }} {{ event.title }}">
               {% if event.starts_at %}<span class="calendar-event-time">{% user_time event.starts_at %}</span>{% else %}<span class="calendar-event-time">{% trans "All day" %}</span>{% endif %}
               <span class="calendar-event-title">{{ event.show_name }}</span>
@@ -127,20 +121,4 @@
       </div>
     </div>
   </section>
-
-  <dialog id="calendar-event-details" class="modal" aria-label="{% trans 'Calendar event details' %}">
-    <div class="modal-box max-w-lg p-0">
-      <div id="calendar-event-details-body" class="p-6">
-        <p class="text-sm text-base-content/60">{% trans "Select a release to see its details." %}</p>
-      </div>
-      <div class="flex justify-end border-t border-base-300 p-4">
-        <form method="dialog">
-          <button class="btn btn-ghost btn-sm">{% trans "Close" %}</button>
-        </form>
-      </div>
-    </div>
-    <form method="dialog" class="modal-backdrop">
-      <button aria-label="{% trans 'Close details' %}">{% trans "Close" %}</button>
-    </form>
-  </dialog>
 </div>

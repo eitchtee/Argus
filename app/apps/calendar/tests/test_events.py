@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timezone
 
 from django.contrib.auth import get_user_model
 from django.http import QueryDict
@@ -7,7 +7,6 @@ from django.test import TestCase
 from apps.calendar.events import (
     CalendarFilters,
     filter_query_params,
-    get_calendar_event,
     get_calendar_events,
     get_calendar_feed,
     get_feed_window,
@@ -114,7 +113,7 @@ class CalendarEventServiceTests(TestCase):
             external_id=show.external_id,
             use_original_title=True,
         )
-        episode = self.make_episode(show, date(2026, 7, 10))
+        self.make_episode(show, date(2026, 7, 10))
         movie = self.make_movie(
             "money-heist-movie",
             on_watchlist=True,
@@ -142,31 +141,6 @@ class CalendarEventServiceTests(TestCase):
         movie_event = next(event for event in events if event.kind == "movie")
         self.assertEqual(episode_event.show_name, "La casa de papel")
         self.assertEqual(movie_event.title, "Filme original")
-
-        direct_episode_event = get_calendar_event(self.user, episode.id)
-        direct_movie_event = get_calendar_event(self.user, movie.id, kind="movie")
-        self.assertEqual(direct_episode_event.show_name, "La casa de papel")
-        self.assertEqual(direct_movie_event.title, "Filme original")
-
-    def test_single_movie_event_uses_the_movie_provider_language(self):
-        self.user.settings.tvdb_metadata_language = "por"
-        self.user.settings.save(update_fields=["tvdb_metadata_language"])
-        movie = Movie.objects.create(
-            provider="tvdb",
-            external_id="tvdb-movie",
-            title="English Movie",
-            translations={"por": {"title": "Filme"}},
-            release_date=date(2026, 7, 11),
-        )
-        UserMovie.objects.create(
-            user=self.user,
-            movie=movie,
-            on_watchlist=True,
-        )
-
-        event = get_calendar_event(self.user, movie.id, kind="movie")
-
-        self.assertEqual(event.title, "Filme")
 
     def test_tracked_filter_defaults_to_true_and_can_be_disabled(self):
         self.assertTrue(parse_filters(QueryDict()).include_tracked)
@@ -349,28 +323,6 @@ class CalendarEventServiceTests(TestCase):
         )
 
         self.assertEqual([event.title for event in events], ["Episode", "Movie Release"])
-
-    def test_movie_event_is_scoped_to_watchlisted_user(self):
-        movie = self.make_movie(
-            "tracked-movie",
-            on_watchlist=True,
-            release_date=date(2026, 7, 10),
-        )
-        other_user = get_user_model().objects.create_user("other@example.com")
-
-        self.assertEqual(
-            get_calendar_event(self.user, movie.id, kind="movie").movie_id,
-            movie.id,
-        )
-        self.assertIsNone(get_calendar_event(other_user, movie.id, kind="movie"))
-
-    def test_get_calendar_event_is_scoped_to_user_shows(self):
-        show = self.make_show("Tracked", UserShow.Status.TRACKED)
-        episode = self.make_episode(show, date(2026, 7, 10))
-        other_user = get_user_model().objects.create_user("other@example.com")
-
-        self.assertEqual(get_calendar_event(self.user, episode.id).episode_id, episode.id)
-        self.assertIsNone(get_calendar_event(other_user, episode.id))
 
     def test_filters_parse_optional_statuses_and_ignore_invalid_values(self):
         self.assertEqual(parse_filters(QueryDict()), CalendarFilters())

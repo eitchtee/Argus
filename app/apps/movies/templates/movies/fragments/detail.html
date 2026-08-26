@@ -92,13 +92,19 @@
           {% endfor %}
           {% if movie.trailer_url %}
           <a href="{{ movie.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
-            <i data-lucide="circle-play" aria-hidden="true"></i>
             <span>{% trans "Watch trailer" %}</span>
             <i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
           </a>
           {% endif %}
         </div>
       </div>
+
+      {% if movie.last_synced_at %}
+      <p class="absolute right-5 bottom-1 flex items-center gap-1 text-xs text-base-content/40 sm:right-8 lg:right-10" title="{% trans 'Metadata last synced' %}">
+        <i data-lucide="refresh-cw" class="size-3" aria-hidden="true"></i>
+        <span>{% trans "Synced" %} {% user_datetime movie.last_synced_at %}</span>
+      </p>
+      {% endif %}
     </div>
   </section>
 

@@ -1,5 +1,8 @@
 @import "tailwindcss" source("../../../app/");
 
+/* Button classes for the SweetAlert2 defaults live in JS, outside the app/ source above. */
+@source "../js/sweetalert2.js";
+
 @plugin "daisyui" {
   themes: argus_dark --default, argus_light;
   logs: true;
@@ -740,7 +743,7 @@
     }
 
     .cast-rail {
-        @apply -mx-1 flex gap-3 overflow-x-auto px-1 pb-1 sm:gap-4;
+        @apply -mx-5 flex gap-3 scroll-px-5 overflow-x-auto px-5 pb-1 sm:gap-4;
         scroll-snap-type: x proximity;
         scrollbar-width: none;
         mask-image: linear-gradient(to right, transparent 0, black 0.75rem, black calc(100% - 0.75rem), transparent 100%);

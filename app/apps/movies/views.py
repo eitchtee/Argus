@@ -351,6 +351,7 @@ def _build_movie_context(user, external_id, provider="tmdb"):
             "external_id": movie.external_id,
             "provider": movie.provider,
             "provider_label": movie.provider.upper(),
+            "last_synced_at": movie.last_synced_at,
             "title": title,
             "year": movie.release_date.year if movie.release_date else None,
             "release_date": movie.release_date,

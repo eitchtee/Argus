@@ -742,6 +742,7 @@ def _build_show_context(user, external_id, provider="tvdb"):
         "external_id": show.external_id,
         "provider": show.provider,
         "provider_label": show.provider.upper(),
+        "last_synced_at": show.last_synced_at,
         "title": title,
         "overview": resolve_field(show, "overview", language),
         "status": show.status,
