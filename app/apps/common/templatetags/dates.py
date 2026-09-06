@@ -3,6 +3,7 @@ from datetime import datetime
 from django import template
 from django.utils import timezone
 from django.utils.formats import date_format, time_format
+from django.utils.translation import pgettext
 
 from apps.catalog.localization import (
     date_format_for_user,
@@ -64,3 +65,23 @@ def user_month(context, value):
         return ""
 
     return date_format(_local_time(value), "F Y", use_l10n=False)
+
+
+@register.filter
+def runtime(value):
+    """Render a duration in minutes as "2h", "59m" or "1h 20m"."""
+    try:
+        minutes = int(value)
+    except (TypeError, ValueError):
+        return ""
+
+    if minutes <= 0:
+        return ""
+
+    hours, remainder = divmod(minutes, 60)
+    parts = []
+    if hours:
+        parts.append(pgettext("duration", "%(num)dh") % {"num": hours})
+    if remainder or not hours:
+        parts.append(pgettext("duration", "%(num)dm") % {"num": remainder})
+    return " ".join(parts)

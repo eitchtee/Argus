@@ -52,7 +52,7 @@
           {% if movie.runtime %}
           <div class="detail-meta__item" title="{% trans 'Runtime' %}">
             <dt class="sr-only">{% trans "Runtime" %}</dt>
-            <dd><i data-lucide="clock" aria-hidden="true"></i>{{ movie.runtime }} {% trans "min" %}</dd>
+            <dd><i data-lucide="clock" aria-hidden="true"></i>{{ movie.runtime|runtime }}</dd>
           </div>
           {% endif %}
           {% if movie.release_date %}

@@ -84,7 +84,7 @@
           {% if episode.runtime %}
           <div class="detail-meta__item" title="{% trans 'Runtime' %}">
             <dt class="sr-only">{% trans "Runtime" %}</dt>
-            <dd><i data-lucide="clock" aria-hidden="true"></i>{{ episode.runtime }} {% trans "min" %}</dd>
+            <dd><i data-lucide="clock" aria-hidden="true"></i>{{ episode.runtime|runtime }}</dd>
           </div>
           {% endif %}
         </dl>
