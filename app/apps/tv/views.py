@@ -927,6 +927,7 @@ def _season_context(
             season_name(season.season_number),
         ),
         "episodes": episode_rows,
+        "episode_count": len(episode_rows),
         "aired_count": aired_count,
         "aired_watched_count": aired_watched_count,
         "upcoming_count": sum(
@@ -935,6 +936,7 @@ def _season_context(
         "tba_count": sum(
             episode["air_status"] == "tba" for episode in episode_rows
         ),
+        "unaired_count": len(episode_rows) - aired_count,
         "fully_watched": aired_count > 0 and aired_watched_count == aired_count,
         "tracked": tracked,
     }
@@ -1074,6 +1076,7 @@ def _preview_seasons(episodes, language, default_language, *, show_specials=Fals
                 "season_number": season_number,
                 "name": season_name(season_number),
                 "episodes": episode_rows,
+                "episode_count": len(episode_rows),
                 "aired_count": aired_count,
                 "aired_watched_count": 0,
                 "upcoming_count": sum(
@@ -1082,6 +1085,7 @@ def _preview_seasons(episodes, language, default_language, *, show_specials=Fals
                 "tba_count": sum(
                     episode["air_status"] == "tba" for episode in episode_rows
                 ),
+                "unaired_count": len(episode_rows) - aired_count,
                 "fully_watched": False,
                 "tracked": False,
             }

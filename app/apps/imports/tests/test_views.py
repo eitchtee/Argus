@@ -163,6 +163,6 @@ class ImportViewTests(TestCase):
         response = self.client.get(reverse("user_settings"))
 
         self.assertContains(response, "Import")
-        self.assertContains(response, 'class="tabs tabs-box"')
+        self.assertContains(response, 'class="tabs tabs-box w-fit"')
         self.assertContains(response, 'id="import-trakt-tab"')
         self.assertContains(response, 'hx-trigger="load"')

@@ -3,7 +3,7 @@ from django.test import TestCase
 
 from apps.catalog.models import UserMediaArtworkPreference
 from apps.tv.models import Episode, Season, Show
-from apps.tv.views import _build_show_context
+from apps.tv.views import _build_show_context, _build_show_episodes_context
 
 
 class TVMetadataLocalizationTests(TestCase):
@@ -37,8 +37,13 @@ class TVMetadataLocalizationTests(TestCase):
 
         self.assertEqual(context["title"], "Série")
         self.assertEqual(context["overview"], "Resumo")
-        self.assertEqual(context["seasons"][0]["name"], "Temporada 1")
-        self.assertEqual(context["seasons"][0]["episodes"][0]["name"], "Piloto")
+
+        episodes_context = _build_show_episodes_context(user, "123")
+
+        self.assertEqual(episodes_context["seasons"][0]["name"], "Temporada 1")
+        self.assertEqual(
+            episodes_context["seasons"][0]["episodes"][0]["name"], "Piloto"
+        )
 
     def test_tracked_detail_uses_original_title_when_user_enables_it(self):
         user = get_user_model().objects.create_user("user@example.com")

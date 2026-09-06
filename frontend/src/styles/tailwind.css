@@ -913,11 +913,16 @@
     }
 
     .episode-row {
+        @apply relative isolate;
         min-height: 3.25rem;
     }
 
-    .episode-row:hover {
-        @apply rounded-box bg-base-200/45;
+    /* Bleed the hover background past the row's content box so the text isn't
+       flush against its edge, without widening the separator border. */
+    .episode-row:hover::before {
+        content: "";
+        @apply pointer-events-none absolute inset-y-0 -z-10 rounded-box bg-base-200/45;
+        inset-inline: -0.5rem;
     }
 
     .media-status,
@@ -1054,9 +1059,5 @@ dialog.modal {
     .poster-card__watch-button:active,
     .poster-card__watch-remove-button:active {
         transform: none;
-    }
-
-    .episodes-loading.show-loading.htmx-request::after {
-        animation: none;
     }
 }

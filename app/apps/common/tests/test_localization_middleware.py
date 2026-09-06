@@ -43,6 +43,7 @@ class LocalizationMiddlewareTests(SimpleTestCase):
 
         self.assertEqual(response.content.decode(), "pt-br|America/Sao_Paulo")
 
+    @override_settings(TIME_ZONE="UTC")
     def test_automatic_language_supports_the_full_browser_language_catalog(self):
         response = self.run_middleware(
             self.make_request(accept_language="fr-FR, en;q=0.8")

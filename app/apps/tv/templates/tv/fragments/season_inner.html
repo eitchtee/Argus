@@ -4,9 +4,19 @@
     <div class="flex min-w-0 items-center gap-3">
       <i data-lucide="chevron-down" class="text-xs transition-transform duration-200" :class="{ 'rotate-180': expanded }"></i>
       <span class="truncate font-semibold">{{ season.name }}</span>
-      {% if season.tracked %}
-      <span class="text-subtle ms-2 whitespace-nowrap text-xs">{{ season.aired_watched_count }}/{{ season.aired_count }} {% trans "watched" %}</span>
-      {% endif %}
+      <span class="text-subtle ms-2 flex shrink-0 items-center gap-3 text-xs">
+        <span class="flex items-center gap-1 whitespace-nowrap">
+          <i data-lucide="list-video" class="size-3.5" aria-hidden="true"></i>
+          <span class="tabular-nums">{{ season.episode_count }}</span>
+        </span>
+        {% if season.tracked %}
+        <span class="flex items-center gap-1 whitespace-nowrap">
+          <i data-lucide="eye" class="size-3.5" aria-hidden="true"></i>
+          <span class="tabular-nums">{{ season.aired_watched_count }}/{{ season.aired_count }}</span>
+          {% if season.unaired_count %}<span class="tabular-nums ms-1 opacity-60">+{{ season.unaired_count }}</span>{% endif %}
+        </span>
+        {% endif %}
+      </span>
     </div>
     {% if season.tracked and season.aired_count > 0 %}
     <input type="checkbox"
@@ -23,7 +33,7 @@
   </div>
   <div x-show="expanded" x-collapse x-cloak class="flex flex-col gap-2 px-4 pb-4">
     {% for episode in season.episodes %}
-    <div class="episode-row flex flex-col gap-2 border-t border-base-300 pt-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
+    <div class="episode-row flex flex-col gap-2 border-t border-base-300 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
       <div class="flex min-w-0 items-center gap-3">
         {% if season.tracked %}
         <input type="checkbox" class="checkbox checkbox-sm shrink-0"

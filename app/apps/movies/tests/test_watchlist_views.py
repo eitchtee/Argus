@@ -98,7 +98,7 @@ class MovieWatchlistViewTests(TestCase):
         self.assertContains(response, "Swal.fire")
         self.assertContains(response, "Remove from watchlist?")
 
-    def test_watched_page_poster_button_keeps_in_place_swap(self):
+    def test_watched_page_poster_button_dismisses_the_card(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
         UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
 
@@ -106,8 +106,12 @@ class MovieWatchlistViewTests(TestCase):
             reverse("movies-watched-page"), HTTP_HX_REQUEST="true"
         )
 
-        self.assertNotContains(response, 'hx-target="closest .poster-card"')
-        self.assertContains(response, 'hx-target="this" hx-swap="outerHTML"')
+        content = response.content.decode()
+        # Unwatching a movie takes it off the watched page, so the card goes
+        # with it instead of swapping the button in place.
+        self.assertEqual(content.count('hx-target="closest .poster-card"'), 1)
+        self.assertContains(response, 'hx-swap="delete"')
+        self.assertNotContains(response, 'hx-target="this" hx-swap="outerHTML"')
         self.assertNotContains(response, "Seen")
         self.assertNotContains(response, "<c-movies.movie-poster")
 

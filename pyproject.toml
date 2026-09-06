@@ -31,5 +31,13 @@ dependencies = [
     "whitenoise[brotli]==6.12.0",
 ]
 
+[dependency-groups]
+# `manage.py test --parallel` pickles failures from its worker processes back
+# to the parent; without tblib the tracebacks can't be pickled and the first
+# failure aborts the whole run.
+dev = [
+    "tblib~=3.2",
+]
+
 [tool.setuptools]
 packages = ["app"]

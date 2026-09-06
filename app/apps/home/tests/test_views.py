@@ -56,6 +56,12 @@ class IndexViewTests(TestCase):
         sidebar_end = content.index("<main", sidebar_start)
         return content[sidebar_start:sidebar_end]
 
+    def _sidebar_nav(self, response):
+        # Settings and logout live in the sidebar footer, outside the nav menu.
+        sidebar = self._sidebar_menu(response)
+        nav_start = sidebar.index("<nav")
+        return sidebar[nav_start:sidebar.index("</nav>", nav_start)]
+
     def _sidebar_link(self, sidebar, label):
         return next(
             (
@@ -94,8 +100,9 @@ class IndexViewTests(TestCase):
         self.assertIn(">Watched</span>", sidebar)
         self.assertIn(">Calendar</span>", sidebar)
         self.assertNotIn(">Admin</span>", sidebar)
-        self.assertNotIn("Settings", sidebar)
-        self.assertNotIn("API Docs", sidebar)
+        nav = self._sidebar_nav(response)
+        self.assertNotIn("Settings", nav)
+        self.assertNotIn("API Docs", nav)
         self.assertEqual(sidebar.count("menu-title"), 2)
         self.assertNotRegex(sidebar, r"<a\b[^>]*>\s*(?:TV|Movies)\s*</a>")
 

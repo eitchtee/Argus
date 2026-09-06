@@ -167,21 +167,24 @@ class CalendarViewTests(TestCase):
         self.assertContains(response, '<input class="checkbox checkbox-primary" type="checkbox" name="movies" value="1">')
 
     def test_calendar_and_feed_exclude_special_episodes(self):
+        # The .ics feed only covers a window around today, so air on a date
+        # inside it instead of a fixed month that eventually falls out.
+        air_date = timezone.localdate() + timedelta(days=7)
         regular = self.make_episode(
             "Regular Calendar Show",
             UserShow.Status.TRACKED,
-            date(2026, 7, 10),
+            air_date,
         )
         special = self.make_episode(
             "Specials Calendar Show",
             UserShow.Status.TRACKED,
-            date(2026, 7, 10),
+            air_date,
             season_number=0,
         )
         feed = get_calendar_feed(self.user)
 
         page_response = self.client.get(
-            "/calendar/?month=2026-07", HTTP_HX_REQUEST="true"
+            f"/calendar/?month={air_date:%Y-%m}", HTTP_HX_REQUEST="true"
         )
         feed_response = self.client.get(f"/calendar/feed/{feed.uuid}.ics")
         feed_content = feed_response.content.decode()
@@ -225,6 +228,8 @@ class CalendarViewTests(TestCase):
         self.assertFalse(cells[today + timedelta(days=1)]["is_past"])
 
     def test_timed_release_is_placed_on_local_display_date(self):
+        self.user.settings.datetime_format = "d.m.Y H:i"
+        self.user.settings.save()
         self.make_episode("Late Tokyo", UserShow.Status.TRACKED, date(2026, 7, 10))
         Show.objects.filter(name="Late Tokyo").update(
             airs_time=time(2, 0),

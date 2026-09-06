@@ -154,7 +154,14 @@ CACHE_DIR = DATA_DIR / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 THREADS = int(os.getenv("GUNICORN_THREADS", 1))
-MAX_POOL_SIZE = THREADS + 1
+# Gunicorn bounds its own concurrency, so one connection per thread (plus a
+# spare) is enough in production. `runserver` doesn't: it spawns a thread per
+# request with no ceiling, so a page firing several HTMX fragments at once --
+# or a 2s poll racing a background sync -- starves a two-connection pool and
+# every loser raises PoolTimeout after 10s.
+MAX_POOL_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", 0)) or (
+    16 if DEBUG else THREADS + 1
+)
 
 DATABASES = {
     "default": {
@@ -266,6 +273,15 @@ if "test" in sys.argv:
     # offering English alone until something refilled it.
     CACHES = {
         "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    }
+    # The manifest storage only resolves names that collectstatic has hashed,
+    # so every page-rendering test would need a build first. Tests care about
+    # the markup, not the fingerprints.
+    STORAGES = {
+        **STORAGES,
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
     }
 
 DJANGO_VITE_ASSETS_PATH = STATIC_ROOT

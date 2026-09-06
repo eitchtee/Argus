@@ -16,7 +16,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
-RUN uv sync --no-install-project --no-dev
+RUN uv sync --no-install-project
 
 COPY ./docker/dev/django/start /start
 COPY ./docker/dev/procrastinate/start /start-procrastinate
