@@ -10,6 +10,7 @@
     title_url="{% url 'tv-episode-detail' external_id=episode.show.external_id episode_id=episode.id %}{% if episode.show.provider and episode.show.provider != 'tvdb' %}?provider={{ episode.show.provider }}{% endif %}">
   <c-slot name="side">
     <div class="font-bold text-lg">{{ countdown }}</div>
-    <div class="text-subtle text-xs">{% user_date episode.air_date %}</div>
+    <div class="text-subtle text-xs tabular-nums">{% user_date episode.air_date %}</div>
+    {% if episode.airs_at %}<div class="text-subtle text-xs tabular-nums">{% user_time episode.airs_at %}</div>{% endif %}
   </c-slot>
 </c-ui.components.episode-card>

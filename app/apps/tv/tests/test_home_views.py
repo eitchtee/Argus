@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -570,6 +570,25 @@ class HomeUpcomingViewTests(TestCase):
         self.assertContains(response, "Primeiro episódio")
         self.assertContains(response, "Segundo episódio")
         self.assertNotContains(response, "Second episode")
+
+    def test_shows_air_time_in_the_user_timezone(self):
+        self.show.airs_time = time(21, 0)
+        self.show.airs_timezone = "America/New_York"
+        self.show.save(update_fields=["airs_time", "airs_timezone"])
+        self._make_episode(1, self.today, "Timed episode")
+
+        with timezone.override("America/Sao_Paulo"):
+            response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "10 p.m.")
+
+    def test_omits_air_time_when_the_show_has_none(self):
+        self._make_episode(1, self.today, "Untimed episode")
+
+        response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Untimed episode")
+        self.assertNotContains(response, "p.m.")
 
     def test_caps_at_ten_episodes(self):
         for i in range(15):

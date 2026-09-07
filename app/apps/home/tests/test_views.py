@@ -258,6 +258,27 @@ class IndexViewTests(TestCase):
         self.assertContains(response, "/tv/home/watchlist/")
         self.assertContains(response, "/tv/home/upcoming/")
 
+    def test_each_tv_tab_has_its_own_lazily_loaded_panel(self):
+        response = self.client.get("/")
+        content = response.content.decode()
+
+        watchlist_panel = content[content.index('id="tv-home-watchlist-panel"'):]
+        watchlist_panel = watchlist_panel[:watchlist_panel.index("</div>")]
+        self.assertIn('hx-get="/tv/home/watchlist/"', watchlist_panel)
+        self.assertIn('hx-trigger="load"', watchlist_panel)
+        self.assertIn('hx-indicator="#tv-home-watchlist-tab"', watchlist_panel)
+        self.assertIn("loading-spinner", watchlist_panel)
+
+        upcoming_panel = content[content.index('id="tv-home-upcoming-panel"'):]
+        upcoming_panel = upcoming_panel[:upcoming_panel.index("</div>")]
+        self.assertIn('hx-get="/tv/home/upcoming/"', upcoming_panel)
+        self.assertIn(
+            'hx-trigger="change once from:#tv-home-upcoming-tab"',
+            upcoming_panel,
+        )
+        self.assertIn('hx-indicator="#tv-home-upcoming-tab"', upcoming_panel)
+        self.assertIn("loading-spinner", upcoming_panel)
+
     def test_watchlist_tab_is_checked_by_default(self):
         response = self.client.get("/")
         content = response.content.decode()

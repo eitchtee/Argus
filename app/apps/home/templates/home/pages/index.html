@@ -10,17 +10,37 @@
     <div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Library" %}</p><h1 class="text-3xl font-bold tracking-tight">{% trans "TV Shows" %}</h1></div>
   </div>
 
-  <div role="tablist" class="tabs tabs-border w-fit mb-3">
-    <input type="radio" name="tv-home-tab" role="tab" class="tab" aria-label="{% trans 'Watchlist' %}"
-           checked
-           hx-get="{% url 'tv-home-watchlist' %}" hx-target="#tv-home-panel" hx-swap="innerHTML"
-           hx-trigger="load, change">
-    <input type="radio" name="tv-home-tab" role="tab" class="tab" aria-label="{% trans 'Upcoming' %}"
-           hx-get="{% url 'tv-home-upcoming' %}" hx-target="#tv-home-panel" hx-swap="innerHTML"
-           hx-trigger="change">
-  </div>
+  <div role="tablist" class="tabs tabs-border w-full">
+    <input id="tv-home-watchlist-tab" type="radio" name="tv-home-tab" role="tab" class="tab"
+           aria-label="{% trans 'Watchlist' %}" aria-controls="tv-home-watchlist-panel" checked>
+    <div id="tv-home-watchlist-panel" role="tabpanel" class="tab-content w-full pt-3"
+         aria-labelledby="tv-home-watchlist-tab"
+         hx-get="{% url 'tv-home-watchlist' %}"
+         hx-indicator="#tv-home-watchlist-tab"
+         hx-trigger="load"
+         hx-target="this"
+         hx-swap="innerHTML"
+         hx-disinherit="hx-target hx-swap hx-indicator">
+      <div class="flex items-center justify-center py-12" aria-live="polite">
+        <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+      </div>
+    </div>
 
-  <div id="tv-home-panel"></div>
+    <input id="tv-home-upcoming-tab" type="radio" name="tv-home-tab" role="tab" class="tab"
+           aria-label="{% trans 'Upcoming' %}" aria-controls="tv-home-upcoming-panel">
+    <div id="tv-home-upcoming-panel" role="tabpanel" class="tab-content w-full pt-3"
+         aria-labelledby="tv-home-upcoming-tab"
+         hx-get="{% url 'tv-home-upcoming' %}"
+         hx-indicator="#tv-home-upcoming-tab"
+         hx-trigger="change once from:#tv-home-upcoming-tab"
+         hx-target="this"
+         hx-swap="innerHTML"
+         hx-disinherit="hx-target hx-swap hx-indicator">
+      <div class="flex items-center justify-center py-12" aria-live="polite">
+        <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+      </div>
+    </div>
+  </div>
 
   </section>
   <section>

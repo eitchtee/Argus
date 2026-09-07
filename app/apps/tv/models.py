@@ -1,3 +1,6 @@
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
@@ -72,6 +75,16 @@ class Show(ProviderBackedModel):
             return build_backdrop_url(self.backdrop_path)
         return self.backdrop_path or None
 
+    @property
+    def air_timezone(self):
+        """Timezone the show's ``airs_time`` is expressed in."""
+        if self.airs_timezone:
+            try:
+                return ZoneInfo(self.airs_timezone)
+            except ZoneInfoNotFoundError:
+                pass
+        return UTC
+
     def __str__(self):
         return self.name
 
@@ -142,6 +155,17 @@ class Episode(models.Model):
                 name="tv_episode_show_season_episode_uniq",
             )
         ]
+
+    @property
+    def airs_at(self):
+        """Aware datetime the episode airs, or ``None`` when the time is unknown."""
+        if self.air_date is None or self.show.airs_time is None:
+            return None
+        return datetime.combine(
+            self.air_date,
+            self.show.airs_time,
+            tzinfo=self.show.air_timezone,
+        )
 
     def __str__(self):
         label = f"S{self.season_number:02d}E{self.episode_number:02d}"
