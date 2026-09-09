@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.catalog.models import Genre, UserMediaArtworkPreference
 from apps.movies.models import Movie
@@ -21,6 +22,7 @@ class MovieMetadataLocalizationTests(TestCase):
         movie = Movie.objects.create(
             external_id="550",
             title="Fight Club",
+            last_synced_at=timezone.now(),
             overview="English overview",
             tagline="English tagline",
             translations={
@@ -44,6 +46,7 @@ class MovieMetadataLocalizationTests(TestCase):
         movie = Movie.objects.create(
             external_id="550",
             title="Clube da Luta",
+            last_synced_at=timezone.now(),
             original_title="Fight Club",
             translations={"pt-BR": {"title": "Clube da Luta"}},
         )

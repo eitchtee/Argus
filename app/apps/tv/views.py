@@ -719,6 +719,22 @@ def _build_show_context(user, external_id, provider="tvdb"):
     if show is None:
         return _preview_show_context(user, external_id, language, provider)
 
+    # Tracking inserts a placeholder row -- name set to the external id -- and
+    # leaves a worker to fill it in, while the response redirects straight back
+    # here. Preferring that row over the provider detail we already have cached
+    # blanks the page out until the worker lands, which is a race the request
+    # loses whenever the provider is slow.
+    if show.last_synced_at is None:
+        try:
+            context = _preview_show_context(user, external_id, language, provider)
+        except ProviderError:
+            # Nothing cached and the provider is unreachable: the bare row is
+            # still better than an error page.
+            pass
+        else:
+            context.update(_show_user_state(user, show))
+            return context
+
     language = media_language_for_user(user, show)
     tracking_state = _refresh_show_identity(user, show, language)
     user_show = UserShow.objects.filter(user=user, show=show).first()
@@ -781,6 +797,18 @@ def _build_show_context(user, external_id, provider="tvdb"):
         ),
         **air_time_context,
         **tracking_state,
+    }
+
+
+def _show_user_state(user, show):
+    user_show = UserShow.objects.filter(user=user, show=show).first()
+    tracked = bool(user_show and user_show.status == UserShow.Status.TRACKED)
+    return {
+        "tracked": tracked,
+        "tracking_status": user_show.status if user_show else None,
+        "can_delete": user_show is not None,
+        "user_rating": format_score(get_user_score(user, show)),
+        "rating_url": build_rating_url("show", show.external_id, show.provider),
     }
 
 

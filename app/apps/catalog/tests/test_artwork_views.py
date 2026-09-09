@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.catalog.forms import MediaArtworkPreferenceForm
 from apps.catalog.models import MediaArtwork, UserMediaArtworkPreference
@@ -65,6 +66,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
             provider="tmdb",
             external_id="550",
             title="Fight Club",
+            last_synced_at=timezone.now(),
         )
         self.default_poster = MediaArtwork.objects.create(
             provider="tmdb",

@@ -338,6 +338,21 @@ def _build_movie_context(user, external_id, provider="tmdb"):
     language = metadata_language_for_user(user, provider)
     movie = Movie.objects.filter(provider=provider, external_id=external_id).first()
 
+    # Tracking inserts a placeholder row -- title set to the external id -- and
+    # leaves a worker to fill it in. Preferring that row over the provider
+    # detail we already have cached would blank the page out until the worker
+    # lands, which is a race the request loses whenever the provider is slow.
+    if movie is not None and movie.last_synced_at is None:
+        try:
+            context = _movie_context_from_provider(user, external_id, provider, language)
+        except ProviderError:
+            # Nothing cached and the provider is unreachable: the bare row is
+            # still better than an error page.
+            pass
+        else:
+            context.update(_movie_user_state(user, movie))
+            return context
+
     if movie is not None:
         language = media_language_for_user(user, movie)
         tracking_state = _refresh_movie_identity(user, movie, language)
@@ -388,6 +403,20 @@ def _build_movie_context(user, external_id, provider="tmdb"):
             **tracking_state,
         }
 
+    return _movie_context_from_provider(user, external_id, provider, language)
+
+
+def _movie_user_state(user, movie):
+    user_movie = UserMovie.objects.filter(user=user, movie=movie).first()
+    return {
+        "on_watchlist": user_movie.on_watchlist if user_movie else False,
+        "is_seen": user_movie.is_seen if user_movie else False,
+        "user_rating": format_score(get_user_score(user, movie)),
+        "rating_url": build_rating_url("movie", movie.external_id, movie.provider),
+    }
+
+
+def _movie_context_from_provider(user, external_id, provider, language):
     detail = get_movie_detail(
         external_id,
         language=language,

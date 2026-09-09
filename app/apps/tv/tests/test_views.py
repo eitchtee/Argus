@@ -323,6 +323,34 @@ class ShowDetailViewTests(TestCase):
         )
         self.assertFalse(Show.objects.filter(external_id="123").exists())
 
+    @patch("apps.tv.views.get_show_detail")
+    def test_renders_provider_cache_while_a_freshly_tracked_row_is_unsynced(
+        self, get_show_detail_mock
+    ):
+        """Tracking writes a placeholder row named after the external id, then
+        redirects straight back here. The page must not fall back to that row
+        while the worker filling it in is still running."""
+        get_show_detail_mock.return_value = DetailDTO(
+            provider="tvdb",
+            external_id="123",
+            title="Foo",
+            overview="A show.",
+        )
+        show = Show.objects.create(
+            provider="tvdb",
+            external_id="123",
+            name="123",
+            sync_status=SyncStatus.PENDING,
+        )
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        response = self.client.get("/tv/123/content/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Foo")
+        self.assertContains(response, "A show.")
+        # The user's own state still comes from the row.
+        self.assertNotContains(response, 'aria-label="Track show"')
+
     @patch("apps.tv.views.get_show_episodes")
     @patch("apps.tv.views.get_show_detail")
     def test_preview_uses_requested_provider_and_language(

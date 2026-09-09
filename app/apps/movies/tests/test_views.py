@@ -60,6 +60,7 @@ class MovieDetailViewTests(TestCase):
         Movie.objects.create(
             external_id="550",
             title="Fight Club",
+            last_synced_at=timezone.now(),
             status="Completed",
             normalized_status=Movie.NormalizedStatus.UPCOMING,
             overview="A movie about a fight club.",
@@ -207,6 +208,56 @@ class MovieDetailViewTests(TestCase):
         self.assertContains(response, "https://www.youtube.com/watch?v=vKQi3bta_kk")
         self.assertContains(response, "Keanu Reeves")
         self.assertFalse(Movie.objects.filter(external_id="603").exists())
+
+    @patch("apps.movies.views.get_movie_detail")
+    def test_renders_provider_cache_while_a_freshly_tracked_row_is_unsynced(
+        self, get_movie_detail_mock
+    ):
+        """Tracking writes a placeholder row named after the external id and
+        leaves a worker to fill it in. The page must not fall back to that row
+        while the worker is still running."""
+        get_movie_detail_mock.return_value = DetailDTO(
+            provider="tmdb",
+            external_id="603",
+            title="The Matrix",
+            overview="A hacker learns the truth.",
+        )
+        movie = Movie.objects.create(
+            provider="tmdb",
+            external_id="603",
+            title="603",
+            sync_status=SyncStatus.PENDING,
+        )
+        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
+
+        response = self.client.get("/movies/603/content/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "The Matrix")
+        self.assertContains(response, "A hacker learns the truth.")
+        # The user's own state still comes from the row.
+        self.assertContains(response, 'aria-label="Remove from watchlist"')
+        self.assertNotContains(response, 'aria-label="Add to watchlist"')
+
+    @patch("apps.movies.views.get_movie_detail")
+    def test_the_synced_row_wins_over_the_provider_cache(self, get_movie_detail_mock):
+        get_movie_detail_mock.return_value = DetailDTO(
+            provider="tmdb",
+            external_id="603",
+            title="Stale Provider Title",
+        )
+        Movie.objects.create(
+            provider="tmdb",
+            external_id="603",
+            title="The Matrix",
+            sync_status=SyncStatus.OK,
+            last_synced_at=timezone.now(),
+        )
+
+        response = self.client.get("/movies/603/content/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "The Matrix")
+        self.assertNotContains(response, "Stale Provider Title")
+        get_movie_detail_mock.assert_not_called()
 
     @patch("apps.movies.views.get_movie_detail")
     def test_renders_normalized_status_for_provider_preview(self, get_movie_detail_mock):
@@ -542,7 +593,9 @@ class MovieActionCardViewTests(TestCase):
         self.assertContains(response, 'aria-label="Movie actions"')
 
     def test_actions_are_attached_to_the_movie_poster_in_a_card(self):
-        Movie.objects.create(external_id="550", title="Fight Club")
+        Movie.objects.create(
+            external_id="550", title="Fight Club", last_synced_at=timezone.now()
+        )
 
         response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
         content = response.content.decode()
