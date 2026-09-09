@@ -20,6 +20,9 @@ from apps.catalog.providers.base import (
 from apps.catalog.providers.exceptions import AuthError, NotFound, ProviderError, RateLimited
 
 
+DEFAULT_LANGUAGE = "en-US"
+
+
 def _merge_artwork(artworks_by_key: dict[tuple[str, str], ArtworkDTO], artwork: ArtworkDTO):
     key = (artwork.kind, artwork.image_url)
     previous = artworks_by_key.get(key)
@@ -73,14 +76,31 @@ class TMDBProvider(BaseProvider):
 
         title_field = "title" if media_type == "movie" else "name"
         date_field = "release_date" if media_type == "movie" else "first_air_date"
-        payload = self._get_json(
-            f"/search/{media_type}",
-            {
-                "query": query,
-                "page": page,
-                "language": language,
-            },
-        )
+        items = self._search_items(query, language=language, page=page, media_type=media_type)
+
+        # /search has no translation fallback of its own: asked for a language
+        # a title is not translated into, TMDB returns an empty overview rather
+        # than the English one. Re-run the query in the default language and
+        # fill only the gaps, and only when there is a gap to fill.
+        if language != DEFAULT_LANGUAGE and any(not item.get("overview") for item in items):
+            fallback = {
+                str(item["id"]): item
+                for item in self._search_items(
+                    query,
+                    language=DEFAULT_LANGUAGE,
+                    page=page,
+                    media_type=media_type,
+                )
+            }
+            items = [
+                item
+                | {
+                    field: fallback[str(item["id"])][field]
+                    for field in ("title", "name", "overview", "poster_path")
+                    if not item.get(field) and fallback.get(str(item["id"]), {}).get(field)
+                }
+                for item in items
+            ]
 
         return [
             SearchResultDTO(
@@ -91,8 +111,26 @@ class TMDBProvider(BaseProvider):
                 poster_url=self._poster_url(item.get("poster_path")),
                 overview=item.get("overview") or "",
             )
-            for item in payload.get("results", [])
+            for item in items
         ]
+
+    def _search_items(
+        self,
+        query: str,
+        *,
+        language: str,
+        page: int,
+        media_type: str,
+    ) -> list[dict]:
+        payload = self._get_json(
+            f"/search/{media_type}",
+            {
+                "query": query,
+                "page": page,
+                "language": language,
+            },
+        )
+        return [item for item in payload.get("results", []) if item.get("id") is not None]
 
     def find_by_imdb_id(self, imdb_id: str, media_type: str) -> str | None:
         if media_type not in {"movie", "tv"}:

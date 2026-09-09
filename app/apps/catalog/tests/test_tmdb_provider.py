@@ -91,6 +91,62 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertIn("page=2", requested_url)
         self.assertIn("language=pt-BR", requested_url)
 
+    def test_search_falls_back_to_english_for_untranslated_overviews(self):
+        localized = {
+            "results": [
+                {"id": 550, "title": "Clube da Luta", "overview": ""},
+                {"id": 551, "title": "", "overview": "Tem sinopse."},
+            ]
+        }
+        english = {
+            "results": [
+                {"id": 550, "title": "Fight Club", "overview": "An insomniac office worker."},
+                {"id": 551, "title": "The Postman", "overview": "Ignored, the localized one wins."},
+            ]
+        }
+        opener = SequenceOpener([localized, english])
+        provider = TMDBProvider(opener=opener)
+
+        results = provider.search("fight club", language="pt-BR")
+
+        # Only the empty fields borrow from English.
+        self.assertEqual(results[0].title, "Clube da Luta")
+        self.assertEqual(results[0].overview, "An insomniac office worker.")
+        self.assertEqual(results[1].title, "The Postman")
+        self.assertEqual(results[1].overview, "Tem sinopse.")
+        self.assertIn("language=en-US", opener.requests[1][0].full_url)
+
+    def test_search_skips_the_fallback_request_when_nothing_is_missing(self):
+        payload = {"results": [{"id": 550, "title": "Clube da Luta", "overview": "Tem sinopse."}]}
+        opener = SequenceOpener([payload])
+        provider = TMDBProvider(opener=opener)
+
+        results = provider.search("fight club", language="pt-BR")
+
+        self.assertEqual(len(opener.requests), 1)
+        self.assertEqual(results[0].overview, "Tem sinopse.")
+
+    def test_search_in_the_default_language_never_asks_twice(self):
+        payload = {"results": [{"id": 550, "title": "Fight Club", "overview": ""}]}
+        opener = SequenceOpener([payload])
+        provider = TMDBProvider(opener=opener)
+
+        results = provider.search("fight club", language="en-US")
+
+        self.assertEqual(len(opener.requests), 1)
+        self.assertEqual(results[0].overview, "")
+
+    def test_search_keeps_results_the_english_pass_does_not_return(self):
+        localized = {"results": [{"id": 999, "title": "Só Local", "overview": ""}]}
+        opener = SequenceOpener([localized, {"results": []}])
+        provider = TMDBProvider(opener=opener)
+
+        results = provider.search("fight club", language="pt-BR")
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].title, "Só Local")
+        self.assertEqual(results[0].overview, "")
+
     def test_fetch_detail_normalizes_movie_detail(self):
         payload = load_fixture("tmdb_movie_detail.json")
         payload["external_ids"] = {"imdb_id": "tt0137523", "tvdb_id": "42"}
