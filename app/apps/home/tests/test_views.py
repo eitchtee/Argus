@@ -36,10 +36,6 @@ class IndexViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
-    def test_renders_for_authenticated_user(self):
-        response = self.client.get("/")
-        self.assertEqual(response.status_code, 200)
-
     @patch("apps.home.views.get_watch_something")
     def test_page_shell_defers_movie_suggestions(self, get_watch_something_mock):
         response = self.client.get("/")

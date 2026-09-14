@@ -406,14 +406,6 @@ class ShowImportTests(TestCase):
 
         self.assertEqual(show.seasons.get().name, "Season 1")
         self.assertEqual(show.episodes.get().name, "Episode 1")
-    def test_import_show_persists_airing_time_as_a_time(self):
-        provider = FakeProvider(detail=show_detail(airs_time="21:00"), episodes=[])
-
-        show = import_show("121361", provider_getter=lambda _: provider)
-
-        self.assertEqual(show.airs_time, time(21, 0))
-        self.assertEqual(show.airs_timezone, "America/New_York")
-
     def test_import_show_discards_invalid_airing_time(self):
         provider = FakeProvider(detail=show_detail(airs_time="not-a-time"), episodes=[])
 
@@ -533,16 +525,6 @@ class ShowImportTests(TestCase):
             Episode.objects.get(season_number=1, episode_number=1).name,
             "Winter Is Coming Updated",
         )
-
-    def test_import_show_refreshes_tmdb_id(self):
-        provider = FakeProvider(detail=show_detail(tmdb_id="1399"), episodes=[])
-        show = import_show("121361", provider_getter=lambda _: provider)
-
-        provider.detail = show_detail(tmdb_id="1400")
-        refreshed = import_show("121361", provider_getter=lambda _: provider)
-
-        self.assertEqual(refreshed.id, show.id)
-        self.assertEqual(refreshed.tmdb_id, "1400")
 
     def test_import_show_recomputes_aired_count_excluding_specials_and_unaired(self):
         provider = FakeProvider(

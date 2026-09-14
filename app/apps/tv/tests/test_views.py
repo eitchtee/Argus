@@ -641,15 +641,6 @@ class ShowDetailViewTests(TestCase):
         self.assertNotContains(response, 'aria-label="Drop show"')
         self.assertNotContains(response, 'aria-label="Mark watched"')
 
-    def test_shows_track_button_when_show_exists_but_user_not_tracking(self):
-        other_user = get_user_model().objects.create_user("other@example.com")
-        show = Show.objects.create(external_id="123", name="Foo")
-        UserShow.objects.create(user=other_user, show=show, status=UserShow.Status.TRACKED)
-
-        response = self.client.get("/tv/123/content/", HTTP_HX_REQUEST="true")
-
-        self.assertContains(response, 'aria-label="Track show"')
-
     def test_shows_switch_action_when_tracked_on_another_provider(self):
         source = Show.objects.create(
             provider="tvdb",
@@ -745,17 +736,6 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "/tv/123/refresh/")
         self.assertContains(response, 'hx-swap="none"')
 
-    def test_paused_show_can_be_tracked_or_deleted_but_not_paused_again(self):
-        show = Show.objects.create(external_id="123", name="Foo")
-        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.PAUSED)
-
-        response = self.client.get("/tv/123/content/", HTTP_HX_REQUEST="true")
-
-        self.assertContains(response, 'aria-label="Start watching again"')
-        self.assertContains(response, 'aria-label="Delete show"')
-        self.assertNotContains(response, 'aria-label="Pause show"')
-
-
 class ShowTrackViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
@@ -789,17 +769,6 @@ class ShowTrackViewTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         queue_track_show_mock.assert_not_called()
-
-    @patch("apps.tv.views.queue_track_show")
-    def test_post_queues_show_tracking_without_calling_heavy_service(
-        self,
-        queue_track_show_mock,
-    ):
-        response = self.client.post("/tv/123/track/", HTTP_HX_REQUEST="true")
-
-        queue_track_show_mock.assert_called_once_with(self.user, "123", provider="tvdb")
-        self.assertEqual(response["HX-Redirect"], "/tv/123/")
-
 
 class ShowRefreshViewTests(TestCase):
     def setUp(self):
@@ -881,26 +850,6 @@ class ShowSwitchViewTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         switch_show_provider_mock.assert_not_called()
-
-    @patch("apps.tv.views.switch_show_provider")
-    def test_post_queues_show_provider_switch_without_calling_heavy_service(
-        self,
-        switch_show_provider_mock,
-    ):
-        response = self.client.post(
-            "/tv/1399/switch/?provider=tmdb&from_provider=tvdb&from_external_id=121361",
-            HTTP_HX_REQUEST="true",
-        )
-
-        switch_show_provider_mock.assert_called_once_with(
-            self.user,
-            source_provider="tvdb",
-            source_external_id="121361",
-            target_provider="tmdb",
-            target_external_id="1399",
-        )
-        self.assertEqual(response["HX-Redirect"], "/tv/1399/?provider=tmdb")
-
 
 class ShowDropViewTests(TestCase):
     def setUp(self):

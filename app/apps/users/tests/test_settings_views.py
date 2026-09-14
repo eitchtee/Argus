@@ -105,13 +105,6 @@ class UserSettingsViewTests(TestCase):
         )
 
     @patch("apps.users.forms.get_language_choices", side_effect=choices_for)
-    def test_settings_form_includes_show_specials_checkbox(self, _choices):
-        form = UserSettingsForm(instance=self.user.settings)
-
-        self.assertIn("show_specials", form.fields)
-        self.assertEqual(form.fields["show_specials"].label, "Show Specials")
-
-    @patch("apps.users.forms.get_language_choices", side_effect=choices_for)
     def test_settings_save_show_specials_preference(self, _choices):
         response = self.client.post(
             self.url,

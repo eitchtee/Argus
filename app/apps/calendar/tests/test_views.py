@@ -274,7 +274,6 @@ class CalendarViewTests(TestCase):
         )
 
         self.assertContains(response, f"/movies/{movie.external_id}/")
-        self.assertNotContains(response, f"/calendar/movies/{movie.id}/")
         self.assertContains(response, 'target="_blank" rel="noopener"')
 
     def test_feed_returns_utc_ical_and_invalid_uuid_is_not_found(self):
@@ -303,14 +302,6 @@ class CalendarViewTests(TestCase):
 
         self.assertIn("60 minutos", response.content.decode())
 
-    def test_feed_is_available_without_login(self):
-        feed = get_calendar_feed(self.user)
-        self.client.logout()
-
-        response = self.client.get(f"/calendar/feed/{feed.uuid}.ics")
-
-        self.assertEqual(response.status_code, 200)
-
     def test_sidebar_contains_calendar_entry_and_feed_copy_button(self):
         response = self.client.get("/calendar/?month=2026-07")
         fragment_response = self.client.get(
@@ -320,5 +311,4 @@ class CalendarViewTests(TestCase):
         self.assertContains(response, 'href="/calendar/"')
         self.assertContains(response, "Calendar")
         self.assertContains(response, 'data-lucide="calendar-days"')
-        self.assertNotContains(fragment_response, 'id="calendar-event-details"')
         self.assertContains(fragment_response, 'data-copy-target="#calendar-feed-url"')

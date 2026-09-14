@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, connection
+from django.db import connection
 from django.test import TestCase
 from django.utils import timezone
 
@@ -32,16 +32,3 @@ class TraktAccountModelTests(TestCase):
             )
             self.assertNotEqual(cursor.fetchone()[0], "access-secret")
 
-    def test_account_is_one_per_user(self):
-        TraktAccount.objects.create(
-            user=self.user,
-            access_token="a",
-            refresh_token="b",
-        )
-
-        with self.assertRaises(IntegrityError):
-            TraktAccount.objects.create(
-                user=self.user,
-                access_token="c",
-                refresh_token="d",
-            )

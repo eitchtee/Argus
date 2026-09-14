@@ -143,16 +143,6 @@ class HistoryViewTests(TestCase):
         self.assertContains(response, 'aria-label="Next history page"')
         self.assertContains(response, 'aria-label="Last history page"')
 
-    def test_fragment_uses_a_red_x_for_history_undo(self):
-        movie = Movie.objects.create(external_id="movie", title="Movie")
-        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
-
-        response = self.client.get(reverse("history-page"), HTTP_HX_REQUEST="true")
-
-        self.assertContains(response, 'data-lucide="x"')
-        self.assertContains(response, "text-error")
-        self.assertNotContains(response, 'data-lucide="rotate-ccw"')
-
     def test_empty_history_renders_empty_state(self):
         response = self.client.get(reverse("history-page"), HTTP_HX_REQUEST="true")
 

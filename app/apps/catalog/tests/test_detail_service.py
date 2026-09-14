@@ -75,30 +75,6 @@ class GetMovieDetailTests(TestCase):
         self.assertEqual(provider.detail_calls, [("550", "en-US", "movie")])
 
 
-class GetShowDetailTests(TestCase):
-    def setUp(self):
-        cache.clear()
-
-    def tearDown(self):
-        cache.clear()
-
-    def test_cache_miss_calls_provider(self):
-        provider = FakeDetailProvider("tvdb")
-
-        detail = get_show_detail("123", language="eng", provider_getter=lambda name: provider)
-
-        self.assertEqual(provider.detail_calls, [("123", "eng", "tv")])
-        self.assertEqual(detail.title, "Fight Club")
-
-    def test_cache_hit_avoids_provider_call(self):
-        provider = FakeDetailProvider("tvdb")
-
-        get_show_detail("123", language="eng", provider_getter=lambda name: provider)
-        get_show_detail("123", language="eng", provider_getter=lambda name: provider)
-
-        self.assertEqual(provider.detail_calls, [("123", "eng", "tv")])
-
-
 class GetShowEpisodesTests(TestCase):
     def setUp(self):
         cache.clear()

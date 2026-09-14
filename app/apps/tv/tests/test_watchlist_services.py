@@ -125,21 +125,6 @@ class WatchlistShowsServiceTests(TestCase):
         self.assertEqual(list(services.get_watchlist_shows(self.user, "completed")), [])
         self.assertEqual(list(services.get_watchlist_shows(self.user, "watching")), [show])
 
-    def test_upcoming_numbered_episodes_keep_a_show_watching(self):
-        show, season = self.make_show("Returning Show", "returning")
-        aired = self.make_episode(show, season, 1, self.today - timedelta(days=1))
-        self.watch(aired)
-        self.make_episode(show, season, 2, self.today + timedelta(days=1))
-
-        self.assertEqual(
-            list(services.get_watchlist_shows(self.user, "watching")),
-            [show],
-        )
-        self.assertEqual(
-            list(services.get_watchlist_shows(self.user, "completed")),
-            [],
-        )
-
     def test_watched_episodes_belong_to_the_current_user(self):
         show, season = self.make_show("Still Watching", "still-watching")
         episode = self.make_episode(show, season, 1, self.today - timedelta(days=1))

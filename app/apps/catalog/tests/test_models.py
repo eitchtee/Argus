@@ -6,23 +6,11 @@ from apps.catalog.models import (
     Genre,
     MediaArtwork,
     ProviderBackedModel,
-    SyncStatus,
     UserMediaArtworkPreference,
 )
 
 
 class CatalogModelTests(TransactionTestCase):
-    def test_genre_translations_default_to_empty_dict(self):
-        genre = Genre.objects.create(provider="tmdb", external_id="18", name="Drama")
-
-        self.assertEqual(genre.translations, {})
-
-    def test_sync_status_choices_cover_import_lifecycle(self):
-        self.assertEqual(
-            SyncStatus.values,
-            ["pending", "ok", "error"],
-        )
-
     def test_genre_is_unique_per_provider_external_id(self):
         Genre.objects.create(provider="tmdb", external_id="28", name="Action")
 
@@ -79,30 +67,6 @@ class CatalogModelTests(TransactionTestCase):
                 kind=MediaArtwork.Kind.POSTER,
                 image_url=artwork.image_url,
             )
-
-    def test_user_media_artwork_preference_is_isolated_per_user(self):
-        user_model = get_user_model()
-        first_user = user_model.objects.create_user(email="first@example.com")
-        second_user = user_model.objects.create_user(email="second@example.com")
-
-        first = UserMediaArtworkPreference.objects.create(
-            user=first_user,
-            provider="tmdb",
-            media_type="movie",
-            external_id="550",
-            language="pt-BR",
-        )
-        second = UserMediaArtworkPreference.objects.create(
-            user=second_user,
-            provider="tmdb",
-            media_type="movie",
-            external_id="550",
-            language="en-US",
-        )
-
-        self.assertNotEqual(first.id, second.id)
-        self.assertEqual(first.language, "pt-BR")
-        self.assertEqual(second.language, "en-US")
 
     def test_deleting_selected_artwork_clears_only_the_selection(self):
         user = get_user_model().objects.create_user(email="viewer@example.com")

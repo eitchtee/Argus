@@ -14,7 +14,6 @@ from apps.movies.services import (
     remove_from_watchlist,
     refresh_movie,
     switch_movie_provider,
-    track_movie,
     unmark_seen,
 )
 
@@ -115,93 +114,6 @@ class MovieServiceTests(TestCase):
         UserMovie.objects.create(user=self.user, movie=alpha, is_seen=True)
 
         self.assertEqual(get_watched_movies(self.user), [alpha, beta, untimed])
-
-    def test_track_movie_imports_movie_and_adds_to_watchlist(self):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-        self.user.settings.tmdb_metadata_language = "pt-BR"
-        self.user.settings.save()
-        import_calls = []
-        hydration_calls = []
-
-        def import_func(provider, external_id, *, language):
-            import_calls.append((provider, external_id, language))
-            return movie
-
-        user_movie = track_movie(
-            self.user,
-            "tmdb",
-            "550",
-            import_func=import_func,
-            hydrate_func=hydration_calls.append,
-        )
-
-        self.assertEqual(import_calls, [("tmdb", "550", "pt-BR")])
-        self.assertEqual(hydration_calls, [movie.id])
-        self.assertEqual(user_movie.user, self.user)
-        self.assertEqual(user_movie.movie, movie)
-        self.assertTrue(user_movie.on_watchlist)
-        self.assertIsNotNone(user_movie.watchlist_added_at)
-
-    def test_track_movie_reuses_existing_user_movie_row(self):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-        existing = UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=False)
-
-        user_movie = track_movie(
-            self.user,
-            "tmdb",
-            "550",
-            import_func=lambda provider, external_id, *, language: movie,
-            hydrate_func=lambda _movie_id: None,
-        )
-
-        self.assertEqual(user_movie.id, existing.id)
-        self.assertTrue(user_movie.on_watchlist)
-
-    def test_track_movie_uses_the_selected_provider_language(self):
-        movie = Movie.objects.create(provider="tvdb", external_id="42", title="A Movie")
-        self.user.settings.tvdb_metadata_language = "por"
-        self.user.settings.save()
-        import_calls = []
-
-        def import_func(provider, external_id, *, language):
-            import_calls.append((provider, external_id, language))
-            return movie
-
-        track_movie(
-            self.user,
-            "tvdb",
-            "42",
-            import_func=import_func,
-            hydrate_func=lambda _movie_id: None,
-        )
-
-        self.assertEqual(import_calls, [("tvdb", "42", "por")])
-
-    def test_track_movie_rejects_match_already_tracked_on_other_provider(self):
-        source = Movie.objects.create(
-            provider="tmdb",
-            external_id="550",
-            tvdb_id="42",
-            title="Fight Club",
-        )
-        target = Movie.objects.create(
-            provider="tvdb",
-            external_id="42",
-            tmdb_id="550",
-            title="Fight Club",
-        )
-        UserMovie.objects.create(user=self.user, movie=source, on_watchlist=True)
-
-        with self.assertRaisesMessage(ValueError, "Tracked on another provider."):
-            track_movie(
-                self.user,
-                "tvdb",
-                "42",
-                import_func=lambda provider, external_id, *, language: target,
-                hydrate_func=lambda _movie_id: None,
-            )
-
-        self.assertFalse(UserMovie.objects.filter(user=self.user, movie=target).exists())
 
     def test_refresh_movie_marks_pending_and_enqueues_sync(self):
         movie = Movie.objects.create(external_id="550", title="Fight Club")

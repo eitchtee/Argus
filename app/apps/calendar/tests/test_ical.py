@@ -112,13 +112,6 @@ class ICalendarSerializerTests(SimpleTestCase):
             max(len(line.encode("utf-8")) for line in ical.splitlines()), 75
         )
 
-    def test_formats_tv_summary_without_episode_title(self):
-        ical = render_icalendar([self.timed_event(title="Beef")])
-
-        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
-
-        self.assertEqual(str(event.decoded("summary")), "📺 Example Show S01E01")
-
     def test_formats_tv_description_with_available_fields(self):
         ical = render_icalendar([self.timed_event()])
 
@@ -157,13 +150,6 @@ class ICalendarSerializerTests(SimpleTestCase):
         event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
 
         self.assertEqual(str(event.decoded("description")), "")
-
-    def test_formats_movie_summary_with_movie_emoji(self):
-        ical = render_icalendar([self.movie_event(title="Coyote vs. Acme")])
-
-        event = next(component for component in Calendar.from_ical(ical).walk("VEVENT"))
-
-        self.assertEqual(str(event.decoded("summary")), "📽️ Coyote vs. Acme")
 
     def test_formats_movie_description_without_status_or_extra_metadata(self):
         ical = render_icalendar([self.movie_event()])

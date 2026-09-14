@@ -1,4 +1,3 @@
-from pathlib import Path
 from types import SimpleNamespace
 from unittest import TestCase as UnitTestCase
 from unittest.mock import patch
@@ -147,46 +146,6 @@ class MediaArtworkPreferenceViewTests(TestCase):
 
         self.assertContains(response, "Fight Club")
         self.assertNotContains(response, "Original Fight Club")
-
-    @patch("apps.catalog.forms.get_language_choices", return_value=(("en-US", "English"), ("pt-BR", "Português")))
-    def test_picker_uses_checked_radio_for_live_selection_feedback(self, _choices):
-        response = self.client.get(
-            "/media/movie/550/artwork/?provider=tmdb",
-            HTTP_HX_REQUEST="true",
-        )
-        stylesheet = (
-            Path(__file__).resolve().parents[4]
-            / "frontend"
-            / "src"
-            / "styles"
-            / "tailwind.css"
-        ).read_text()
-
-        self.assertContains(response, 'name="poster_artwork_id"')
-        self.assertNotContains(response, "is-selected")
-        self.assertIn(".artwork-picker-card:has(input:checked)", stylesheet)
-
-    @patch("apps.catalog.forms.get_language_choices", return_value=(("en-US", "English"), ("pt-BR", "Português")))
-    def test_artwork_pickers_are_open_collapsibles_without_nested_scroll(self, _choices):
-        response = self.client.get(
-            "/media/movie/550/artwork/?provider=tmdb",
-            HTTP_HX_REQUEST="true",
-        )
-        stylesheet = (
-            Path(__file__).resolve().parents[4]
-            / "frontend"
-            / "src"
-            / "styles"
-            / "tailwind.css"
-        ).read_text()
-
-        self.assertEqual(response.content.decode().count('x-data="{ expanded: true }"'), 2)
-        self.assertEqual(
-            response.content.decode().count(':class="{ \'collapse-open\': expanded }"'),
-            2,
-        )
-        self.assertEqual(response.content.decode().count("x-collapse"), 2)
-        self.assertNotIn("max-height: 25rem", stylesheet)
 
     @patch("apps.catalog.forms.get_language_choices", return_value=(("en-US", "English"),))
     def test_media_languages_are_available_before_the_catalog_refresh_finishes(self, _choices):

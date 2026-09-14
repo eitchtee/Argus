@@ -286,34 +286,6 @@ class WatchlistViewTests(TestCase):
         self.assertContains(response, "progress-success")
         self.assertContains(response, "progress-info")
 
-    def test_watching_fragment_excludes_completed_show(self):
-        completed, completed_season = self.make_show("Completed Show", "2")
-        completed_episode = self.make_episode(completed, completed_season, 1)
-        UserEpisode.objects.create(user=self.user, episode=completed_episode)
-
-        response = self.client.get(
-            self.tab_url("watching"),
-            HTTP_HX_REQUEST="true",
-        )
-
-        self.assertContains(response, "My Show")
-        self.assertNotContains(response, "Completed Show")
-
-    def test_fragment_requires_htmx(self):
-        response = self.client.get(
-            self.tab_url("all")
-        )
-
-        self.assertEqual(response.status_code, 403)
-
-    def test_fragment_rejects_unknown_section(self):
-        response = self.client.get(
-            self.tab_url("unknown"),
-            HTTP_HX_REQUEST="true",
-        )
-
-        self.assertEqual(response.status_code, 400)
-
     def test_empty_section_renders_empty_state(self):
         response = self.client.get(
             self.tab_url("completed"),

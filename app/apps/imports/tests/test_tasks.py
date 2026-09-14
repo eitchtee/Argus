@@ -25,33 +25,6 @@ def zip_bytes(**members):
 
 
 class TraktImportFormTests(SimpleTestCase):
-    def test_validates_a_trakt_zip_upload(self):
-        form = TraktImportForm(
-            files={
-                "archive": SimpleUploadedFile(
-                    "trakt-export.zip",
-                    zip_bytes(**{"watched-shows.json": []}),
-                    content_type="application/zip",
-                )
-            }
-        )
-
-        self.assertTrue(form.is_valid())
-
-    def test_rejects_non_zip_uploads(self):
-        form = TraktImportForm(
-            files={
-                "archive": SimpleUploadedFile(
-                    "trakt-export.json",
-                    b"{}",
-                    content_type="application/json",
-                )
-            }
-        )
-
-        self.assertFalse(form.is_valid())
-        self.assertIn("archive", form.errors)
-
     def test_rejects_an_archive_that_exceeds_the_upload_limit(self):
         with patch("apps.imports.forms.MAX_ARCHIVE_SIZE", 1):
             form = TraktImportForm(

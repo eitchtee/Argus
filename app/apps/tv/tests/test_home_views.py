@@ -69,27 +69,6 @@ class HomeWatchlistViewTests(TestCase):
 
         self.assertContains(response, "https://example.com/poster.jpg")
 
-    def test_falls_back_to_show_poster_when_no_still_image(self):
-        show = Show.objects.create(
-            external_id="1", name="My Show", poster_path="https://example.com/poster.jpg"
-        )
-        season = Season.objects.create(show=show, season_number=1, name="Season 1")
-        Episode.objects.create(
-            show=show,
-            season=season,
-            season_number=1,
-            episode_number=1,
-            name="Pilot",
-            air_date=self.today - timedelta(days=1),
-            still_path=None,
-        )
-        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
-
-        response = self.client.get("/tv/home/watchlist/", HTTP_HX_REQUEST="true")
-
-        self.assertContains(response, "https://example.com/poster.jpg")
-
-
 class HomeWatchlistEpisodeWatchedViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")

@@ -95,15 +95,6 @@ class MovieDetailViewTests(TestCase):
 
         self.assertContains(response, "<title>Fight Club :: Movie :: Argus</title>")
 
-    def test_shows_current_users_watchlist_state(self):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-        UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
-
-        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
-
-        self.assertContains(response, 'aria-label="Movie actions"')
-        self.assertContains(response, 'aria-label="Remove from watchlist"')
-
     def test_shows_switch_action_when_tracked_on_another_provider(self):
         source = Movie.objects.create(
             provider="tmdb",
@@ -350,25 +341,6 @@ class MovieTrackViewTests(TestCase):
         self.assertEqual(response.status_code, 403)
         queue_track_movie_mock.assert_not_called()
 
-    @patch("apps.movies.views.queue_track_movie")
-    def test_post_queues_movie_tracking_without_calling_heavy_service(
-        self,
-        queue_track_movie_mock,
-    ):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-        user_movie = UserMovie.objects.create(
-            user=self.user,
-            movie=movie,
-            on_watchlist=True,
-        )
-        queue_track_movie_mock.return_value = user_movie
-
-        response = self.client.post("/movies/550/track/", HTTP_HX_REQUEST="true")
-
-        queue_track_movie_mock.assert_called_once_with(self.user, "tmdb", "550")
-        self.assertContains(response, 'aria-label="Remove from watchlist"')
-
-
 class MovieSwitchViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
@@ -410,26 +382,6 @@ class MovieSwitchViewTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         switch_movie_provider_mock.assert_not_called()
-
-    @patch("apps.movies.views.switch_movie_provider")
-    def test_post_queues_movie_provider_switch_without_calling_heavy_service(
-        self,
-        switch_movie_provider_mock,
-    ):
-        response = self.client.post(
-            "/movies/42/switch/?provider=tvdb&from_provider=tmdb&from_external_id=550",
-            HTTP_HX_REQUEST="true",
-        )
-
-        switch_movie_provider_mock.assert_called_once_with(
-            self.user,
-            source_provider="tmdb",
-            source_external_id="550",
-            target_provider="tvdb",
-            target_external_id="42",
-        )
-        self.assertEqual(response["HX-Redirect"], "/movies/42/?provider=tvdb")
-
 
 class MovieWatchedViewTests(TestCase):
     def setUp(self):

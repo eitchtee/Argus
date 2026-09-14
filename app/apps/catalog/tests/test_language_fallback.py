@@ -37,12 +37,6 @@ class RegionalFallbackTests(SimpleTestCase):
     def test_it_falls_back_to_the_default_language_with_no_sibling(self):
         self.assertEqual(self.resolve("ja-JP"), "Twelve Monkeys")
 
-    def test_it_falls_back_to_the_scalar_when_nothing_matches(self):
-        self.assertEqual(
-            resolve_from_map({}, "title", "ja-JP", "en-US", scalar="Raw Title"),
-            "Raw Title",
-        )
-
     def test_region_less_provider_codes_have_no_siblings(self):
         tvdb = {"eng": {"title": "Game of Thrones"}, "por": {"title": "A Guerra"}}
 

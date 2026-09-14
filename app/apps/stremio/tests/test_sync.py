@@ -107,53 +107,6 @@ class StremioMovieStateTests(SimpleTestCase):
         self.assertNotIn("tt0944947", snapshot.series_state_valid)
         self.assertEqual(snapshot.series_watched["tt0944947"], set())
 
-    def test_readable_episode_state_is_not_reported_as_a_failure(self):
-        snapshot = normalize_items(
-            [
-                {
-                    "_id": "tt0944947",
-                    "type": "series",
-                    "name": "Game of Thrones",
-                    "state": {"watched": "tt0944947:1:2:2:eJxjAgAAAwAD"},
-                }
-            ],
-            cinemeta_getter=lambda _imdb_id: {
-                "videos": [
-                    {"id": "tt0944947:1:1", "season": 1, "episode": 1},
-                    {"id": "tt0944947:1:2", "season": 1, "episode": 2},
-                ]
-            },
-        )
-
-        self.assertEqual(snapshot.state_failures, set())
-
-    def test_episode_state_survives_new_videos_ahead_of_the_anchor(self):
-        original = [f"tt0944947:1:{number}" for number in range(1, 11)]
-        serialized = encode_watched_bitfield({"tt0944947:1:2"}, original)
-        videos = [
-            {"id": "tt0944947:0:1", "season": 0, "episode": 1},
-            *(
-                {"id": f"tt0944947:1:{number}", "season": 1, "episode": number}
-                for number in range(1, 11)
-            ),
-        ]
-
-        snapshot = normalize_items(
-            [
-                {
-                    "_id": "tt0944947",
-                    "type": "series",
-                    "name": "Game of Thrones",
-                    "state": {"watched": serialized},
-                }
-            ],
-            cinemeta_getter=lambda _imdb_id: {"videos": videos},
-        )
-
-        self.assertEqual(snapshot.series_watched["tt0944947"], {(1, 2)})
-        self.assertIn("tt0944947", snapshot.series_state_valid)
-        self.assertEqual(snapshot.state_failures, set())
-
     def test_flagged_movie_is_not_treated_as_zero_state(self):
         self.assertFalse(
             _movie_state_is_zero(

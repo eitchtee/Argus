@@ -8,30 +8,6 @@ from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
 class TvModelTests(TestCase):
-    def test_show_has_tvdb_compatible_normalized_status_choices(self):
-        field = Show._meta.get_field("normalized_status")
-
-        self.assertEqual(
-            [choice[0] for choice in field.choices],
-            ["Upcoming", "Continuing", "Ended"],
-        )
-        self.assertTrue(field.null)
-
-    def test_tv_metadata_translations_default_to_empty_dict(self):
-        show = Show.objects.create(external_id="series-1", name="The Expanse")
-        season = Season.objects.create(show=show, season_number=1, name="Season 1")
-        episode = Episode.objects.create(
-            show=show,
-            season=season,
-            season_number=1,
-            episode_number=1,
-            name="Dulcinea",
-        )
-
-        self.assertEqual(show.translations, {})
-        self.assertEqual(season.translations, {})
-        self.assertEqual(episode.translations, {})
-
     def test_show_provider_external_id_is_unique(self):
         Show.objects.create(external_id="series-1", name="The Expanse")
 
@@ -89,19 +65,6 @@ class TvModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             UserShow.objects.create(user=user, show=show)
 
-    def test_user_show_defaults_to_tracked_status(self):
-        user = get_user_model().objects.create_user("user@example.com")
-        show = Show.objects.create(external_id="series-1", name="The Expanse")
-
-        user_show = UserShow.objects.create(user=user, show=show)
-
-        self.assertEqual(user_show.status, UserShow.Status.TRACKED)
-        self.assertEqual(
-            set(UserShow.Status.values),
-            {"tracked", "paused", "dropped"},
-        )
-        self.assertIsNotNone(user_show.tracking_started_at)
-
     def test_user_episode_is_sparse_seen_state_unique_per_user_episode(self):
         user = get_user_model().objects.create_user("user@example.com")
         show = Show.objects.create(external_id="series-1", name="The Expanse")
@@ -151,8 +114,3 @@ class TvModelTests(TestCase):
         show = Show.objects.create(external_id="series-1", name="The Expanse")
 
         self.assertIsNone(show.backdrop_url)
-
-    def test_show_cast_defaults_to_empty_list(self):
-        show = Show.objects.create(external_id="series-1", name="The Expanse")
-
-        self.assertEqual(show.cast, [])

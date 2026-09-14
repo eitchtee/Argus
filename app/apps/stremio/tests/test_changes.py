@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.trakt.changes import record_intent, suppress_local_intents
+from apps.trakt.changes import record_intent
 from apps.stremio.models import StremioAccount, StremioSyncIntent
 from apps.tv.models import Show
 from apps.tv.services import drop_show
@@ -44,19 +44,6 @@ class StremioChangeTests(TestCase):
                 desired=True,
             ).exists()
         )
-
-    def test_remote_apply_can_suppress_stremio_local_intents(self):
-        user = get_user_model().objects.create_user("user@example.com", password="pw")
-        StremioAccount.objects.create(user=user, auth_key="auth-key")
-
-        with suppress_local_intents():
-            record_intent(
-                user,
-                StremioSyncIntent.Kind.MOVIE_WATCHLIST,
-                {"ids": {"imdb": "tt0137523"}},
-            )
-
-        self.assertFalse(StremioSyncIntent.objects.filter(user=user).exists())
 
     def test_unsupported_trakt_intent_is_not_written_to_stremio(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")

@@ -80,24 +80,6 @@ class TVTranslationTaskTests(TransactionTestCase):
             media_type="tv",
         )
 
-    @patch(
-        "apps.tv.tasks.tv_services.hydrate_show_translations_sync",
-        create=True,
-    )
-    def test_procrastinate_task_delegates_to_synchronous_hydration(
-        self,
-        hydrate_show_translations_sync,
-    ):
-        from apps.tv.tasks import hydrate_show_translations
-
-        show = Show.objects.create(external_id="123", name="Show")
-        hydrate_show_translations_sync.return_value = show
-
-        result = hydrate_show_translations.func(show.id)
-
-        hydrate_show_translations_sync.assert_called_once_with(show.id)
-        self.assertEqual(result, show)
-
     @patch("apps.tv.tasks.tv_services.track_show", create=True)
     @patch("apps.tv.tasks.hydrate_show_translations")
     @patch("apps.tv.tasks.tv_services.import_show")

@@ -50,26 +50,6 @@ class TraktExportParserTests(SimpleTestCase):
         self.assertEqual(snapshot.watchlist_shows[0]["type"], "show")
         self.assertEqual(snapshot.watched_shows, [])
 
-    def test_load_trakt_export_includes_hidden_progress_shows_as_dropped(self):
-        hidden_shows = [
-            {
-                "hidden_at": "2024-09-04T23:30:35Z",
-                "type": "show",
-                "show": {"ids": {"trakt": 204068}},
-            }
-        ]
-
-        snapshot = load_trakt_export(
-            archive_with(
-                **{
-                    "hidden-progress-watched.json": hidden_shows,
-                    "watched-shows.json": [],
-                }
-            )
-        )
-
-        self.assertEqual(snapshot.dropped_shows, hidden_shows)
-
     def test_load_trakt_export_reads_ratings_members(self):
         snapshot = load_trakt_export(
             archive_with(

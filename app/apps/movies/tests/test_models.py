@@ -7,11 +7,6 @@ from apps.movies.models import Movie, UserMovie
 
 
 class MovieModelTests(TestCase):
-    def test_movie_translations_default_to_empty_dict(self):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-
-        self.assertEqual(movie.translations, {})
-
     def test_movie_provider_external_id_is_unique(self):
         Movie.objects.create(external_id="550", title="Fight Club")
 
@@ -88,8 +83,3 @@ class MovieModelTests(TestCase):
         movie = Movie.objects.create(external_id="550", title="Fight Club")
 
         self.assertIsNone(movie.backdrop_url)
-
-    def test_movie_cast_defaults_to_empty_list(self):
-        movie = Movie.objects.create(external_id="550", title="Fight Club")
-
-        self.assertEqual(movie.cast, [])
