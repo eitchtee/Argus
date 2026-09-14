@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -158,6 +158,25 @@ class EpisodeDetailViewTests(TestCase):
         self.assertContains(response, 'class="episode-status episode-status--finale"')
         self.assertContains(response, "Season Finale")
         self.assertNotContains(response, "Series Finale")
+
+    def test_shows_show_air_time_next_to_episode_air_date(self):
+        self.show.airs_time = time(21, 0)
+        self.show.airs_timezone = "America/New_York"
+        self.show.save(update_fields=["airs_time", "airs_timezone"])
+
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/content/", HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(response, 'class="next-air-time"')
+        self.assertContains(response, "America/New_York")
+
+    def test_omits_air_time_when_show_has_none(self):
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/content/", HTTP_HX_REQUEST="true"
+        )
+
+        self.assertNotContains(response, 'class="next-air-time"')
 
     def test_no_finale_badge_when_not_set(self):
         response = self.client.get(

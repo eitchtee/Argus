@@ -75,10 +75,15 @@
         </div>
 
         <dl class="detail-meta">
-          {% if episode.air_date %}
+          {% if air_date %}
           <div class="detail-meta__item" title="{% trans 'Air date' %}">
             <dt class="sr-only">{% trans "Air date" %}</dt>
-            <dd><i data-lucide="calendar" aria-hidden="true"></i>{% user_date episode.air_date %}</dd>
+            <dd>
+              <i data-lucide="calendar" aria-hidden="true"></i>{% user_date air_date %}
+              {% if airs_time %}
+              <time class="next-air-time" title="{% trans 'Original airing time' %}: {% user_time airs_source_time %} {{ airs_source_timezone }}">{% user_time airs_time %}</time>
+              {% endif %}
+            </dd>
           </div>
           {% endif %}
           {% if episode.runtime %}

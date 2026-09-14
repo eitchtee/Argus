@@ -440,9 +440,15 @@ def episode_detail_content(request, external_id, episode_id):
     watched = tracked and UserEpisode.objects.filter(user=request.user, episode=episode).exists()
     localized_show = _localize_show(show, request.user)
     show_title = localized_show.name
+    # Providers only publish an airing time per show, so episodes borrow it.
+    air_time_context = _air_time_context(show.airs_time, show.airs_timezone, episode.air_date)
 
     context = {
         "episode": _localize_episode(episode, request.user),
+        "air_date": air_time_context["airs_date"] or episode.air_date,
+        "airs_time": air_time_context["airs_time"],
+        "airs_source_time": air_time_context["airs_source_time"],
+        "airs_source_timezone": air_time_context["airs_source_timezone"],
         "show": localized_show,
         "show_links": build_external_links(
             "tv",
