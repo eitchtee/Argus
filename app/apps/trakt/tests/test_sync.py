@@ -12,10 +12,12 @@ from apps.movies.services import unmark_seen
 from apps.catalog.providers.exceptions import ProviderError
 from apps.trakt.changes import record_intent
 from apps.trakt.client import TraktSnapshot
+from apps.trakt.identities import episode_payload, movie_payload, show_payload
 from apps.trakt.models import TraktAccount, TraktSyncIntent
 from apps.trakt.sync import (
     RemoteSnapshot,
     WatchedEpisode,
+    _collect_local_snapshot,
     _ensure_movie,
     _ensure_show,
     _ensure_episodes_batch,
@@ -1297,3 +1299,57 @@ class TraktSyncTests(TestCase):
         moved = episodes[(show.id, 1, 2)]
         self.assertEqual(moved.trakt_id, "55")
         self.assertIsNone(Episode.objects.get(season_number=1, episode_number=1).trakt_id)
+
+
+class LocalSnapshotTests(TestCase):
+    def test_snapshot_serves_sync_fields_without_loading_catalog_blobs(self):
+        user = get_user_model().objects.create_user("user@example.com", password="pw")
+        heavy = {
+            "translations": {"pt-BR": {"title": "Traduzido"}},
+            "cast": [{"name": "Someone"}],
+            "overview": "A long synopsis",
+        }
+        movie = Movie.objects.create(
+            imdb_id="tt0137523",
+            title="Fight Club",
+            external_id="550",
+            tmdb_id="550",
+            poster_path="/poster.jpg",
+            **heavy,
+        )
+        UserMovie.objects.create(user=user, movie=movie, is_seen=True, on_watchlist=True)
+        show = Show.objects.create(
+            imdb_id="tt0903747",
+            name="Breaking Bad",
+            external_id="81189",
+            tvdb_id="81189",
+            **heavy,
+        )
+        UserShow.objects.create(user=user, show=show, on_watchlist=True)
+        season = Season.objects.create(show=show, season_number=1)
+        episode = Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=1,
+            translations={"pt-BR": {"name": "Piloto"}},
+            overview="A long synopsis",
+        )
+        UserEpisode.objects.create(user=user, episode=episode)
+
+        snapshot = _collect_local_snapshot(user)
+
+        watched = snapshot.episode_history[0]
+        for obj in (
+            snapshot.movie_history[0].movie,
+            snapshot.show_watchlist[0].show,
+            watched.episode.show,
+        ):
+            self.assertTrue({"translations", "cast", "overview"} <= obj.get_deferred_fields())
+        self.assertTrue({"translations", "overview"} <= watched.episode.get_deferred_fields())
+        with self.assertNumQueries(0):
+            movie_payload(snapshot.movie_history[0].movie, watched_at=timezone.now())
+            show_payload(snapshot.show_watchlist[0].show)
+            episode_payload(watched.episode, watched_at=watched.seen_at)
+            snapshot.movie_history[0].movie.poster_url
+            watched.episode.show.poster_url

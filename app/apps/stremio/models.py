@@ -20,6 +20,7 @@ class StremioAccount(models.Model):
     auth_key = EncryptedTextField(default="")
     initial_sync_complete = models.BooleanField(default=False)
     library_synced_at = models.DateTimeField(null=True, blank=True)
+    full_synced_at = models.DateTimeField(null=True, blank=True)
     sync_status = models.CharField(
         max_length=16,
         choices=SyncStatus.choices,

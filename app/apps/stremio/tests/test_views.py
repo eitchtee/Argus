@@ -3,6 +3,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.stremio.models import StremioAccount, StremioSyncIntent
 
@@ -116,6 +117,19 @@ class StremioViewTests(TestCase):
 
         self.assertEqual(response.status_code, 204)
         enqueue.assert_called_once_with(account.id)
+
+    @patch("apps.stremio.views.enqueue_account_sync")
+    def test_manual_sync_requests_a_full_reconciliation(self, _enqueue):
+        account = StremioAccount.objects.create(
+            user=self.user,
+            auth_key="auth-key",
+            full_synced_at=timezone.now(),
+        )
+
+        self.client.post(reverse("stremio_sync"))
+
+        account.refresh_from_db()
+        self.assertIsNone(account.full_synced_at)
 
     def test_settings_fragment_exposes_connection_state_without_auth_key(self):
         response = self.client.get(

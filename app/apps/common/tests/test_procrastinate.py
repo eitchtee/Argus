@@ -5,7 +5,7 @@ from django.db import connection
 from django.test import SimpleTestCase, TransactionTestCase
 from procrastinate.testing import InMemoryConnector
 
-from apps.common.procrastinate import on_app_ready
+from apps.common.procrastinate import on_app_ready, release_memory
 
 
 def make_app_with_task(func):
@@ -71,6 +71,47 @@ class ProcrastinateConnectionCleanupTests(SimpleTestCase):
                 ("cleanup", None),
             ],
         )
+
+
+class ProcrastinateMemoryReleaseTests(SimpleTestCase):
+    def test_app_ready_releases_memory_after_sync_tasks(self):
+        calls = []
+
+        def sample_task():
+            calls.append("task")
+
+        app, task = make_app_with_task(sample_task)
+
+        with patch("apps.common.procrastinate.close_old_connections"), patch(
+            "apps.common.procrastinate.release_memory",
+            side_effect=lambda: calls.append("release"),
+        ):
+            on_app_ready(app)
+            task.func()
+
+        self.assertEqual(calls, ["task", "release"])
+
+    def test_app_ready_releases_memory_when_sync_task_raises(self):
+        calls = []
+
+        def sample_task():
+            calls.append("task")
+            raise RuntimeError("boom")
+
+        app, task = make_app_with_task(sample_task)
+
+        with patch("apps.common.procrastinate.close_old_connections"), patch(
+            "apps.common.procrastinate.release_memory",
+            side_effect=lambda: calls.append("release"),
+        ):
+            on_app_ready(app)
+            with self.assertRaises(RuntimeError):
+                task.func()
+
+        self.assertEqual(calls, ["task", "release"])
+
+    def test_release_memory_is_safe_to_call(self):
+        release_memory()
 
 
 class ProcrastinateConnectionRecoveryTests(TransactionTestCase):

@@ -18,6 +18,7 @@ from apps.stremio.sync import (
     _movie_state_is_zero,
     _ensure_movie,
     _ensure_show,
+    _memoized_metadata_getter,
     sync_account,
 )
 from apps.trakt.sync import LocalSnapshot
@@ -1975,6 +1976,155 @@ class StremioIncrementalSyncWithEpisodeHistoryTests(TestCase):
         self.assertEqual(report.warnings, [])
         self.assertTrue(account.library_synced_at)
         self.assertEqual(account.sync_status, StremioAccount.SyncStatus.OK)
+
+
+class RecordingStremioClient:
+    def __init__(self, items=()):
+        self.items = list(items)
+        self.get_calls = []
+        self.cinemeta_calls = []
+        self.puts = []
+
+    def datastore_meta(self):
+        return []
+
+    def datastore_get(self, *, ids=None, all_items=False):
+        self.get_calls.append(list(ids or []))
+        return self.items
+
+    def get_cinemeta_series(self, imdb_id):
+        self.cinemeta_calls.append(imdb_id)
+        return {}
+
+    def datastore_put(self, changes):
+        self.puts.append(changes)
+
+
+class StremioFullReconciliationTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("user@example.com", password="pw")
+        movie = Movie.objects.create(
+            imdb_id="tt0137523",
+            title="Fight Club",
+            external_id="550",
+            tmdb_id="550",
+        )
+        # Watched locally without an intent, the way a Trakt import writes it.
+        UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)
+
+    def make_account(self, *, full_synced_at, **fields):
+        return StremioAccount.objects.create(
+            user=self.user,
+            auth_key="auth-key",
+            initial_sync_complete=True,
+            library_synced_at=datetime(2026, 8, 8, 10, tzinfo=timezone.utc),
+            full_synced_at=full_synced_at,
+            **fields,
+        )
+
+    def pushed_ids(self, client):
+        return {item["_id"] for changes in client.puts for item in changes}
+
+    def test_quiet_sync_skips_the_library_after_a_recent_full_pass(self):
+        full_synced_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        account = self.make_account(
+            full_synced_at=full_synced_at,
+            last_warning="Cinemeta metadata unavailable for tt0903747",
+        )
+        client = RecordingStremioClient()
+
+        sync_account(account.id, client_factory=lambda _account: client)
+
+        account.refresh_from_db()
+        self.assertEqual(client.get_calls, [])
+        self.assertEqual(client.puts, [])
+        self.assertEqual(account.full_synced_at, full_synced_at)
+        self.assertGreater(
+            account.library_synced_at,
+            datetime(2026, 8, 8, 10, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            account.last_warning,
+            "Cinemeta metadata unavailable for tt0903747",
+        )
+
+    def test_due_full_pass_pushes_local_state_without_intents(self):
+        account = self.make_account(
+            full_synced_at=datetime.now(timezone.utc) - timedelta(hours=25),
+        )
+        client = RecordingStremioClient()
+
+        sync_account(account.id, client_factory=lambda _account: client)
+
+        account.refresh_from_db()
+        self.assertEqual(self.pushed_ids(client), {"tt0137523"})
+        self.assertGreater(
+            account.full_synced_at,
+            datetime.now(timezone.utc) - timedelta(minutes=1),
+        )
+
+    def test_missing_full_pass_timestamp_runs_a_full_pass(self):
+        account = self.make_account(full_synced_at=None)
+        client = RecordingStremioClient()
+
+        sync_account(account.id, client_factory=lambda _account: client)
+
+        account.refresh_from_db()
+        self.assertEqual(self.pushed_ids(client), {"tt0137523"})
+        self.assertIsNotNone(account.full_synced_at)
+
+    def test_pending_intent_is_pushed_without_projecting_the_library(self):
+        account = self.make_account(
+            full_synced_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        StremioSyncIntent.objects.create(
+            user=self.user,
+            kind=StremioSyncIntent.Kind.MOVIE_WATCHLIST,
+            identity_key="imdb:tt0113277",
+            payload={"title": "Heat", "ids": {"imdb": "tt0113277"}},
+        )
+        client = RecordingStremioClient()
+
+        sync_account(account.id, client_factory=lambda _account: client)
+
+        self.assertEqual(self.pushed_ids(client), {"tt0113277"})
+        self.assertEqual(client.get_calls, [["tt0113277"]])
+
+
+class StremioMetadataGetterTests(SimpleTestCase):
+    def test_cached_cinemeta_metadata_keeps_only_the_video_fields_sync_reads(self):
+        getter = _memoized_metadata_getter(
+            lambda _imdb_id: {
+                "name": "Breaking Bad",
+                "description": "A chemistry teacher...",
+                "videos": [
+                    {
+                        "id": "tt0903747:1:1",
+                        "season": 1,
+                        "episode": 1,
+                        "released": "2008-01-20T00:00:00.000Z",
+                        "title": "Pilot",
+                        "overview": "A long synopsis",
+                        "thumbnail": "https://example.com/pilot.jpg",
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(
+            getter("tt0903747"),
+            {
+                "videos": [
+                    {
+                        "id": "tt0903747:1:1",
+                        "season": 1,
+                        "episode": 1,
+                        "released": "2008-01-20T00:00:00.000Z",
+                        "title": "Pilot",
+                    }
+                ]
+            },
+        )
 
 
 class StremioPullTests(TestCase):

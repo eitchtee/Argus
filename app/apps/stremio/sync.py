@@ -24,6 +24,11 @@ from apps.tv import services as tv_services
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
+_FULL_SYNC_INTERVAL = timedelta(hours=24)
+_EMPTY_LOCAL_SNAPSHOT = LocalSnapshot([], [], [], [], [])
+_CINEMETA_VIDEO_FIELDS = ("id", "season", "episode", "released", "title", "name")
+
+
 @dataclass(frozen=True)
 class WatchedMovie:
     content_id: str
@@ -430,6 +435,16 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
     )
     started_at = django_timezone.now()
     initial = not account.initial_sync_complete or account.library_synced_at is None
+    # Projecting the whole local library is what makes a sync expensive. Local
+    # edits arrive as intents, so a routine run only handles those and remote
+    # changes; writes that bypass intents (Trakt sync, Trakt export imports)
+    # are pushed by the periodic full pass.
+    full = (
+        initial
+        or account.full_synced_at is None
+        or account.full_synced_at <= started_at - _FULL_SYNC_INTERVAL
+    )
+    fetch_ids = []
     if initial:
         remote_items = client.datastore_get(all_items=True)
     else:
@@ -441,8 +456,31 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
         )
         remote_items = client.datastore_get(ids=fetch_ids) if fetch_ids else []
 
-    getter = _memoized_metadata_getter(client.get_cinemeta_series)
+    with cachalot_disabled():
+        intents = list(
+            StremioSyncIntent.objects.filter(user=account.user).order_by("updated_at", "id")
+        )
     report = SyncReport()
+    if not full and not fetch_ids and not intents:
+        # Nothing to do on either side. The last run's warnings and deferrals
+        # still describe the library, so they are left in place.
+        account.library_synced_at = started_at
+        account.last_synced_at = started_at
+        account.sync_status = StremioAccount.SyncStatus.OK
+        account.last_error = ""
+        account.save(
+            update_fields=[
+                "library_synced_at",
+                "last_synced_at",
+                "sync_status",
+                "last_error",
+                "updated_at",
+            ]
+        )
+        report.initial_sync_complete = True
+        return report
+
+    getter = _memoized_metadata_getter(client.get_cinemeta_series)
     remote = normalize_items(remote_items, cinemeta_getter=getter, user=account.user)
     report.warnings.extend(
         f"Cinemeta metadata unavailable for {content_id}"
@@ -455,13 +493,11 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
     report.deferred_content_ids.update(remote.metadata_failures)
     report.deferred_content_ids.update(remote.state_failures)
     with cachalot_disabled():
-        local_before = _collect_local_snapshot(account.user)
-        intents = list(
-            StremioSyncIntent.objects.filter(user=account.user).order_by("updated_at", "id")
-        )
         with suppress_local_intents():
-            _apply_remote(account.user, remote, local_before, intents, report, initial=initial, getter=getter)
-        local_after = _collect_local_snapshot(account.user)
+            _apply_remote(account.user, remote, _EMPTY_LOCAL_SNAPSHOT, intents, report, initial=initial, getter=getter)
+        local_after = (
+            _collect_local_snapshot(account.user) if full else _EMPTY_LOCAL_SNAPSHOT
+        )
         if initial:
             all_remote_items = remote_items
         else:
@@ -499,18 +535,20 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
     account.last_error = ""
     account.last_warning = "; ".join(report.warnings)
     account.deferred_content_ids = sorted(report.deferred_content_ids)
-    account.save(
-        update_fields=[
-            "initial_sync_complete",
-            "library_synced_at",
-            "last_synced_at",
-            "sync_status",
-            "last_error",
-            "last_warning",
-            "deferred_content_ids",
-            "updated_at",
-        ]
-    )
+    update_fields = [
+        "initial_sync_complete",
+        "library_synced_at",
+        "last_synced_at",
+        "sync_status",
+        "last_error",
+        "last_warning",
+        "deferred_content_ids",
+        "updated_at",
+    ]
+    if full:
+        account.full_synced_at = started_at
+        update_fields.append("full_synced_at")
+    account.save(update_fields=update_fields)
     report.initial_sync_complete = True
     return report
 
@@ -1310,7 +1348,7 @@ def _memoized_metadata_getter(getter):
         key = str(content_id)
         if key not in cache:
             try:
-                cache[key] = getter(key)
+                cache[key] = _slim_metadata(getter(key))
             except Exception as exc:  # cached so retries stay consistent in-run
                 cache[key] = exc
         result = cache[key]
@@ -1319,6 +1357,23 @@ def _memoized_metadata_getter(getter):
         return result
 
     return wrapped
+
+
+def _slim_metadata(metadata):
+    """Keep only the video fields sync reads.
+
+    A full Cinemeta response carries synopses and thumbnails for every episode,
+    and the memoized getter holds one per watched series for the whole run.
+    """
+    if not isinstance(metadata, dict):
+        return metadata
+    return {
+        "videos": [
+            {key: video[key] for key in _CINEMETA_VIDEO_FIELDS if key in video}
+            for video in metadata.get("videos") or []
+            if isinstance(video, dict)
+        ]
+    }
 
 
 def _parse_stremio_timestamp(value):

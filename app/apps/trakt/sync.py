@@ -838,29 +838,45 @@ def _apply_remote_shows(user, remote, intents, local, report, *, initial: bool):
 
 
 def _collect_local_snapshot(user) -> LocalSnapshot:
+    # Syncs only compare identities, titles and timestamps. select_related
+    # builds a separate Show for every watched episode, so loading the JSON
+    # blobs too costs hundreds of megabytes on a large library.
+    heavy_media_fields = ("translations", "cast", "overview")
     return LocalSnapshot(
         movie_watchlist=list(
             UserMovie.objects.filter(user=user, on_watchlist=True, is_seen=False)
             .select_related("movie")
+            .defer(*(f"movie__{name}" for name in heavy_media_fields))
         ),
         movie_history=list(
-            UserMovie.objects.filter(user=user, is_seen=True).select_related("movie")
+            UserMovie.objects.filter(user=user, is_seen=True)
+            .select_related("movie")
+            .defer(*(f"movie__{name}" for name in heavy_media_fields))
         ),
         show_watchlist=list(
             UserShow.objects.filter(
                 user=user,
                 on_watchlist=True,
-            ).select_related("show")
+            )
+            .select_related("show")
+            .defer(*(f"show__{name}" for name in heavy_media_fields))
         ),
         show_dropped=list(
             UserShow.objects.filter(
                 user=user,
                 status=UserShow.Status.DROPPED,
-            ).select_related("show")
+            )
+            .select_related("show")
+            .defer(*(f"show__{name}" for name in heavy_media_fields))
         ),
         episode_history=list(
             UserEpisode.objects.filter(user=user)
             .select_related("episode", "episode__show")
+            .defer(
+                "episode__translations",
+                "episode__overview",
+                *(f"episode__show__{name}" for name in heavy_media_fields),
+            )
         ),
     )
 

@@ -43,8 +43,11 @@ WORKDIR /usr/src/app
 RUN addgroup --system app && \
     adduser --system --ingroup app app
 
+# MALLOC_ARENA_MAX caps glibc's per-thread heaps: task workers run sync jobs on
+# threads, and each extra heap holds on to its peak usage.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    MALLOC_ARENA_MAX=2 \
     PATH="/app/.venv/bin:$PATH"
 
 # Install runtime dependencies

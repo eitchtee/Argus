@@ -1,4 +1,6 @@
+import ctypes
 import functools
+import gc
 import inspect
 
 import procrastinate
@@ -6,6 +8,23 @@ from django.db import close_old_connections
 
 
 _CONNECTION_CLEANUP_WRAPPED = "_argus_connection_cleanup_wrapped"
+
+try:
+    _malloc_trim = ctypes.CDLL("libc.so.6").malloc_trim
+except (OSError, AttributeError):  # not glibc (Windows, musl)
+    _malloc_trim = None
+
+
+def release_memory():
+    """Hand the memory a finished task freed back to the OS.
+
+    Sync tasks run on worker threads, and glibc rarely shrinks a thread's heap
+    on its own, so a worker would otherwise stay at the size of the largest
+    job it has ever run.
+    """
+    gc.collect()
+    if _malloc_trim is not None:
+        _malloc_trim(0)
 
 
 def _wrap_task_with_django_connection_cleanup(task):
@@ -22,6 +41,7 @@ def _wrap_task_with_django_connection_cleanup(task):
                 return await func(*args, **kwargs)
             finally:
                 close_old_connections()
+                release_memory()
 
         wrapped = async_wrapped
     else:
@@ -33,6 +53,7 @@ def _wrap_task_with_django_connection_cleanup(task):
                 return func(*args, **kwargs)
             finally:
                 close_old_connections()
+                release_memory()
 
         wrapped = sync_wrapped
 

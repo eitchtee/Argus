@@ -94,6 +94,12 @@ def sync(request):
     account = StremioAccount.objects.filter(user=request.user).only("id").first()
     if account is None:
         return HttpResponseNotFound("No Stremio account is connected.")
+    # Routine syncs only push intents; a manual one also projects local changes
+    # that never became intents.
+    StremioAccount.objects.filter(id=account.id).update(
+        full_synced_at=None,
+        updated_at=timezone.now(),
+    )
     enqueue_account_sync(account.id)
     messages.success(request, "Stremio synchronization queued.")
     return HttpResponse(status=204, headers={"HX-Refresh": "true"})
