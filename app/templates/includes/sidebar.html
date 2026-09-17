@@ -43,6 +43,13 @@
         </a>
       </li>
       <li>
+        <a href="{% url 'stats-page' %}" hx-boost="true"
+           class="sidebar-item {% active_link 'stats-page' css_class='menu-active' %}">
+          <i data-lucide="chart-column" class="lucide-fw"></i>
+          <span>{% trans "Stats" %}</span>
+        </a>
+      </li>
+      <li>
         <h2 class="menu-title px-3 pt-4 text-xs uppercase tracking-[0.18em] text-base-content/50">
           <i data-lucide="tv" class="lucide-fw"></i>
           <span>{% trans "TV" %}</span>

@@ -29,6 +29,7 @@ urlpatterns = [
     path("", include("apps.home.urls")),
     path("", include("apps.catalog.urls")),
     path("", include("apps.history.urls")),
+    path("", include("apps.stats.urls")),
     path("", include("apps.movies.urls")),
     path("", include("apps.tv.urls")),
     path("", include("apps.calendar.urls")),

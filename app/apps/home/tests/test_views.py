@@ -106,6 +106,7 @@ class IndexViewTests(TestCase):
             ">Home</span>",
             ">Search</span>",
             ">History</span>",
+            ">Stats</span>",
             ">TV</span>",
             ">Up next</span>",
             ">Upcoming</span>",
@@ -122,7 +123,7 @@ class IndexViewTests(TestCase):
             for anchor in re.findall(r"<a\b[^>]*>", sidebar)
             if "sidebar-item" in anchor
         ]
-        self.assertEqual(len(anchors), 9)
+        self.assertEqual(len(anchors), 10)
         for anchor in anchors:
             self.assertIn('hx-boost="true"', anchor)
 
@@ -130,6 +131,10 @@ class IndexViewTests(TestCase):
         self.assertIn(
             f'href="{history_url}"',
             self._sidebar_link(sidebar, "History"),
+        )
+        self.assertIn(
+            f'href="{reverse("stats-page")}"',
+            self._sidebar_link(sidebar, "Stats"),
         )
         self.assertIn(
             f'href="{movie_watched_url}"',

@@ -85,3 +85,23 @@ def runtime(value):
     if remainder or not hours:
         parts.append(pgettext("duration", "%(num)dm") % {"num": remainder})
     return " ".join(parts)
+
+
+@register.filter
+def duration(value):
+    """Render a span of minutes as "3d 4h", "5h 20m" or "45m", down to "0m"."""
+    try:
+        minutes = max(int(value), 0)
+    except (TypeError, ValueError):
+        return ""
+
+    days, remainder = divmod(minutes, 24 * 60)
+    hours, minutes = divmod(remainder, 60)
+    if days:
+        parts = [pgettext("duration", "%(num)dd") % {"num": days}]
+        if hours:
+            parts.append(pgettext("duration", "%(num)dh") % {"num": hours})
+        return " ".join(parts)
+    return runtime(hours * 60 + minutes) or pgettext("duration", "%(num)dm") % {
+        "num": 0
+    }

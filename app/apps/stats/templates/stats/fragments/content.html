@@ -1,0 +1,384 @@
+{% load dates i18n %}
+
+{% if not stats.has_data %}
+<div class="empty-state py-12 text-center">
+  <i data-lucide="chart-column" class="text-3xl text-primary/70" aria-hidden="true"></i>
+  <p class="mt-3 font-semibold">{% trans "No stats yet." %}</p>
+  <p class="mt-1 text-sm">{% trans "Watch something, or add it to a watchlist, and your numbers show up here." %}</p>
+</div>
+{% else %}
+<div class="stats-grid space-y-4">
+
+  {# Headline numbers #}
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <article class="stat-card" data-stat="time-watched">
+      <p class="stat-card__eyebrow"><i data-lucide="clock" aria-hidden="true"></i>{% trans "Time watched" %}</p>
+      <p class="stat-figure">{{ stats.watched_minutes|duration }}</p>
+      <p class="stat-card__hint">
+        {% blocktrans count counter=watched_hours %}{{ counter }} hour in total{% plural %}{{ counter }} hours in total{% endblocktrans %}
+      </p>
+    </article>
+    <article class="stat-card" data-stat="movies">
+      <p class="stat-card__eyebrow"><i data-lucide="film" aria-hidden="true"></i>{% trans "Movies" %}</p>
+      <p class="stat-figure">{{ stats.movies_watched }}</p>
+      <p class="stat-card__hint">{{ stats.movie_minutes|duration }} {% trans "watched" %}</p>
+    </article>
+    <article class="stat-card" data-stat="episodes">
+      <p class="stat-card__eyebrow"><i data-lucide="tv" aria-hidden="true"></i>{% trans "Episodes" %}</p>
+      <p class="stat-figure">{{ stats.episodes_watched }}</p>
+      <p class="stat-card__hint">
+        {% blocktrans with time=stats.episode_minutes|duration count counter=stats.shows_started %}{{ time }} across {{ counter }} show{% plural %}{{ time }} across {{ counter }} shows{% endblocktrans %}
+      </p>
+    </article>
+    <article class="stat-card" data-stat="backlog">
+      <p class="stat-card__eyebrow"><i data-lucide="hourglass" aria-hidden="true"></i>{% trans "Left to watch" %}</p>
+      <p class="stat-figure">{{ stats.backlog_minutes|duration }}</p>
+      <p class="stat-card__hint">
+        {% blocktrans with movies=stats.watchlist_movies episodes=stats.pending_episodes %}{{ movies }} movies · {{ episodes }} episodes{% endblocktrans %}
+      </p>
+    </article>
+  </div>
+
+  {# Activity and backlog progress #}
+  <div class="grid gap-4 lg:grid-cols-3 lg:items-start">
+    <article class="stat-card lg:col-span-2">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow">{% trans "Activity" %}</p>
+          <h2 class="stat-card__title">{% trans "Last 12 months" %}</h2>
+        </div>
+        <div class="text-end">
+          <p class="text-lg font-bold tabular-nums">{{ year_minutes|duration }}</p>
+          <p class="stat-card__hint">{% trans "watched" %}</p>
+        </div>
+      </div>
+      <div class="stat-columns" role="list" aria-label="{% trans 'Time watched per month' %}">
+        {% for month in stats.months %}
+        <div class="stat-column" role="listitem"
+             data-tippy-content="{{ month.start|date:'F Y' }} · {{ month.minutes|duration }}"
+             aria-label="{{ month.start|date:'F Y' }}: {{ month.minutes|duration }}">
+          <div class="stat-column__track">
+            {% if month.percent %}<div class="stat-column__bar" style="height: {{ month.percent }}%; --index: {{ forloop.counter0 }}"></div>{% endif %}
+          </div>
+          <span class="stat-column__label" aria-hidden="true">{{ month.start|date:"M" }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="stat-card">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow">{% trans "Backlog" %}</p>
+          <h2 class="stat-card__title">{% trans "Catching up" %}</h2>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="radial-progress shrink-0 text-primary" role="progressbar"
+             style="--value: {{ stats.completion_percent }}; --size: 6rem; --thickness: 0.55rem;"
+             aria-valuenow="{{ stats.completion_percent }}" aria-valuemin="0" aria-valuemax="100">
+          <span class="text-xl font-bold tabular-nums text-base-content">{{ stats.completion_percent }}%</span>
+        </div>
+        <p class="text-sm text-base-content/75">{% trans "of your lists watched" %}</p>
+      </div>
+
+      {% if stats.watched_minutes %}
+      <div class="mt-5">
+        <div class="flex h-2 w-full overflow-hidden rounded-full bg-base-300" aria-hidden="true">
+          <div class="h-full bg-primary" style="width: {{ stats.movie_share_percent }}%"></div>
+          <div class="h-full flex-1 bg-info"></div>
+        </div>
+        <div class="mt-2 flex justify-between gap-3 text-xs text-base-content/70">
+          <span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-primary"></span>{% trans "Movies" %} {{ stats.movie_share_percent }}%</span>
+          <span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-info"></span>{% trans "TV" %} {{ stats.tv_share_percent }}%</span>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="mt-4 text-sm">
+        {% if stats.days_to_clear %}
+        {% user_date stats.clear_date as clear_date %}
+        <p class="text-base-content/75">
+          {% blocktrans with pace=stats.daily_pace_minutes|duration %}At <strong class="text-base-content">{{ pace }}</strong> a day, your pace this past month, you'd be caught up by <strong class="text-base-content">{{ clear_date }}</strong>.{% endblocktrans %}
+        </p>
+        {% elif stats.backlog_minutes %}
+        <p class="text-base-content/75">{% trans "Watch something to see when you'd be caught up." %}</p>
+        {% else %}
+        <p class="text-base-content/75">{% trans "Nothing left. You're caught up." %}</p>
+        {% endif %}
+        {% if stats.upcoming_episodes or stats.unreleased_movies %}
+        <p class="mt-1 stat-card__hint">
+          {% blocktrans with episodes=stats.upcoming_episodes movies=stats.unreleased_movies %}{{ movies }} movies and {{ episodes }} episodes haven't come out yet.{% endblocktrans %}
+        </p>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+
+  {# Habits and genres #}
+  <div class="grid gap-4 lg:grid-cols-2 lg:items-start">
+    <article class="stat-card">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow">{% trans "Habits" %}</p>
+          <h2 class="stat-card__title">{% trans "When you watch" %}</h2>
+        </div>
+      </div>
+      <div class="stat-heatmap" role="img" aria-label="{% trans 'Time watched by weekday and hour' %}">
+        <span aria-hidden="true"></span>
+        {% for hour in heatmap_hours %}
+        <span class="col-span-6 truncate text-[0.625rem] text-base-content/55" aria-hidden="true">{% user_time hour %}</span>
+        {% endfor %}
+        {% for label, cells in heatmap %}
+        <span class="stat-heatmap__label" aria-hidden="true">{{ label }}</span>
+        {% for cell in cells %}<span class="stat-heatmap__cell" style="--heat: {{ cell }}"></span>{% endfor %}
+        {% endfor %}
+      </div>
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-base-content/65">
+        <p>
+          {% if peak_weekday %}
+          {% user_time stats.peak_hour as peak_time %}
+          {% blocktrans with weekday=peak_weekday time=peak_time %}You watch most on <strong class="text-base-content">{{ weekday }}</strong>, around <strong class="text-base-content">{{ time }}</strong>.{% endblocktrans %}
+          {% else %}
+          {% trans "This fills in as you watch." %}
+          {% endif %}
+        </p>
+        <span class="inline-flex items-center gap-1" aria-hidden="true">
+          {% trans "Less" %}
+          <span class="stat-heatmap__cell size-2.5" style="--heat: 0"></span>
+          <span class="stat-heatmap__cell size-2.5" style="--heat: 35"></span>
+          <span class="stat-heatmap__cell size-2.5" style="--heat: 70"></span>
+          <span class="stat-heatmap__cell size-2.5" style="--heat: 100"></span>
+          {% trans "More" %}
+        </span>
+      </div>
+      <div class="mt-4 grid grid-cols-3 gap-2">
+        <div class="stat-mini" data-stat="current-streak">
+          <span class="stat-mini__value inline-flex items-center gap-1">{% if stats.current_streak %}<i data-lucide="flame" class="h-4 w-4 text-warning" aria-hidden="true"></i>{% endif %}{{ stats.current_streak }}</span>
+          <span class="stat-mini__label">{% trans "Current streak" %}</span>
+        </div>
+        <div class="stat-mini" data-stat="longest-streak">
+          <span class="stat-mini__value">{{ stats.longest_streak }}</span>
+          <span class="stat-mini__label">{% trans "Longest streak" %}</span>
+        </div>
+        <div class="stat-mini" data-stat="active-days">
+          <span class="stat-mini__value">{{ stats.active_days }}</span>
+          <span class="stat-mini__label">{% trans "Days watched" %}</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="stat-card">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow">{% trans "Taste" %}</p>
+          <h2 class="stat-card__title">{% trans "Top genres" %}</h2>
+        </div>
+        <p class="stat-card__hint pt-1">{% trans "by time watched" %}</p>
+      </div>
+      {% if stats.genres %}
+      <ol class="space-y-3">
+        {% for genre in stats.genres %}
+        <li data-stat-genre="{{ genre.label }}">
+          <div class="flex items-baseline justify-between gap-3 text-sm">
+            <span class="truncate font-semibold">{{ genre.label }}</span>
+            <span class="shrink-0 text-xs tabular-nums text-base-content/65">
+              {{ genre.minutes|duration }} ·
+              {% blocktrans count counter=genre.count %}{{ counter }} title{% plural %}{{ counter }} titles{% endblocktrans %}
+            </span>
+          </div>
+          <div class="stat-meter mt-1.5"><div class="stat-meter__fill" style="width: {{ genre.percent }}%; --index: {{ forloop.counter0 }}"></div></div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <p class="empty-state py-8 text-sm">{% trans "Genres appear as your titles sync." %}</p>
+      {% endif %}
+    </article>
+  </div>
+
+  {# Shows #}
+  <div class="grid gap-4 lg:grid-cols-3 lg:items-start">
+    <article class="stat-card lg:col-span-2">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow">{% trans "TV" %}</p>
+          <h2 class="stat-card__title">{% trans "Most watched shows" %}</h2>
+        </div>
+      </div>
+      {% if top_shows %}
+      <ol class="space-y-2">
+        {% for show in top_shows %}
+        <li>
+          <a href="{{ show.detail_url }}" hx-boost="true" class="stat-row">
+            <span class="w-4 shrink-0 text-center text-sm font-bold tabular-nums {% if forloop.first %}text-primary{% else %}text-base-content/45{% endif %}">{{ forloop.counter }}</span>
+            <figure class="aspect-[2/3] w-10 shrink-0 overflow-hidden rounded-md bg-base-200">
+              {% if show.poster_url %}
+              <img src="{{ show.poster_url }}" alt="" loading="lazy" class="h-full w-full object-cover">
+              {% else %}
+              <div class="flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true"><i data-lucide="tv" class="h-4 w-4"></i></div>
+              {% endif %}
+            </figure>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="truncate text-sm font-semibold">{{ show.title }}</span>
+                <span class="shrink-0 text-xs font-semibold tabular-nums">{{ show.minutes|duration }}</span>
+              </div>
+              <div class="stat-meter mt-1.5 h-1.5"><div class="stat-meter__fill" style="width: {{ show.percent }}%; --index: {{ forloop.counter0 }}"></div></div>
+              <span class="mt-1 block text-[0.6875rem] text-base-content/60">
+                {% blocktrans count counter=show.episodes %}{{ counter }} episode{% plural %}{{ counter }} episodes{% endblocktrans %}
+              </span>
+            </div>
+          </a>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <p class="empty-state py-8 text-sm">{% trans "No episodes watched yet." %}</p>
+      {% endif %}
+    </article>
+
+    <article class="stat-card">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow">{% trans "Library" %}</p>
+          <h2 class="stat-card__title">{% trans "Shows you follow" %}</h2>
+        </div>
+      </div>
+      <ul class="grid grid-cols-2 gap-2">
+        {% for condition in show_conditions %}
+        <li class="stat-mini flex items-center gap-2.5">
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-full {{ condition.tone }}">
+            <i data-lucide="{{ condition.icon }}" class="h-4 w-4" aria-hidden="true"></i>
+          </span>
+          <span class="min-w-0">
+            <span class="stat-mini__value">{{ condition.count }}</span>
+            <span class="stat-mini__label">{{ condition.label }}</span>
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="mt-4 stat-card__hint">
+        {% blocktrans count counter=tracked_shows %}Across {{ counter }} show on your list.{% plural %}Across {{ counter }} shows on your list.{% endblocktrans %}
+      </p>
+    </article>
+  </div>
+
+  {# Ratings, decades and records #}
+  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 md:items-start">
+    <article class="stat-card">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow">{% trans "Ratings" %}</p>
+          <h2 class="stat-card__title">{% trans "How you rate" %}</h2>
+        </div>
+        {% if stats.rating_average %}
+        <div class="text-end">
+          <p class="inline-flex items-center gap-1 text-lg font-bold tabular-nums"><i data-lucide="star" class="h-4 w-4 text-warning" aria-hidden="true"></i>{{ stats.rating_average }}</p>
+          <p class="stat-card__hint">
+            {% blocktrans count counter=stats.rating_count %}{{ counter }} rating{% plural %}{{ counter }} ratings{% endblocktrans %}
+          </p>
+        </div>
+        {% endif %}
+      </div>
+      {% if stats.rating_count %}
+      <div class="stat-columns stat-columns--short" role="list" aria-label="{% trans 'Ratings by score' %}">
+        {% for rating in stats.ratings %}
+        <div class="stat-column" role="listitem"
+             data-tippy-content="{{ rating.label }} ★ · {{ rating.count }}"
+             aria-label="{{ rating.label }}: {{ rating.count }}">
+          <div class="stat-column__track">
+            {% if rating.percent %}<div class="stat-column__bar bg-warning/75" style="height: {{ rating.percent }}%; --index: {{ forloop.counter0 }}"></div>{% endif %}
+          </div>
+          <span class="stat-column__label" aria-hidden="true">{% if forloop.counter|divisibleby:2 %}{{ rating.label|slice:":1" }}{% else %}&nbsp;{% endif %}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-state py-8 text-sm">{% trans "No ratings yet." %}</p>
+      {% endif %}
+    </article>
+
+    <article class="stat-card">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow">{% trans "Movies" %}</p>
+          <h2 class="stat-card__title">{% trans "By decade" %}</h2>
+        </div>
+      </div>
+      {% if stats.decades %}
+      <div class="stat-columns stat-columns--short" role="list" aria-label="{% trans 'Watched movies by release decade' %}">
+        {% for decade in stats.decades %}
+        <div class="stat-column" role="listitem"
+             data-tippy-content="{{ decade.label }} · {{ decade.count }}"
+             aria-label="{{ decade.label }}: {{ decade.count }}">
+          <div class="stat-column__track">
+            {% if decade.percent %}<div class="stat-column__bar bg-info/75" style="height: {{ decade.percent }}%; --index: {{ forloop.counter0 }}"></div>{% endif %}
+          </div>
+          <span class="stat-column__label" aria-hidden="true">{{ decade.label|slice:"2:" }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-state py-8 text-sm">{% trans "No watched movies yet." %}</p>
+      {% endif %}
+    </article>
+
+    <article class="stat-card md:col-span-2 lg:col-span-1">
+      <div class="stat-card__header">
+        <div>
+          <p class="stat-card__eyebrow"><i data-lucide="trophy" aria-hidden="true"></i>{% trans "Your history" %}</p>
+          <h2 class="stat-card__title">{% trans "Records" %}</h2>
+        </div>
+      </div>
+      <dl>
+        {% if stats.watching_since %}
+        <div class="stat-record">
+          <span class="stat-record__icon"><i data-lucide="calendar-days" aria-hidden="true"></i></span>
+          <div class="min-w-0">
+            <dt class="stat-card__hint">{% trans "Watching since" %}</dt>
+            <dd class="font-semibold">{% user_date stats.watching_since %}</dd>
+          </div>
+        </div>
+        {% endif %}
+        {% if stats.busiest_day %}
+        <div class="stat-record" data-stat="busiest-day">
+          <span class="stat-record__icon"><i data-lucide="flame" aria-hidden="true"></i></span>
+          <div class="min-w-0">
+            <dt class="stat-card__hint">{% trans "Busiest day" %}</dt>
+            <dd class="font-semibold">{{ stats.busiest_day_minutes|duration }} <span class="font-normal text-base-content/65">· {% user_date stats.busiest_day %}</span></dd>
+          </div>
+        </div>
+        {% endif %}
+        {% if binge %}
+        <div class="stat-record" data-stat="binge">
+          <span class="stat-record__icon"><i data-lucide="fast-forward" aria-hidden="true"></i></span>
+          <div class="min-w-0">
+            <dt class="stat-card__hint">{% trans "Biggest binge" %}</dt>
+            <dd class="truncate font-semibold">
+              {% blocktrans count counter=binge.episodes %}{{ counter }} episode{% plural %}{{ counter }} episodes{% endblocktrans %}
+              <span class="font-normal text-base-content/65">· <a href="{{ binge.detail_url }}" hx-boost="true" class="link link-primary">{{ binge.title }}</a> · {% user_date binge.day %}</span>
+            </dd>
+          </div>
+        </div>
+        {% endif %}
+        {% if longest_movie %}
+        <div class="stat-record" data-stat="longest-movie">
+          <span class="stat-record__icon"><i data-lucide="clapperboard" aria-hidden="true"></i></span>
+          <div class="min-w-0">
+            <dt class="stat-card__hint">{% trans "Longest movie" %}</dt>
+            <dd class="truncate font-semibold">
+              {{ longest_movie.runtime|runtime }}
+              <span class="font-normal text-base-content/65">· <a href="{{ longest_movie.detail_url }}" hx-boost="true" class="link link-primary">{{ longest_movie.title }}</a></span>
+            </dd>
+          </div>
+        </div>
+        {% endif %}
+        {% if not stats.watching_since and not longest_movie %}
+        <div class="text-sm text-base-content/65">{% trans "Records appear once you start watching." %}</div>
+        {% endif %}
+      </dl>
+    </article>
+  </div>
+</div>
+{% endif %}

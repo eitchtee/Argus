@@ -994,6 +994,172 @@
         @apply rounded-box border border-dashed border-base-300 bg-base-100/50 px-6 py-12 text-center text-base-content/70;
     }
 
+    /* === Stats page === */
+    .stats-grid > * {
+        animation: media-rise-in 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    }
+
+    .stats-grid > :nth-child(2) {
+        animation-delay: 60ms;
+    }
+
+    .stats-grid > :nth-child(3) {
+        animation-delay: 120ms;
+    }
+
+    .stats-grid > :nth-child(n + 4) {
+        animation-delay: 180ms;
+    }
+
+    .stat-card {
+        @apply flex min-w-0 flex-col rounded-box border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5;
+    }
+
+    .stat-card__header {
+        @apply mb-4 flex items-start justify-between gap-3;
+    }
+
+    .stat-card__eyebrow {
+        @apply flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-primary;
+    }
+
+    .stat-card__eyebrow i {
+        @apply h-4 w-4;
+    }
+
+    .stat-card__title {
+        @apply text-lg font-bold leading-tight;
+    }
+
+    .stat-card__hint {
+        @apply text-xs text-base-content/60;
+    }
+
+    .stat-figure {
+        @apply mt-2 text-2xl font-bold tracking-tight tabular-nums sm:text-3xl;
+    }
+
+    .stat-columns {
+        @apply flex h-40 items-stretch gap-1 sm:gap-1.5;
+    }
+
+    .stat-columns--short {
+        @apply h-28;
+    }
+
+    .stat-column {
+        @apply flex min-w-0 flex-1 flex-col gap-1.5;
+    }
+
+    .stat-column__track {
+        @apply relative flex-1 rounded-t-[0.25rem] bg-base-200/70;
+    }
+
+    .stat-column__bar {
+        @apply absolute inset-x-0 bottom-0 rounded-t-[0.25rem] bg-primary/75;
+        transform-origin: bottom;
+        /* Bars cascade left to right so the chart reads as one gesture. */
+        animation: stat-bar-grow 380ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        animation-delay: calc(120ms + var(--index, 0) * 25ms);
+        transition: background-color 150ms ease;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .stat-column:hover .stat-column__bar {
+            @apply bg-primary;
+        }
+    }
+
+    .stat-column__label {
+        @apply truncate text-center text-[0.625rem] font-medium uppercase text-base-content/55 tabular-nums;
+    }
+
+    .stat-meter {
+        @apply h-2 w-full overflow-hidden rounded-full bg-base-300;
+    }
+
+    .stat-meter__fill {
+        @apply h-full rounded-full bg-primary;
+        transform-origin: left;
+        animation: stat-meter-grow 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        animation-delay: calc(120ms + var(--index, 0) * 40ms);
+    }
+
+    [dir="rtl"] .stat-meter__fill {
+        transform-origin: right;
+    }
+
+    .stat-heatmap {
+        display: grid;
+        grid-template-columns: 2.25rem repeat(24, minmax(0, 1fr));
+        gap: 3px;
+    }
+
+    .stat-heatmap__label {
+        @apply truncate pe-1 text-[0.625rem] font-medium leading-none text-base-content/55;
+        align-self: center;
+    }
+
+    .stat-heatmap__cell {
+        @apply aspect-square rounded-[3px];
+        background-color: color-mix(in oklab, var(--color-primary) calc(var(--heat, 0) * 1%), var(--color-base-300));
+    }
+
+    .stat-mini {
+        @apply rounded-box border border-base-300 bg-base-200/60 px-3 py-2.5;
+    }
+
+    .stat-mini__value {
+        @apply block text-lg font-bold leading-tight tabular-nums;
+    }
+
+    .stat-mini__label {
+        @apply block truncate text-[0.6875rem] text-base-content/60;
+    }
+
+    .stat-row {
+        @apply flex items-center gap-3 rounded-box p-1.5;
+        transition: background-color 150ms ease, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .stat-row:hover {
+            @apply bg-base-200;
+        }
+    }
+
+    .stat-row:active {
+        transform: scale(0.99);
+    }
+
+    .stat-row:focus-visible {
+        @apply outline outline-2 outline-offset-2 outline-primary;
+    }
+
+    .stat-record {
+        @apply flex items-start gap-3 border-t border-base-300/70 py-3 first:border-t-0 first:pt-0 last:pb-0;
+    }
+
+    .stat-record__icon {
+        @apply flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary;
+    }
+
+    .stat-record__icon i {
+        @apply h-4 w-4;
+    }
+
+    @keyframes stat-bar-grow {
+        from {
+            transform: scaleY(0);
+        }
+    }
+
+    @keyframes stat-meter-grow {
+        from {
+            transform: scaleX(0);
+        }
+    }
+
     .card {
         @apply bg-base-100;
     }
@@ -1073,8 +1239,19 @@ dialog.modal {
         transition-duration: 0.01ms;
     }
 
-    .media-detail > * {
+    .media-detail > *,
+    .stats-grid > *,
+    .stat-column__bar,
+    .stat-meter__fill {
         animation: none;
+    }
+
+    .stat-row {
+        transition-duration: 0.01ms;
+    }
+
+    .stat-row:active {
+        transform: none;
     }
 
     .tab.htmx-request::before {

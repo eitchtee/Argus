@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.movies.apps.MoviesConfig",
     "apps.tv.apps.TvConfig",
     "apps.history.apps.HistoryConfig",
+    "apps.stats.apps.StatsConfig",
     "apps.trakt.apps.TraktConfig",
     "apps.stremio.apps.StremioConfig",
     "apps.imports.apps.ImportsConfig",
