@@ -1,0 +1,39 @@
+{% load i18n %}
+<section aria-labelledby="simkl-home-heading">
+  <div class="section-heading">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Discover" %}</p>
+      {% include "simkl/fragments/section_heading.html" with heading_id="simkl-home-heading" heading=_("Trending on Simkl") link="https://simkl.com/movies/best-movies/most-watched/" %}
+    </div>
+    <a href="{% url 'discover' %}" hx-boost="true" class="btn btn-ghost btn-sm">
+      <span>{% trans "Discover more" %}</span>
+      <i data-lucide="arrow-right" aria-hidden="true"></i>
+    </a>
+  </div>
+
+  <form id="simkl-home-controls" class="mb-3 flex flex-wrap items-center gap-3" onsubmit="return false">
+    <div role="tablist" class="tabs tabs-box tabs-sm w-fit">
+      <input type="radio" name="category" value="movies" role="tab" class="tab" aria-label="{% trans 'Movies' %}" checked
+             hx-get="{% url 'simkl-home-trending' %}" hx-include="#simkl-home-controls" hx-trigger="change" hx-target="#simkl-home-rail" hx-swap="innerHTML" hx-indicator="#simkl-home-rail">
+      <input type="radio" name="category" value="tv" role="tab" class="tab" aria-label="{% trans 'TV Shows' %}"
+             hx-get="{% url 'simkl-home-trending' %}" hx-include="#simkl-home-controls" hx-trigger="change" hx-target="#simkl-home-rail" hx-swap="innerHTML" hx-indicator="#simkl-home-rail">
+    </div>
+    <div role="tablist" class="tabs tabs-box tabs-sm w-fit">
+      <input type="radio" name="timeframe" value="today" role="tab" class="tab" aria-label="{% trans 'Today' %}" checked
+             hx-get="{% url 'simkl-home-trending' %}" hx-include="#simkl-home-controls" hx-trigger="change" hx-target="#simkl-home-rail" hx-swap="innerHTML" hx-indicator="#simkl-home-rail">
+      <input type="radio" name="timeframe" value="week" role="tab" class="tab" aria-label="{% trans 'This week' %}"
+             hx-get="{% url 'simkl-home-trending' %}" hx-include="#simkl-home-controls" hx-trigger="change" hx-target="#simkl-home-rail" hx-swap="innerHTML" hx-indicator="#simkl-home-rail">
+    </div>
+  </form>
+
+  <div id="simkl-home-rail" class="simkl-rail-target"
+       hx-get="{% url 'simkl-home-trending' %}?category=movies&timeframe=today"
+       hx-trigger="load"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap hx-indicator">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+    </div>
+  </div>
+</section>

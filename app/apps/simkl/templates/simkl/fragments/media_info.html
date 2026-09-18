@@ -1,0 +1,91 @@
+{% load humanize i18n %}
+<section id="simkl-info" class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="simkl-info-heading">
+  <div class="section-heading mb-4">
+    <h2 id="simkl-info-heading" class="text-base font-semibold tracking-tight">
+      <img src="https://us.simkl.in/img_favicon/v2/favicon-192x192.png" alt="" width="18" height="18" aria-hidden="true" class="me-2 inline-block rounded-sm align-text-bottom">{% trans "On Simkl" %}
+    </h2>
+    {% if simkl.state == 'ok' and simkl.url %}
+    <a href="{{ simkl.url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
+      <span>{% trans "View on Simkl" %}</span>
+      <i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+  </div>
+
+  {% if simkl.state == 'not_found' %}
+  <p class="text-sm text-base-content/60">{% trans "Simkl has no record for this title yet." %}</p>
+  {% elif simkl.state == 'error' %}
+  <p class="text-sm text-base-content/60">{% trans "Simkl is not reachable right now." %}</p>
+  {% elif simkl.state == 'unavailable' %}
+  <p class="text-sm text-base-content/60">{% trans "SIMKL is not configured on this server." %}</p>
+  {% else %}
+  <dl class="simkl-stats">
+    {% if simkl.simkl_rating %}
+    <div class="simkl-stat">
+      <dt>{% trans "Simkl rating" %}</dt>
+      <dd><i data-lucide="star" class="text-warning" aria-hidden="true"></i><span class="tabular-nums">{{ simkl.simkl_rating|floatformat:1 }}</span><span class="simkl-stat__scale">/10</span>
+        {% if simkl.simkl_votes %}<span class="simkl-stat__note tabular-nums">{% blocktrans count counter=simkl.simkl_votes with votes=simkl.simkl_votes|intcomma %}{{ votes }} vote{% plural %}{{ votes }} votes{% endblocktrans %}</span>{% endif %}
+      </dd>
+    </div>
+    {% endif %}
+    {% if simkl.imdb_rating %}
+    <div class="simkl-stat">
+      <dt>{% trans "IMDb rating" %}</dt>
+      <dd><i data-lucide="star" class="text-warning" aria-hidden="true"></i><span class="tabular-nums">{{ simkl.imdb_rating|floatformat:1 }}</span><span class="simkl-stat__scale">/10</span>
+        {% if simkl.imdb_votes %}<span class="simkl-stat__note tabular-nums">{% blocktrans count counter=simkl.imdb_votes with votes=simkl.imdb_votes|intcomma %}{{ votes }} vote{% plural %}{{ votes }} votes{% endblocktrans %}</span>{% endif %}
+      </dd>
+    </div>
+    {% endif %}
+    {% if simkl.rank %}
+    <div class="simkl-stat">
+      <dt>{% trans "Simkl rank" %}</dt>
+      <dd><i data-lucide="trophy" aria-hidden="true"></i><span class="tabular-nums">#{{ simkl.rank|intcomma }}</span></dd>
+    </div>
+    {% endif %}
+    {% if simkl.drop_rate %}
+    <div class="simkl-stat">
+      <dt>{% trans "Drop rate" %}</dt>
+      <dd><i data-lucide="trending-down" aria-hidden="true"></i><span class="tabular-nums">{{ simkl.drop_rate }}</span></dd>
+    </div>
+    {% endif %}
+    {% if simkl.certification %}
+    <div class="simkl-stat">
+      <dt>{% trans "Certification" %}</dt>
+      <dd><i data-lucide="shield" aria-hidden="true"></i><span>{{ simkl.certification }}</span></dd>
+    </div>
+    {% endif %}
+    {% if simkl.trailer_url %}
+    <div class="simkl-stat">
+      <dt>{% trans "Trailer" %}</dt>
+      <dd><a href="{{ simkl.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text text-base"><i data-lucide="play" aria-hidden="true"></i><span>{% trans "Watch on YouTube" %}</span></a></dd>
+    </div>
+    {% endif %}
+  </dl>
+
+  {% if simkl.recommendations %}
+  <h3 class="mb-3 mt-6 text-sm font-semibold text-base-content/80">{% trans "Viewers also watched" %}</h3>
+  <div class="simkl-rail simkl-rail--compact" role="list">
+    {% for item in simkl.recommendations %}
+    <article class="simkl-card simkl-card--compact" role="listitem">
+      <a href="{{ item.href }}" {% if item.argus_url %}hx-boost="true" hx-target="body" hx-swap="innerHTML"{% else %}target="_blank" rel="noopener noreferrer"{% endif %} class="simkl-card__link" title="{{ item.title }}{% if item.year %} ({{ item.year }}){% endif %}">
+        <figure class="simkl-card__poster">
+          {% if item.poster_url %}
+          <img src="{{ item.poster_url }}" alt="{{ item.title }}" loading="lazy">
+          {% else %}
+          <div class="simkl-card__fallback" aria-hidden="true"><i data-lucide="{% if item.media_type == 'movie' %}film{% else %}tv{% endif %}"></i></div>
+          {% endif %}
+        </figure>
+        <h4 class="simkl-card__title">{{ item.title }}</h4>
+        {% if item.year %}<p class="simkl-card__meta"><span class="tabular-nums">{{ item.year }}</span></p>{% endif %}
+      </a>
+      {% if item.simkl_url %}
+      <a href="{{ item.simkl_url }}" target="_blank" rel="noopener noreferrer" class="simkl-card__external" title="{% trans 'View on Simkl' %}" aria-label="{{ item.title }} {% trans 'on Simkl' %}">
+        <img src="https://us.simkl.in/img_favicon/v2/favicon-192x192.png" alt="Simkl" width="14" height="14" loading="lazy">
+      </a>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+</section>

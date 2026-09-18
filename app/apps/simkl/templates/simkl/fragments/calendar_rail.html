@@ -1,0 +1,42 @@
+{% load dates i18n %}
+{% if entries %}
+<div class="simkl-rail" role="list">
+  {% for entry in entries %}
+  <article class="simkl-card" role="listitem">
+    <a href="{{ entry.href }}"
+       {% if entry.argus_url %}hx-boost="true" hx-target="body" hx-swap="innerHTML"{% else %}target="_blank" rel="noopener noreferrer"{% endif %}
+       class="simkl-card__link" title="{{ entry.title }}">
+      <figure class="simkl-card__poster">
+        {% if entry.poster_url %}
+        <img src="{{ entry.poster_url }}" alt="{{ entry.title }}" loading="lazy">
+        {% else %}
+        <div class="simkl-card__fallback" aria-hidden="true">
+          <i data-lucide="{% if entry.media_type == 'movie' %}film{% else %}tv{% endif %}"></i>
+        </div>
+        {% endif %}
+        {% if entry.episode_label %}
+        <span class="simkl-card__badge simkl-card__badge--episode tabular-nums" title="{{ entry.episode_title|default:'' }}">{{ entry.episode_label }}{% if entry.finale %} <i data-lucide="flag" aria-hidden="true"></i>{% endif %}</span>
+        {% endif %}
+        {% if entry.user_state %}
+        <span class="simkl-card__badge simkl-card__badge--state" title="{% if entry.user_state == 'watched' %}{% trans 'Watched' %}{% elif entry.user_state == 'watchlist' %}{% trans 'On watchlist' %}{% else %}{% trans 'Tracked' %}{% endif %}">
+          <i data-lucide="{% if entry.user_state == 'watched' %}eye{% elif entry.user_state == 'watchlist' %}bookmark{% else %}check{% endif %}" aria-hidden="true"></i>
+        </span>
+        {% endif %}
+      </figure>
+      <h3 class="simkl-card__title">{{ entry.title }}</h3>
+      <p class="simkl-card__meta">
+        <span><i data-lucide="calendar" aria-hidden="true"></i>{% user_date entry.date %}</span>
+        {% if entry.network %}<span class="truncate">{{ entry.network }}</span>{% endif %}
+      </p>
+    </a>
+    {% if entry.simkl_url %}
+    <a href="{{ entry.simkl_url }}" target="_blank" rel="noopener noreferrer" class="simkl-card__external" title="{% trans 'View on Simkl' %}" aria-label="{{ entry.title }} {% trans 'on Simkl' %}">
+      <img src="https://us.simkl.in/img_favicon/v2/favicon-192x192.png" alt="Simkl" width="14" height="14" loading="lazy">
+    </a>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<p class="py-6 text-sm text-base-content/60">{% trans "Nothing scheduled right now." %}</p>
+{% endif %}

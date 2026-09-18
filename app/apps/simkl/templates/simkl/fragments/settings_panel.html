@@ -1,0 +1,92 @@
+{% load dates i18n %}
+<div class="space-y-5">
+  <header class="flex flex-col gap-3 border-b border-base-300 pb-4 sm:flex-row sm:items-start sm:justify-between">
+    <div class="flex items-start gap-3">
+      <i data-lucide="refresh-cw" class="mt-1 text-lg text-secondary" aria-hidden="true"></i>
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight">SIMKL</h2>
+        <p class="mt-1 text-sm leading-6 text-base-content/65">{% trans "Keep your watch history, lists and ratings aligned with SIMKL." %}</p>
+      </div>
+    </div>
+    {% if simkl_account %}
+      <span class="inline-flex items-center gap-2 text-sm font-semibold text-success">
+        <i data-lucide="check" aria-hidden="true"></i>
+        {% trans "Connected" %}
+      </span>
+    {% else %}
+      <span class="inline-flex items-center gap-2 text-sm font-semibold text-warning">
+        <i data-lucide="unlink" aria-hidden="true"></i>
+        {% trans "Not connected" %}
+      </span>
+    {% endif %}
+  </header>
+  {% if simkl_account %}
+    <div class="flex flex-col gap-3 border-b border-base-300 pb-5 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex min-w-0 items-center gap-3">
+        <i data-lucide="user" class="text-secondary" aria-hidden="true"></i>
+        <div class="min-w-0">
+          <p class="text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Connected account" %}</p>
+          <p class="mt-1 truncate text-sm font-semibold">
+            {% if simkl_account.simkl_username %}{{ simkl_account.simkl_username }}{% else %}{% trans "SIMKL user" %}{% endif %}
+            {% if simkl_account.account_type %}<span class="ms-2 rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium uppercase text-base-content/60">{{ simkl_account.account_type }}</span>{% endif %}
+          </p>
+        </div>
+      </div>
+      {% if simkl_account.last_synced_at %}
+        <div class="sm:text-right">
+          <span class="block text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50">{% trans "Last sync" %}</span>
+          <span class="mt-1 block text-xs text-base-content/70">{% user_datetime simkl_account.last_synced_at %}</span>
+        </div>
+      {% endif %}
+    </div>
+    {% if simkl_account.last_error %}
+      <div class="flex items-start gap-2.5 border-l-2 border-error pl-3 text-sm text-error" role="alert">
+        <i data-lucide="triangle-alert" class="mt-0.5" aria-hidden="true"></i>
+        <span>{{ simkl_account.last_error }}</span>
+      </div>
+    {% endif %}
+    {% if simkl_account.last_warning %}
+      <div class="flex items-start gap-2.5 border-l-2 border-warning pl-3 text-sm text-warning" role="status">
+        <i data-lucide="triangle-alert" class="mt-0.5" aria-hidden="true"></i>
+        <span class="whitespace-pre-line">{{ simkl_account.last_warning }}</span>
+      </div>
+    {% endif %}
+    <div class="flex flex-wrap gap-2">
+      <form method="post" action="{% url 'simkl_sync' %}" hx-post="{% url 'simkl_sync' %}" hx-swap="none">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i data-lucide="refresh-cw" aria-hidden="true"></i>
+          {% trans "Sync now" %}
+        </button>
+      </form>
+      <a href="{% url 'simkl_connect' %}" class="btn btn-secondary btn-sm">
+        <i data-lucide="link" aria-hidden="true"></i>
+        {% trans "Reconnect" %}
+      </a>
+      <form method="post" action="{% url 'simkl_disconnect' %}" hx-post="{% url 'simkl_disconnect' %}" hx-swap="none" hx-confirm="{% trans 'Disconnect SIMKL?' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-ghost btn-sm">
+          <i data-lucide="unlink" aria-hidden="true"></i>
+          {% trans "Disconnect" %}
+        </button>
+      </form>
+    </div>
+  {% else %}
+    <div class="border-t border-base-300 pt-5">
+      <div class="flex items-start gap-3">
+        <i data-lucide="link" class="mt-1 text-lg text-primary" aria-hidden="true"></i>
+        <div>
+          <h3 class="text-base font-semibold">{% trans "Connect your SIMKL library" %}</h3>
+          <p class="mt-1 max-w-xl text-sm leading-6 text-base-content/65">{% trans "Connect SIMKL to synchronize your watched movies and episodes, watchlists, paused and dropped shows, and ratings." %}</p>
+          <a href="{% url 'simkl_connect' %}" class="btn btn-primary btn-sm mt-4">
+            <i data-lucide="link" aria-hidden="true"></i>
+            {% trans "Connect SIMKL" %}
+          </a>
+          {% if simkl_redirect_uri and request.user.is_staff %}
+          <p class="mt-4 text-xs text-base-content/55">{% trans "Redirect URI to register in the SIMKL application:" %} <code class="select-all">{{ simkl_redirect_uri }}</code></p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>

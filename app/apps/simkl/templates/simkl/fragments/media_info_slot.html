@@ -1,0 +1,17 @@
+{% load i18n settings %}
+{% settings "SIMKL_CLIENT_ID" as simkl_client_id %}
+{% if simkl_client_id %}
+<section id="simkl-info" class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="simkl-info-heading" aria-busy="true"
+         hx-get="{% url 'simkl-media-info' media_type=media_type external_id=external_id %}?provider={{ provider }}"
+         hx-trigger="load" hx-target="this" hx-swap="outerHTML" hx-disinherit="hx-target hx-swap">
+  <div class="section-heading mb-4">
+    <h2 id="simkl-info-heading" class="text-base font-semibold tracking-tight">
+      <img src="https://us.simkl.in/img_favicon/v2/favicon-192x192.png" alt="" width="18" height="18" aria-hidden="true" class="me-2 inline-block rounded-sm align-text-bottom">{% trans "On Simkl" %}
+    </h2>
+  </div>
+  <div class="flex items-center gap-3 py-4 text-sm text-base-content/60" role="status">
+    <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+    <span>{% trans "Loading Simkl data" %}…</span>
+  </div>
+</section>
+{% endif %}

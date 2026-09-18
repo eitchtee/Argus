@@ -1,0 +1,24 @@
+{% load i18n title %}
+<title>{% filter site_title %}{% if not_found %}{% trans "Not found" %}{% else %}{% trans "Unavailable" %}{% endif %}{% endfilter %}</title>
+
+<section class="surface-card rounded-box p-8 text-center sm:p-12" role="alert">
+  <i data-lucide="{% if not_found %}circle-question-mark{% else %}triangle-alert{% endif %}" class="mx-auto mb-4 text-4xl text-base-content/40" aria-hidden="true"></i>
+  <h1 class="text-2xl font-bold tracking-tight">
+    {% if not_found %}{% trans "This title could not be found" %}{% else %}{% trans "This title is unavailable right now" %}{% endif %}
+  </h1>
+  <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-base-content/65">
+    {% if not_found %}
+      {% blocktrans with provider=provider_label %}{{ provider }} has no record for this id. It may have been removed or merged into another entry.{% endblocktrans %}
+    {% else %}
+      {% blocktrans with provider=provider_label %}{{ provider }} did not answer. Try again in a moment.{% endblocktrans %}
+    {% endif %}
+  </p>
+  <div class="mt-6 flex flex-wrap justify-center gap-2">
+    <a href="{% url 'catalog-search-page' %}" hx-boost="true" class="btn btn-primary btn-sm">
+      <i data-lucide="search" aria-hidden="true"></i>{% trans "Search the catalog" %}
+    </a>
+    <a href="{% url 'index' %}" hx-boost="true" class="btn btn-ghost btn-sm">
+      <i data-lucide="house" aria-hidden="true"></i>{% trans "Home" %}
+    </a>
+  </div>
+</section>
