@@ -2,6 +2,9 @@ from apps.common.decorators.user import htmx_login_required
 from apps.users.forms import LoginForm, UserSettingsForm
 from apps.trakt.models import TraktAccount
 from apps.stremio.models import StremioAccount
+from apps.simkl.config import redirect_uri_for as simkl_redirect_uri_for
+from apps.trakt.views import redirect_uri_for as trakt_redirect_uri_for
+from apps.simkl.models import SimklAccount
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.views import LoginView
@@ -55,6 +58,11 @@ def update_settings(request):
         .defer("auth_key")
         .first()
     )
+    simkl_account = (
+        SimklAccount.objects.filter(user=request.user)
+        .defer("access_token", "last_activities", "pending_pushes")
+        .first()
+    )
     return render(
         request,
         "users/pages/settings.html",
@@ -62,6 +70,9 @@ def update_settings(request):
             "form": form,
             "trakt_account": trakt_account,
             "stremio_account": stremio_account,
+            "simkl_account": simkl_account,
+            "simkl_redirect_uri": simkl_redirect_uri_for(request),
+            "trakt_redirect_uri": trakt_redirect_uri_for(request),
         },
     )
 

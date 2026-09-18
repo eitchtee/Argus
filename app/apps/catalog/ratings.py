@@ -131,14 +131,24 @@ def rate_media(user, media_type: str, media, score: Decimal) -> MediaRating:
             "score": score,
         },
     )
+    _record_rating_intent(user, media, score=score)
     return rating
 
 
 def clear_rating(user, media) -> int:
-    return MediaRating.objects.filter(
+    deleted = MediaRating.objects.filter(
         user=user,
         **content_filter(media),
     ).delete()[0]
+    if deleted:
+        _record_rating_intent(user, media, score=None)
+    return deleted
+
+
+def _record_rating_intent(user, media, *, score) -> None:
+    from apps.simkl.changes import record_rating_intent
+
+    record_rating_intent(user, media, score=score)
 
 
 def get_user_rating(user, media) -> MediaRating | None:
@@ -208,10 +218,13 @@ def transfer_rating(user, *, source, target) -> None:
 def delete_ratings_for(user, *media_objects) -> int:
     deleted = 0
     for media in media_objects:
-        deleted += MediaRating.objects.filter(
+        removed = MediaRating.objects.filter(
             user=user,
             **content_filter(media),
         ).delete()[0]
+        if removed:
+            _record_rating_intent(user, media, score=None)
+        deleted += removed
     return deleted
 
 

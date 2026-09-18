@@ -29,16 +29,17 @@ _STALLED_WORKER_TIMEOUT = timedelta(seconds=30)
 
 
 def build_client(account) -> TraktClient:
-    if not all(
-        (
-            settings.TRAKT_CLIENT_ID,
-            settings.TRAKT_CLIENT_SECRET,
-            settings.TRAKT_REDIRECT_URI,
-        )
-    ):
+    if not (settings.TRAKT_CLIENT_ID and settings.TRAKT_CLIENT_SECRET):
         raise TraktConfigurationError(
-            "Trakt client credentials and redirect URI are not configured "
-            "by the server administrator."
+            "Trakt client credentials are not configured by the server administrator."
+        )
+    redirect_uri = settings.TRAKT_REDIRECT_URI or account.redirect_uri
+    if not redirect_uri:
+        # Authorized before the callback was recorded on the account and
+        # without an override to fall back on: a refresh cannot be attempted.
+        raise TraktConfigurationError(
+            "Trakt redirect URI is unknown for this account; reconnect it "
+            "or set TRAKT_REDIRECT_URI."
         )
 
     client = TraktClient(
@@ -52,7 +53,7 @@ def build_client(account) -> TraktClient:
         try:
             token = client.refresh_access_token(
                 account.refresh_token,
-                settings.TRAKT_REDIRECT_URI,
+                redirect_uri,
             )
         except TraktAuthenticationError:
             account.sync_status = TraktAccount.SyncStatus.REAUTHORIZE

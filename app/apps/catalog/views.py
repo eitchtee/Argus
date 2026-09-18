@@ -565,3 +565,25 @@ def _movie_seen_states(user, results):
 
 def _request_param(request, name, default=""):
     return request.POST.get(name, request.GET.get(name, default)).strip()
+
+
+def render_detail_unavailable(request, provider: str, exc):
+    """Fragment for a detail page whose provider record is missing or unreachable.
+
+    Untracked titles are rendered straight from the provider, so a stale id
+    (one SIMKL or Trakt still carries after TMDB/TVDB removed it) has nothing
+    to fall back on.
+    """
+    from apps.catalog.providers.exceptions import NotFound
+
+    not_found = isinstance(exc, NotFound)
+    response = render(
+        request,
+        "catalog/fragments/detail_unavailable.html",
+        {"not_found": not_found, "provider_label": provider.upper()},
+        status=404 if not_found else 502,
+    )
+    # Tells the HTMX layer to swap this fragment in instead of raising the
+    # generic error popup.
+    response["Argus-Swap-Error"] = "true"
+    return response

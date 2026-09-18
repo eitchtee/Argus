@@ -53,5 +53,17 @@
         <a href="{% url 'stremio_connect' %}" class="btn btn-primary btn-sm mt-3">{% trans "Connect Stremio" %}</a>
       {% endif %}
     </section>
+    <section class="mt-6 border-t border-base-300 pt-4">
+      <h4 class="font-semibold">SIMKL</h4>
+      {% if simkl_account %}
+        <p class="mt-2 text-sm text-base-content/70">{% trans "Connected as" %} <span class="font-medium">{{ simkl_account.simkl_username|default:_('SIMKL user') }}</span>.</p>
+        {% if simkl_account.last_synced_at %}<p class="text-sm text-base-content/70">{% trans "Last sync" %}: {% user_datetime simkl_account.last_synced_at %}</p>{% endif %}
+        {% if simkl_account.last_error %}<p class="text-sm text-error">{{ simkl_account.last_error }}</p>{% endif %}
+        <div class="mt-3 flex flex-wrap gap-2"><form method="post" action="{% url 'simkl_sync' %}" hx-post="{% url 'simkl_sync' %}" hx-swap="none">{% csrf_token %}<button type="submit" class="btn btn-primary btn-sm">{% trans "Sync now" %}</button></form><a href="{% url 'simkl_connect' %}" class="btn btn-secondary btn-sm">{% trans "Reconnect" %}</a><form method="post" action="{% url 'simkl_disconnect' %}" hx-post="{% url 'simkl_disconnect' %}" hx-swap="none" hx-confirm="{% trans 'Disconnect SIMKL?' %}">{% csrf_token %}<button type="submit" class="btn btn-ghost btn-sm">{% trans "Disconnect" %}</button></form></div>
+      {% else %}
+        <p class="mt-2 text-sm text-base-content/70">{% trans "Connect your SIMKL account to synchronize your library." %}</p>
+        <a href="{% url 'simkl_connect' %}" class="btn btn-primary btn-sm mt-3">{% trans "Connect SIMKL" %}</a>
+      {% endif %}
+    </section>
   </div>
 </dialog>

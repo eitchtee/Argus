@@ -2,6 +2,18 @@ import htmx from "htmx.org";
 
 window.htmx = htmx;
 
+// Error responses are not swapped by default and instead surface in the
+// global error popup. A response that carries "Argus-Swap-Error" is a
+// deliberate, user-facing fragment (a "title not found" card) and is swapped
+// in like a success, without the popup.
+document.addEventListener('htmx:beforeSwap', (evt) => {
+    const xhr = evt.detail.xhr;
+    if (xhr && xhr.status >= 400 && xhr.getResponseHeader('Argus-Swap-Error')) {
+        evt.detail.shouldSwap = true;
+        evt.detail.isError = false;
+    }
+});
+
 htmx.defineExtension('htmx-download', {
     onEvent: function (name, evt) {
 

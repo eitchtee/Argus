@@ -35,5 +35,6 @@ urlpatterns = [
     path("", include("apps.calendar.urls")),
     path("", include("apps.trakt.urls")),
     path("", include("apps.stremio.urls")),
+    path("", include("apps.simkl.urls")),
     path("", include("apps.imports.urls")),
 ]

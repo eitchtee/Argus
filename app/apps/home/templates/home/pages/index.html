@@ -1,5 +1,5 @@
 {% extends "layouts/base.html" %}
-{% load i18n %}
+{% load i18n settings %}
 
 {% block title %}{% trans "Home" %}{% endblock %}
 
@@ -57,5 +57,9 @@
     </div>
   </div>
   </section>
+  {% settings "SIMKL_CLIENT_ID" as simkl_client_id %}
+  {% if simkl_client_id %}
+  {% include "simkl/fragments/home_trending.html" %}
+  {% endif %}
 </div>
 {% endblock %}

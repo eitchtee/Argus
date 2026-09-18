@@ -113,6 +113,9 @@
                   <i data-lucide="link" aria-hidden="true"></i>
                   {% trans "Connect Trakt.tv" %}
                 </a>
+                {% if trakt_redirect_uri and request.user.is_staff %}
+                <p class="mt-4 text-xs text-base-content/55">{% trans "Redirect URI to register in the Trakt application:" %} <code class="select-all">{{ trakt_redirect_uri }}</code></p>
+                {% endif %}
               </div>
             </div>
           </div>
@@ -161,6 +164,13 @@
           <div class="border-t border-base-300 pt-5"><div class="flex items-start gap-3"><i data-lucide="link" class="mt-1 text-lg text-primary" aria-hidden="true"></i><div><h3 class="text-base font-semibold">{% trans "Connect your Stremio library" %}</h3><p class="mt-1 max-w-xl text-sm leading-6 text-base-content/65">{% trans "Connect Stremio to synchronize your library and watch history." %}</p><a href="{% url 'stremio_connect' %}" class="btn btn-primary btn-sm mt-4"><i data-lucide="link" aria-hidden="true"></i>{% trans "Connect Stremio" %}</a></div></div></div>
         {% endif %}
       </div>
+    </div>
+
+    <input id="simkl-settings-tab" type="radio" name="settings-tabs" role="tab"
+           class="tab min-h-11 px-4 text-xs font-semibold sm:px-6 sm:text-sm"
+           aria-label="SIMKL" aria-controls="simkl-settings-panel">
+    <div id="simkl-settings-panel" role="tabpanel" class="tab-content w-full border-base-300 bg-base-100 p-4 sm:p-6" aria-labelledby="simkl-settings-tab">
+      {% include "simkl/fragments/settings_panel.html" with simkl_account=simkl_account %}
     </div>
 
     <input id="import-settings-tab" type="radio" name="settings-tabs" role="tab"

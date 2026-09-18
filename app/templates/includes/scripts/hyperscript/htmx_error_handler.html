@@ -2,6 +2,10 @@
 <script type="text/hyperscript">
 behavior htmx_error_handler
   on htmx:responseError or htmx:afterRequest[detail.failed] or htmx:sendError queue none
+    -- Responses flagged Argus-Swap-Error render their own explanation in place.
+    if event.detail.xhr and event.detail.xhr.getResponseHeader('Argus-Swap-Error') then
+      halt the event
+    end
     -- Check if the event detail contains the xhr object and the status is 403
     if event.detail.xhr.status == 403 then
       call Swal.fire({

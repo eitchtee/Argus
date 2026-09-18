@@ -814,6 +814,159 @@
         @apply block truncate text-xs text-base-content/55;
     }
 
+    /* SIMKL discovery rails: trending charts, calendars and recommendations. */
+    /* Unlike the cast rail these rows can hold dozens of posters, so the
+       scrollbar stays visible as the affordance for horizontal scrolling. */
+    .simkl-rail {
+        @apply flex gap-3 overflow-x-auto pb-3 sm:gap-4;
+        scroll-snap-type: x proximity;
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in oklab, var(--color-base-content) 35%, transparent) transparent;
+    }
+
+    .simkl-rail::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .simkl-rail::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .simkl-rail::-webkit-scrollbar-thumb {
+        @apply rounded-full;
+        background: color-mix(in oklab, var(--color-base-content) 35%, transparent);
+    }
+
+    .simkl-rail-target.htmx-request {
+        @apply opacity-60;
+    }
+
+    .simkl-card {
+        @apply relative w-32 shrink-0 sm:w-36;
+        scroll-snap-align: start;
+    }
+
+    .simkl-card--compact {
+        @apply w-24 sm:w-28;
+    }
+
+    .simkl-card__link {
+        @apply block;
+    }
+
+    .simkl-card__link:focus-visible {
+        @apply rounded-lg outline outline-2 outline-offset-2 outline-primary;
+    }
+
+    .simkl-card__poster {
+        @apply relative aspect-2/3 w-full overflow-hidden rounded-lg border border-base-300 bg-base-200;
+    }
+
+    .simkl-card__poster img {
+        @apply h-full w-full object-cover;
+        transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .simkl-card:hover .simkl-card__poster img {
+            transform: scale(1.05);
+        }
+    }
+
+    .simkl-card__fallback {
+        @apply flex h-full w-full items-center justify-center text-3xl text-base-content/30;
+    }
+
+    .simkl-card__rank {
+        @apply absolute left-1.5 top-1.5 inline-flex min-w-6 items-center justify-center rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-bold text-white;
+    }
+
+    .simkl-card__badge {
+        @apply absolute inline-flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white;
+    }
+
+    .simkl-card__badge--rating {
+        @apply right-1.5 top-1.5;
+    }
+
+    .simkl-card__badge--episode {
+        @apply left-1.5 top-1.5;
+    }
+
+    .simkl-card__badge--state {
+        @apply bottom-1.5 right-1.5 bg-success/90;
+    }
+
+    .simkl-card__badge i,
+    .simkl-card__meta i {
+        @apply size-3;
+    }
+
+    .simkl-card__title {
+        @apply mt-2 block truncate text-xs font-semibold;
+    }
+
+    .simkl-card__meta {
+        @apply flex items-center gap-2 truncate text-xs text-base-content/55;
+    }
+
+    .simkl-card__meta > span {
+        @apply inline-flex items-center gap-1;
+    }
+
+    .simkl-card__external {
+        @apply absolute -right-1 -top-1 z-[2] hidden rounded-full border border-base-300 bg-base-100 p-1 shadow-sm;
+    }
+
+    .simkl-card__external img {
+        @apply rounded-sm;
+    }
+
+    .simkl-card:hover .simkl-card__external,
+    .simkl-card:focus-within .simkl-card__external {
+        @apply inline-flex;
+    }
+
+    .simkl-heading-link {
+        @apply inline-flex items-center gap-2 text-inherit no-underline;
+    }
+
+    .simkl-heading-link:hover span {
+        @apply text-primary;
+    }
+
+    .simkl-heading-link__logo {
+        @apply rounded-sm;
+    }
+
+    .simkl-stats {
+        @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
+    }
+
+    .simkl-stat {
+        @apply rounded-box border border-base-300 bg-base-200/40 px-4 py-3;
+    }
+
+    .simkl-stat dt {
+        @apply text-xs font-semibold uppercase tracking-[0.1em] text-base-content/50;
+    }
+
+    .simkl-stat dd {
+        @apply mt-1 flex flex-wrap items-baseline gap-1.5 text-lg font-semibold;
+    }
+
+    .simkl-stat dd i {
+        @apply size-4 self-center;
+    }
+
+    .simkl-stat__scale {
+        @apply text-sm font-normal text-base-content/50;
+    }
+
+    .simkl-stat__note {
+        @apply ms-1 text-xs font-normal text-base-content/55;
+    }
+
     @keyframes media-rise-in {
         from {
             opacity: 0;

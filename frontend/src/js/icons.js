@@ -2,6 +2,7 @@
 // this replaces them with inline SVGs at runtime.
 import {
     ArrowRightLeft,
+    ArrowRight,
     Bookmark,
     Calendar,
     CalendarClock,
@@ -21,6 +22,7 @@ import {
     CircleQuestionMark,
     Clapperboard,
     Clock,
+    Compass,
     Copy,
     Database,
     DoorOpen,
@@ -51,6 +53,7 @@ import {
     RotateCcwClock,
     Search,
     Settings,
+    Shield,
     Share,
     ShieldHalf,
     SkipForward,
@@ -59,6 +62,7 @@ import {
     Star,
     Sun,
     Trash2,
+    TrendingDown,
     TriangleAlert,
     Trophy,
     Tv,
@@ -73,6 +77,7 @@ import { createIcons } from 'lucide';
 
 const icons = {
     ArrowRightLeft,
+    ArrowRight,
     Bookmark,
     Calendar,
     CalendarClock,
@@ -92,6 +97,7 @@ const icons = {
     CircleQuestionMark,
     Clapperboard,
     Clock,
+    Compass,
     Copy,
     Database,
     DoorOpen,
@@ -122,6 +128,7 @@ const icons = {
     RotateCcwClock,
     Search,
     Settings,
+    Shield,
     Share,
     ShieldHalf,
     SkipForward,
@@ -130,6 +137,7 @@ const icons = {
     Star,
     Sun,
     Trash2,
+    TrendingDown,
     TriangleAlert,
     Trophy,
     Tv,

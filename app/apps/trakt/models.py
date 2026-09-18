@@ -19,6 +19,10 @@ class TraktAccount(models.Model):
     access_token = EncryptedTextField(default="")
     refresh_token = EncryptedTextField(default="")
     token_expires_at = models.DateTimeField(null=True, blank=True)
+    # The OAuth callback this account was authorized with; Trakt requires the
+    # same value on every token refresh, which the worker performs without a
+    # request to derive it from.
+    redirect_uri = models.CharField(max_length=500, blank=True)
     initial_sync_complete = models.BooleanField(default=False)
     episode_history_synced_at = models.DateTimeField(null=True, blank=True)
     sync_status = models.CharField(

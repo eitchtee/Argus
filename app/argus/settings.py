@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "apps.stats.apps.StatsConfig",
     "apps.trakt.apps.TraktConfig",
     "apps.stremio.apps.StremioConfig",
+    "apps.simkl.apps.SimklConfig",
     "apps.imports.apps.ImportsConfig",
     "apps.calendar.apps.CalendarConfig",
     "cachalot",
@@ -100,6 +101,7 @@ MIDDLEWARE = [
     "apps.common.middleware.htmx.HtmxVaryMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.simkl.middleware.SimklActivityMiddleware",
     "apps.common.middleware.localization.LocalizationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -510,6 +512,31 @@ try:
 except ValueError:
     STREMIO_SYNC_INTERVAL_MINUTES = 5
 STREMIO_SYNC_CRON = f"*/{STREMIO_SYNC_INTERVAL_MINUTES} * * * *"
+# SIMKL is optional. Catalog reads, trending charts and calendars only need
+# the client id; per-user synchronization also needs the secret and the OAuth
+# redirect URI of the SIMKL application the administrator registered.
+SIMKL_CLIENT_ID = os.getenv("SIMKL_CLIENT_ID", "")
+SIMKL_CLIENT_SECRET = os.getenv("SIMKL_CLIENT_SECRET", "")
+SIMKL_REDIRECT_URI = os.getenv("SIMKL_REDIRECT_URI", "")
+SIMKL_APP_NAME = os.getenv("SIMKL_APP_NAME", "argus")
+SIMKL_APP_VERSION = os.getenv("SIMKL_APP_VERSION", "") or (
+    os.getenv("APP_VERSION", "")
+    if os.getenv("APP_VERSION", "") not in ("", "unknown")
+    else "1.0"
+)
+try:
+    SIMKL_SYNC_INTERVAL_MINUTES = max(
+        1,
+        int(os.getenv("SIMKL_SYNC_INTERVAL_MINUTES", "15")),
+    )
+except ValueError:
+    SIMKL_SYNC_INTERVAL_MINUTES = 15
+SIMKL_SYNC_CRON = f"*/{SIMKL_SYNC_INTERVAL_MINUTES} * * * *"
+# Accounts whose user has not used Argus for this long are not polled.
+SIMKL_IDLE_HOURS = int(os.getenv("SIMKL_IDLE_HOURS", 24))
+SIMKL_METADATA_REFRESH_DAYS = int(os.getenv("SIMKL_METADATA_REFRESH_DAYS", 7))
+SIMKL_METADATA_BATCH_SIZE = int(os.getenv("SIMKL_METADATA_BATCH_SIZE", 200))
+SIMKL_METADATA_CRON = os.getenv("SIMKL_METADATA_CRON", "30 5 * * *")
 CATALOG_SEARCH_CACHE_TTL = int(os.getenv("CATALOG_SEARCH_CACHE_TTL", 3600))
 CATALOG_MOVIE_SYNC_INTERVAL_DAYS = int(os.getenv("CATALOG_MOVIE_SYNC_INTERVAL_DAYS", 14))
 CATALOG_SHOW_SYNC_INTERVAL_DAYS = int(os.getenv("CATALOG_SHOW_SYNC_INTERVAL_DAYS", 2))

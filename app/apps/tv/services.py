@@ -27,6 +27,8 @@ from apps.catalog.tracking import find_tracking_match, identity_keys
 from apps.trakt.changes import record_intent
 from apps.trakt.identities import episode_payload, show_payload
 from apps.trakt.models import TraktSyncIntent
+from apps.simkl.changes import record_simkl_intent
+from apps.simkl.models import SimklSyncIntent
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
@@ -473,6 +475,12 @@ def track_show(
         show_payload(show),
         desired=False,
     )
+    record_simkl_intent(
+        user,
+        SimklSyncIntent.Kind.SHOW_PAUSED,
+        show_payload(show),
+        desired=False,
+    )
     if hydrate_func is None:
         from apps.tv.tasks import hydrate_show_translations
 
@@ -543,6 +551,12 @@ def queue_track_show(
         record_intent(
             user,
             TraktSyncIntent.Kind.SHOW_DROPPED,
+            show_payload(show),
+            desired=False,
+        )
+        record_simkl_intent(
+            user,
+            SimklSyncIntent.Kind.SHOW_PAUSED,
             show_payload(show),
             desired=False,
         )
@@ -891,6 +905,12 @@ def drop_show(user, show: Show) -> UserShow:
         show_payload(show),
         desired=False,
     )
+    record_simkl_intent(
+        user,
+        SimklSyncIntent.Kind.SHOW_PAUSED,
+        show_payload(show),
+        desired=False,
+    )
     return user_show
 
 
@@ -898,6 +918,11 @@ def pause_show(user, show: Show) -> UserShow:
     user_show, _created = UserShow.objects.get_or_create(user=user, show=show)
     user_show.status = UserShow.Status.PAUSED
     user_show.save(update_fields=["status", "updated_at"])
+    record_simkl_intent(
+        user,
+        SimklSyncIntent.Kind.SHOW_PAUSED,
+        show_payload(show),
+    )
     return user_show
 
 

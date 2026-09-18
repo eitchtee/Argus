@@ -135,5 +135,7 @@
   </section>
   {% endif %}
 
+  {% include "simkl/fragments/media_info_slot.html" with media_type="movie" external_id=movie.external_id provider=movie.provider %}
+
   {% include "catalog/fragments/provider_source.html" with provider=movie.provider %}
 </div>

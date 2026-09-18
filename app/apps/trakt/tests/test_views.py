@@ -25,6 +25,17 @@ class TraktViewTests(TestCase):
 
         self.assertEqual(response.status_code, 503)
 
+    @override_settings(TRAKT_CLIENT_ID="client", TRAKT_CLIENT_SECRET="secret", TRAKT_REDIRECT_URI="")
+    def test_connect_derives_the_callback_from_the_request(self):
+        response = self.client.get(reverse("trakt_connect"))
+
+        query = parse_qs(urlsplit(response["Location"]).query)
+        self.assertEqual(query["redirect_uri"], ["http://testserver/user/trakt/callback/"])
+        self.assertEqual(
+            self.client.session["trakt_oauth_redirect_uri"],
+            "http://testserver/user/trakt/callback/",
+        )
+
     @override_settings(
         TRAKT_CLIENT_ID="client",
         TRAKT_CLIENT_SECRET="secret",

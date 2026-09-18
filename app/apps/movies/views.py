@@ -15,6 +15,7 @@ from apps.catalog.artwork import (
 from apps.catalog.models import SyncStatus
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 from apps.catalog.providers.exceptions import ProviderError
+from apps.catalog.views import render_detail_unavailable
 from apps.catalog.links import build_external_links
 from apps.catalog.localization import (
     PROVIDER_DEFAULT_LANGUAGES,
@@ -72,9 +73,12 @@ def movie_detail(request, external_id):
 @require_http_methods(["GET"])
 def movie_detail_content(request, external_id):
     provider = _provider_from_request(request, "tmdb")
-    context = {
-        "movie": _build_movie_context(request.user, external_id, provider),
-    }
+    try:
+        context = {
+            "movie": _build_movie_context(request.user, external_id, provider),
+        }
+    except ProviderError as exc:
+        return render_detail_unavailable(request, provider, exc)
     return render(request, "movies/fragments/detail.html", context)
 
 

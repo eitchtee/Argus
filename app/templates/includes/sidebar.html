@@ -35,6 +35,16 @@
           <span>{% trans "Search" %}</span>
         </a>
       </li>
+      {% settings "SIMKL_CLIENT_ID" as simkl_client_id %}
+      {% if simkl_client_id %}
+      <li>
+        <a href="{% url 'discover' %}" hx-boost="true"
+           class="sidebar-item {% active_link 'discover' css_class='menu-active' %}">
+          <i data-lucide="compass" class="lucide-fw"></i>
+          <span>{% trans "Discover" %}</span>
+        </a>
+      </li>
+      {% endif %}
       <li>
         <a href="{% url 'history-page' %}" hx-boost="true"
            class="sidebar-item {% active_link 'history-page' css_class='menu-active' %}">

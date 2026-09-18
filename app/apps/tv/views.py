@@ -31,6 +31,7 @@ from apps.catalog.localization import (
 from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
 from apps.catalog.links import build_external_links
 from apps.catalog.providers.exceptions import ProviderError
+from apps.catalog.views import render_detail_unavailable
 from apps.catalog.providers.tmdb import build_backdrop_url, build_poster_url
 from apps.catalog.ratings import (
     attach_user_scores,
@@ -216,9 +217,12 @@ def show_detail(request, external_id):
 @require_http_methods(["GET"])
 def show_detail_content(request, external_id):
     provider = _provider_from_request(request)
-    context = {
-        "show": _build_show_context(request.user, external_id, provider),
-    }
+    try:
+        context = {
+            "show": _build_show_context(request.user, external_id, provider),
+        }
+    except ProviderError as exc:
+        return render_detail_unavailable(request, provider, exc)
     return render(request, "tv/fragments/detail.html", context)
 
 

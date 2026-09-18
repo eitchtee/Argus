@@ -66,6 +66,33 @@ class TraktTaskTests(TransactionTestCase):
             token_expires_at=timezone.now() - timedelta(minutes=1),
         )
 
+    @override_settings(TRAKT_CLIENT_ID="client", TRAKT_CLIENT_SECRET="secret", TRAKT_REDIRECT_URI="")
+    @patch("apps.trakt.tasks.TraktClient")
+    def test_build_client_refreshes_with_the_callback_recorded_on_the_account(self, client_class):
+        client = client_class.return_value
+        client.refresh_access_token.return_value = TokenResponse(
+            access_token="new-access",
+            refresh_token="new-refresh",
+            expires_in=3600,
+        )
+        self.account.redirect_uri = "https://argus.example/user/trakt/callback/"
+        self.account.save(update_fields=["redirect_uri"])
+
+        from apps.trakt.tasks import build_client
+
+        build_client(self.account)
+
+        client.refresh_access_token.assert_called_once_with(
+            "refresh", "https://argus.example/user/trakt/callback/"
+        )
+
+    @override_settings(TRAKT_CLIENT_ID="client", TRAKT_CLIENT_SECRET="secret", TRAKT_REDIRECT_URI="")
+    def test_build_client_refuses_refresh_without_any_callback(self):
+        from apps.trakt.tasks import TraktConfigurationError, build_client
+
+        with self.assertRaises(TraktConfigurationError):
+            build_client(self.account)
+
     @override_settings(TRAKT_CLIENT_ID="client", TRAKT_CLIENT_SECRET="secret", TRAKT_REDIRECT_URI="https://argus.test/user/trakt/callback/")
     @patch("apps.trakt.tasks.TraktClient")
     def test_build_client_refreshes_expiring_access_token(self, client_class):

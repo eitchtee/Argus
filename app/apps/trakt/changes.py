@@ -13,6 +13,10 @@ from apps.trakt.models import TraktAccount, TraktSyncIntent
 _LOCAL_INTENTS_SUPPRESSED = ContextVar("trakt_local_intents_suppressed", default=False)
 
 
+def local_intents_suppressed() -> bool:
+    return _LOCAL_INTENTS_SUPPRESSED.get()
+
+
 @contextmanager
 def suppress_local_intents():
     token = _LOCAL_INTENTS_SUPPRESSED.set(True)
@@ -54,6 +58,28 @@ def record_intent(user, kind: str, payload: dict, *, desired: bool = True):
         intents.append(
             _record_provider_intent(
                 StremioSyncIntent,
+                user,
+                kind,
+                identity_key,
+                payload,
+                desired,
+            )
+        )
+    from apps.simkl.models import SimklAccount, SimklSyncIntent
+
+    if (
+        kind in {
+            SimklSyncIntent.Kind.MOVIE_WATCHLIST,
+            SimklSyncIntent.Kind.SHOW_WATCHLIST,
+            SimklSyncIntent.Kind.MOVIE_HISTORY,
+            SimklSyncIntent.Kind.EPISODE_HISTORY,
+            SimklSyncIntent.Kind.SHOW_DROPPED,
+        }
+        and SimklAccount.objects.filter(user_id=user.pk).exists()
+    ):
+        intents.append(
+            _record_provider_intent(
+                SimklSyncIntent,
                 user,
                 kind,
                 identity_key,
