@@ -627,7 +627,7 @@ def _localize_episode(episode, user, localized_show=None):
         overrides={
             "name": resolve_field(episode, "name", language),
             "show": localized_show or _localize_show(episode.show, user),
-            "air_status": _episode_air_status(episode.air_date),
+            "air_status": _episode_air_status(episode.local_air_date),
         },
     )
 
@@ -844,7 +844,7 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
         seasons = [
             _season_context(
                 season,
-                list(season.episodes.order_by("episode_number")),
+                list(season.episodes.select_related("show").order_by("episode_number")),
                 watched_ids,
                 tracked,
                 language,
@@ -858,11 +858,18 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
             language=language,
             provider=provider,
         )
+        try:
+            detail = get_show_detail(external_id, language=language, provider=provider)
+        except ProviderError:
+            # Without the airing time the raw provider dates are still usable.
+            detail = None
         seasons = _preview_seasons(
             episodes,
             language,
             PROVIDER_DEFAULT_LANGUAGES[provider],
             show_specials=show_specials,
+            airs_time=_parse_iso_time(detail.airs_time) if detail else None,
+            airs_timezone=detail.airs_timezone if detail else None,
         )
         tracked = False
 
@@ -916,7 +923,7 @@ def _build_season_context(user, season: Season):
             "episode_id", flat=True
         )
     )
-    episodes = list(season.episodes.order_by("episode_number"))
+    episodes = list(season.episodes.select_related("show").order_by("episode_number"))
     return _season_context(season, episodes, watched_ids, tracked, language)
 
 
@@ -933,7 +940,8 @@ def _season_context(
     aired_watched_count = 0
 
     for episode in episodes:
-        air_status = _episode_air_status(episode.air_date, today)
+        air_date = episode.local_air_date
+        air_status = _episode_air_status(air_date, today)
         aired = air_status == "aired"
         watched = episode.id in watched_ids
         if aired:
@@ -947,7 +955,7 @@ def _season_context(
                 "name": resolve_field(episode, "name", language) or episode_name(
                     episode.episode_number
                 ),
-                "air_date": episode.air_date,
+                "air_date": air_date,
                 "aired": aired,
                 "air_status": air_status,
                 "watched": watched,
@@ -1071,7 +1079,15 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
     }
 
 
-def _preview_seasons(episodes, language, default_language, *, show_specials=False):
+def _preview_seasons(
+    episodes,
+    language,
+    default_language,
+    *,
+    show_specials=False,
+    airs_time=None,
+    airs_timezone=None,
+):
     episodes_by_season: dict[int, list] = {}
     for episode in episodes:
         episodes_by_season.setdefault(episode.season_number, []).append(episode)
@@ -1088,6 +1104,11 @@ def _preview_seasons(episodes, language, default_language, *, show_specials=Fals
         )
         for episode in season_episodes:
             air_date = _parse_iso_date(episode.air_date)
+            if air_date is not None:
+                air_date = (
+                    _air_time_context(airs_time, airs_timezone, air_date)["airs_date"]
+                    or air_date
+                )
             air_status = _episode_air_status(air_date)
             if air_status == "aired":
                 aired_count += 1

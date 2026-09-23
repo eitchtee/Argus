@@ -1381,6 +1381,13 @@ def _build_upcoming_entries(user, episodes) -> list[UpcomingEntry]:
         return []
 
     today = timezone.localdate()
+    # The queryset filters on the source air date; shifting into the user's
+    # timezone can push an episode a day earlier than the "yesterday" cutoff.
+    episodes = [
+        episode
+        for episode in episodes
+        if episode.local_air_date >= today - timedelta(days=1)
+    ]
     watched_ids = set(
         UserEpisode.objects.filter(user=user, episode__in=episodes).values_list(
             "episode_id", flat=True
@@ -1390,7 +1397,7 @@ def _build_upcoming_entries(user, episodes) -> list[UpcomingEntry]:
     episode_entries = [
         UpcomingEpisode(
             episode=episode,
-            countdown=countdown_label(episode.air_date, today),
+            countdown=countdown_label(episode.local_air_date, today),
             watched=episode.id in watched_ids,
         )
         for episode in episodes
@@ -1398,7 +1405,7 @@ def _build_upcoming_entries(user, episodes) -> list[UpcomingEntry]:
     entries = []
     for _group_key, grouped_entries in itertools.groupby(
         episode_entries,
-        key=lambda entry: (entry.episode.show_id, entry.episode.air_date),
+        key=lambda entry: (entry.episode.show_id, entry.episode.local_air_date),
     ):
         grouped_entries = list(grouped_entries)
         primary = grouped_entries[0]

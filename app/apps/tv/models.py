@@ -167,6 +167,12 @@ class Episode(models.Model):
             tzinfo=self.show.air_timezone,
         )
 
+    @property
+    def local_air_date(self):
+        """``air_date`` shifted into the active timezone when the airing time is known."""
+        airs_at = self.airs_at
+        return timezone.localtime(airs_at).date() if airs_at else self.air_date
+
     def __str__(self):
         label = f"S{self.season_number:02d}E{self.episode_number:02d}"
         return f"{self.show} {label} {self.name}".strip()

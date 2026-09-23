@@ -189,10 +189,15 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "<title>Foo :: TV Show :: Argus</title>")
 
     @patch("apps.tv.views.get_show_episodes")
+    @patch("apps.tv.views.get_show_detail")
     def test_episode_fragment_loads_provider_episodes_and_labels_air_status(
         self,
+        get_show_detail_mock,
         get_show_episodes_mock,
     ):
+        get_show_detail_mock.return_value = DetailDTO(
+            provider="tvdb", external_id="123", title="Foo"
+        )
         get_show_episodes_mock.return_value = [
             EpisodeDTO(
                 season_number=1,
@@ -221,10 +226,15 @@ class ShowDetailViewTests(TestCase):
         )
 
     @patch("apps.tv.views.get_show_episodes")
+    @patch("apps.tv.views.get_show_detail")
     def test_preview_specials_follow_the_show_specials_user_setting(
         self,
+        get_show_detail_mock,
         get_show_episodes_mock,
     ):
+        get_show_detail_mock.return_value = DetailDTO(
+            provider="tvdb", external_id="123", title="Foo"
+        )
         get_show_episodes_mock.return_value = [
             EpisodeDTO(
                 season_number=0,
@@ -483,6 +493,33 @@ class ShowDetailViewTests(TestCase):
         self.assertContains(response, "2026-07-26")
         self.assertContains(response, "12:00")
         self.assertNotContains(response, "2026-07-25")
+
+    def test_episode_list_uses_the_converted_local_date(self):
+        # Slow Horses case: 00:00 in London is the previous evening in São Paulo.
+        show = Show.objects.create(
+            external_id="123",
+            name="Foo",
+            airs_time=time(0, 0),
+            airs_timezone="Europe/London",
+            sync_status=SyncStatus.OK,
+        )
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        Episode.objects.create(
+            show=show,
+            season=season,
+            season_number=1,
+            episode_number=1,
+            name="Pilot",
+            air_date=date(2026, 9, 23),
+        )
+        self.user.settings.timezone = "America/Sao_Paulo"
+        self.user.settings.date_format = "Y-m-d"
+        self.user.settings.save()
+
+        response = self.client.get("/tv/123/episodes/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "2026-09-22")
+        self.assertNotContains(response, "2026-09-23")
 
     def test_hides_seasons_without_episodes_but_keeps_unreleased_episodes(self):
         show = Show.objects.create(external_id="123", name="Foo")
