@@ -18,8 +18,8 @@ from apps.movies.models import Movie, UserMovie
 from apps.stremio.client import StremioClient
 from apps.stremio.codec import decode_watched_bitfield, encode_watched_bitfield
 from apps.stremio.models import StremioAccount, StremioSyncIntent
-from apps.trakt.changes import suppress_local_intents
-from apps.trakt.sync import LocalSnapshot, _collect_local_snapshot
+from apps.sync.changes import suppress_local_intents
+from apps.sync.library import LocalSnapshot, _collect_local_snapshot
 from apps.tv import services as tv_services
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
@@ -437,7 +437,7 @@ def sync_account(account_id: int, *, client_factory=None) -> SyncReport:
     initial = not account.initial_sync_complete or account.library_synced_at is None
     # Projecting the whole local library is what makes a sync expensive. Local
     # edits arrive as intents, so a routine run only handles those and remote
-    # changes; writes that bypass intents (Trakt sync, Trakt export imports)
+    # changes; writes that bypass intents (other syncs, Trakt export imports)
     # are pushed by the periodic full pass.
     full = (
         initial

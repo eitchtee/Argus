@@ -1,7 +1,7 @@
 """Record SIMKL-only local changes (paused shows and ratings) as sync intents.
 
-The kinds SIMKL shares with Trakt and Stremio -- watchlists, history and
-dropped shows -- are fanned out by :func:`apps.trakt.changes.record_intent`;
+The kinds SIMKL shares with Stremio -- watchlists, history and
+dropped shows -- are fanned out by :func:`apps.sync.changes.record_intent`;
 this module covers the two extra kinds SIMKL can express.
 """
 
@@ -10,7 +10,7 @@ from apps.simkl.models import SimklAccount, SimklSyncIntent
 
 
 def record_simkl_intent(user, kind: str, payload: dict, *, desired: bool = True):
-    from apps.trakt.changes import _record_provider_intent, local_intents_suppressed
+    from apps.sync.changes import _record_provider_intent, local_intents_suppressed
 
     if local_intents_suppressed():
         return None
@@ -32,7 +32,7 @@ def record_simkl_intent(user, kind: str, payload: dict, *, desired: bool = True)
 def record_rating_intent(user, media, *, score) -> None:
     """Queue a rating change for a movie or show; episodes have no SIMKL rating."""
     from apps.movies.models import Movie
-    from apps.trakt.identities import movie_payload, show_payload
+    from apps.sync.identities import movie_payload, show_payload
     from apps.tv.models import Show
 
     if isinstance(media, Movie):

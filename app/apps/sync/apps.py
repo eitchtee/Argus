@@ -1,7 +1,7 @@
 from django.apps import AppConfig
 
 
-class TraktConfig(AppConfig):
+class SyncConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
-    name = "apps.trakt"
-    verbose_name = "Trakt.tv"
+    name = "apps.sync"
+    verbose_name = "Sync"

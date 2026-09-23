@@ -44,13 +44,13 @@ from apps.simkl.identities import (
     simkl_ids,
 )
 from apps.simkl.models import SimklAccount, SimklLibraryItem, SimklSyncIntent
-from apps.trakt.changes import suppress_local_intents
-from apps.trakt.identities import (
-    episode_payload as trakt_episode_payload,
-    movie_payload as trakt_movie_payload,
-    show_payload as trakt_show_payload,
+from apps.sync.changes import suppress_local_intents
+from apps.sync.identities import (
+    episode_payload as intent_episode_payload,
+    movie_payload as intent_movie_payload,
+    show_payload as intent_show_payload,
 )
-from apps.trakt.sync import (
+from apps.sync.library import (
     WatchedEpisode as _EpisodeRequest,
     _collect_local_snapshot,
     _ensure_episodes_batch,
@@ -1002,7 +1002,7 @@ def build_outbound(
 
     # -- Projection of local watched state (the union rule) ------------------
     for state in local.movie_history:
-        payload = trakt_movie_payload(state.movie, watched_at=state.seen_at)
+        payload = intent_movie_payload(state.movie, watched_at=state.seen_at)
         tokens = media_tokens(payload["ids"])
         if not tokens:
             continue
@@ -1017,7 +1017,7 @@ def build_outbound(
 
     for state in local.episode_history:
         episode = state.episode
-        payload = trakt_episode_payload(episode, watched_at=state.seen_at)
+        payload = intent_episode_payload(episode, watched_at=state.seen_at)
         tokens = media_tokens(payload["show"]["ids"])
         if not tokens:
             continue
@@ -1032,7 +1032,7 @@ def build_outbound(
 
     if initial:
         for state in local.movie_watchlist:
-            payload = trakt_movie_payload(state.movie)
+            payload = intent_movie_payload(state.movie)
             tokens = media_tokens(payload["ids"])
             if not tokens or movie_row(tokens) is not None:
                 continue
@@ -1044,7 +1044,7 @@ def build_outbound(
         for state in local.show_watchlist:
             if state.status != UserShow.Status.TRACKED or state.show_id in local_episode_show_ids:
                 continue
-            payload = trakt_show_payload(state.show)
+            payload = intent_show_payload(state.show)
             tokens = media_tokens(payload["ids"])
             if not tokens or show_rows(tokens):
                 continue
@@ -1054,7 +1054,7 @@ def build_outbound(
             _append_unique(outbound.list_shows, _list_item(payload, "show", PLANTOWATCH))
             queue(identity, tokens)
         for state in local.show_dropped:
-            payload = trakt_show_payload(state.show)
+            payload = intent_show_payload(state.show)
             tokens = media_tokens(payload["ids"])
             if not tokens or _combined_status([row.status for row in show_rows(tokens)]) == DROPPED:
                 continue
@@ -1064,7 +1064,7 @@ def build_outbound(
             _append_unique(outbound.list_shows, _list_item(payload, "show", DROPPED))
             queue(identity, tokens)
         for state in UserShow.objects.filter(user=user, status=UserShow.Status.PAUSED).select_related("show"):
-            payload = trakt_show_payload(state.show)
+            payload = intent_show_payload(state.show)
             tokens = media_tokens(payload["ids"])
             if not tokens or _combined_status([row.status for row in show_rows(tokens)]) == HOLD:
                 continue
@@ -1098,7 +1098,7 @@ def build_outbound(
             movie = rated_movies.get(rating.object_id)
             if movie is None or movie.id not in seen_movie_ids:
                 continue
-            payload = trakt_movie_payload(movie)
+            payload = intent_movie_payload(movie)
             tokens = media_tokens(payload["ids"])
             row = movie_row(tokens)
             if not tokens or (row is not None and row.user_rating == simkl_rating):
@@ -1115,7 +1115,7 @@ def build_outbound(
             show = rated_shows.get(rating.object_id)
             if show is None or show.id not in tracked_show_ids:
                 continue
-            payload = trakt_show_payload(show)
+            payload = intent_show_payload(show)
             tokens = media_tokens(payload["ids"])
             rows = show_rows(tokens)
             if not tokens or any(row.user_rating == simkl_rating for row in rows):

@@ -8,8 +8,7 @@ from apps.movies.models import Movie, UserMovie
 from apps.movies.services import mark_seen
 from apps.simkl.changes import simkl_rating_from_score
 from apps.simkl.models import SimklAccount, SimklSyncIntent
-from apps.trakt.changes import suppress_local_intents
-from apps.trakt.models import TraktSyncIntent
+from apps.sync.changes import suppress_local_intents
 from apps.tv.models import Show, UserShow
 from apps.tv.services import drop_show, pause_show
 
@@ -31,7 +30,6 @@ class SimklChangesTests(TestCase):
     def test_shared_kinds_fan_out_only_when_an_account_exists(self):
         mark_seen(self.user, self.movie)
         self.assertFalse(SimklSyncIntent.objects.exists())
-        self.assertFalse(TraktSyncIntent.objects.exists())
 
         SimklAccount.objects.create(user=self.user, access_token="token")
         mark_seen(self.user, self.movie)
@@ -41,8 +39,6 @@ class SimklChangesTests(TestCase):
             kinds,
             {SimklSyncIntent.Kind.MOVIE_HISTORY, SimklSyncIntent.Kind.MOVIE_WATCHLIST},
         )
-        # No Trakt account, so nothing is queued for Trakt.
-        self.assertFalse(TraktSyncIntent.objects.exists())
 
     def test_pause_and_drop_record_paused_intents(self):
         SimklAccount.objects.create(user=self.user, access_token="token")

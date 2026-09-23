@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from apps.trakt.fields import EncryptedTextField
+from apps.sync.fields import EncryptedTextField
 
 
 class StremioAccount(models.Model):

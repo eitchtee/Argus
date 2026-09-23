@@ -1,14 +1,14 @@
 """Payload and identity helpers for the SIMKL sync.
 
-Intents are stored with the same Trakt-shaped payloads the rest of Argus
-already produces (``{"title", "ids": {trakt, imdb, tmdb, tvdb}}`` and the
+Intents are stored with the shared payloads :mod:`apps.sync.identities`
+produces (``{"title", "ids": {trakt, imdb, tmdb, tvdb}}`` and the
 nested ``{"show", "seasons"}`` episode form). The helpers here convert those
 into the flat items SIMKL's sync endpoints accept.
 """
 
 from datetime import datetime
 
-from apps.trakt.identities import parse_timestamp, serialize_timestamp
+from apps.sync.identities import parse_timestamp, serialize_timestamp
 
 __all__ = [
     "episode_key",
@@ -110,7 +110,7 @@ def episode_payload(episode, *, watched_at: datetime | None) -> dict:
 
 
 def history_item(payload: dict, media_type: str) -> dict:
-    """Turn a stored (Trakt-shaped) intent payload into a SIMKL history item."""
+    """Turn a stored intent payload into a SIMKL history item."""
     if media_type == "episode":
         show = payload.get("show") if isinstance(payload.get("show"), dict) else payload
         item = {

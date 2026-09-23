@@ -6,8 +6,7 @@ from zipfile import BadZipFile, ZipFile
 
 from django.db import transaction
 
-from apps.trakt.client import TraktSnapshot
-from apps.trakt.sync import SyncReport, apply_remote_snapshot
+from apps.imports.trakt import ImportReport, TraktSnapshot, apply_remote_snapshot
 
 
 class TraktExportError(ValueError):
@@ -101,7 +100,7 @@ def validate_trakt_export(stream) -> None:
         stream.seek(0)
 
 
-def import_trakt_export(user, stream) -> SyncReport:
+def import_trakt_export(user, stream) -> ImportReport:
     with transaction.atomic():
         return apply_remote_snapshot(user, load_trakt_export(stream))
 

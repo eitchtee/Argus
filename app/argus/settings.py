@@ -67,9 +67,9 @@ INSTALLED_APPS = [
     "apps.tv.apps.TvConfig",
     "apps.history.apps.HistoryConfig",
     "apps.stats.apps.StatsConfig",
-    "apps.trakt.apps.TraktConfig",
     "apps.stremio.apps.StremioConfig",
     "apps.simkl.apps.SimklConfig",
+    "apps.sync.apps.SyncConfig",
     "apps.imports.apps.ImportsConfig",
     "apps.calendar.apps.CalendarConfig",
     "cachalot",
@@ -490,20 +490,6 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
 TMDB_IMAGE_BASE_URL = os.getenv("TMDB_IMAGE_BASE_URL", "https://image.tmdb.org/t/p/")
 TVDB_API_KEY = os.getenv("TVDB_API_KEY", "")
 
-# Trakt.tv is optional. The server administrator supplies one API application;
-# individual users authorize their own Trakt accounts through OAuth.
-TRAKT_CLIENT_ID = os.getenv("TRAKT_CLIENT_ID", "")
-TRAKT_CLIENT_SECRET = os.getenv("TRAKT_CLIENT_SECRET", "")
-TRAKT_REDIRECT_URI = os.getenv("TRAKT_REDIRECT_URI", "")
-TRAKT_USER_AGENT = os.getenv("TRAKT_USER_AGENT", "Argus Trakt Sync/1.0")
-try:
-    TRAKT_SYNC_INTERVAL_MINUTES = max(
-        1,
-        int(os.getenv("TRAKT_SYNC_INTERVAL_MINUTES", "5")),
-    )
-except ValueError:
-    TRAKT_SYNC_INTERVAL_MINUTES = 5
-TRAKT_SYNC_CRON = f"*/{TRAKT_SYNC_INTERVAL_MINUTES} * * * *"
 try:
     STREMIO_SYNC_INTERVAL_MINUTES = max(
         1,

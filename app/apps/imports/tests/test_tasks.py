@@ -13,7 +13,7 @@ from django.utils import timezone
 from apps.imports.forms import TraktImportForm
 from apps.imports.models import ImportJob
 from apps.imports.services import TraktExportError
-from apps.trakt.sync import SyncReport
+from apps.imports.trakt import ImportReport
 
 
 def zip_bytes(**members):
@@ -84,7 +84,7 @@ class TraktImportTaskTests(TransactionTestCase):
     def test_task_persists_success_counts_and_deletes_archive(self, import_export):
         job = self.create_job()
         source_name = job.source_file.name
-        import_export.return_value = SyncReport(
+        import_export.return_value = ImportReport(
             movies_imported=2,
             shows_imported=3,
             episodes_marked=4,

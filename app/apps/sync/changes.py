@@ -1,16 +1,25 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 
-from django.db import transaction
+from django.db import models, transaction
 
-from apps.trakt.identities import (
+from apps.sync.identities import (
     identity_key_for_payload,
     latest_timestamp_from_payload,
 )
-from apps.trakt.models import TraktAccount, TraktSyncIntent
 
 
-_LOCAL_INTENTS_SUPPRESSED = ContextVar("trakt_local_intents_suppressed", default=False)
+class IntentKind(models.TextChoices):
+    """Library changes every sync provider understands."""
+
+    MOVIE_WATCHLIST = "movie_watchlist", "Movie watchlist"
+    SHOW_WATCHLIST = "show_watchlist", "Show watchlist"
+    MOVIE_HISTORY = "movie_history", "Movie history"
+    EPISODE_HISTORY = "episode_history", "Episode history"
+    SHOW_DROPPED = "show_dropped", "Dropped show"
+
+
+_LOCAL_INTENTS_SUPPRESSED = ContextVar("local_intents_suppressed", default=False)
 
 
 def local_intents_suppressed() -> bool:
@@ -32,17 +41,6 @@ def record_intent(user, kind: str, payload: dict, *, desired: bool = True):
     kind = str(kind)
     identity_key = identity_key_for_payload(kind, payload)
     intents = []
-    if TraktAccount.objects.filter(user_id=user.pk).exists():
-        intents.append(
-            _record_provider_intent(
-                TraktSyncIntent,
-                user,
-                kind,
-                identity_key,
-                payload,
-                desired,
-            )
-        )
 
     from apps.stremio.models import StremioAccount, StremioSyncIntent
 
@@ -121,8 +119,8 @@ def _record_provider_intent(
 
 def _merge_payload(existing: dict, incoming: dict, *, kind: str) -> dict:
     if kind not in {
-        TraktSyncIntent.Kind.MOVIE_HISTORY,
-        TraktSyncIntent.Kind.EPISODE_HISTORY,
+        IntentKind.MOVIE_HISTORY,
+        IntentKind.EPISODE_HISTORY,
     }:
         return incoming
 

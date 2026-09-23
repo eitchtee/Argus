@@ -3,7 +3,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-from apps.trakt.fields import EncryptedTextField
+from apps.sync.fields import EncryptedTextField
 
 
 SIMKL_WEB_URL = "https://simkl.com"

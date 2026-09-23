@@ -24,11 +24,10 @@ from apps.catalog.ratings import (
     transfer_rating,
 )
 from apps.catalog.tracking import find_tracking_match, identity_keys
-from apps.trakt.changes import record_intent
-from apps.trakt.identities import episode_payload, show_payload
-from apps.trakt.models import TraktSyncIntent
 from apps.simkl.changes import record_simkl_intent
 from apps.simkl.models import SimklSyncIntent
+from apps.sync.changes import IntentKind, record_intent
+from apps.sync.identities import episode_payload, show_payload
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 
 
@@ -445,7 +444,7 @@ def track_show(
             user_show.save(update_fields=["on_watchlist", "updated_at"])
         record_intent(
             user,
-            TraktSyncIntent.Kind.SHOW_WATCHLIST,
+            IntentKind.SHOW_WATCHLIST,
             show_payload(show),
         )
         if force_hydrate:
@@ -466,12 +465,12 @@ def track_show(
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        IntentKind.SHOW_WATCHLIST,
         show_payload(show),
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.SHOW_DROPPED,
+        IntentKind.SHOW_DROPPED,
         show_payload(show),
         desired=False,
     )
@@ -530,7 +529,7 @@ def queue_track_show(
                 user_show.save(update_fields=["on_watchlist", "updated_at"])
             record_intent(
                 user,
-                TraktSyncIntent.Kind.SHOW_WATCHLIST,
+                IntentKind.SHOW_WATCHLIST,
                 show_payload(show),
             )
             return user_show
@@ -545,12 +544,12 @@ def queue_track_show(
         show.save(update_fields=["sync_status", "updated_at"])
         record_intent(
             user,
-            TraktSyncIntent.Kind.SHOW_WATCHLIST,
+            IntentKind.SHOW_WATCHLIST,
             show_payload(show),
         )
         record_intent(
             user,
-            TraktSyncIntent.Kind.SHOW_DROPPED,
+            IntentKind.SHOW_DROPPED,
             show_payload(show),
             desired=False,
         )
@@ -744,12 +743,12 @@ def switch_show_provider(
     if target_state.status == UserShow.Status.DROPPED:
         record_intent(
             user,
-            TraktSyncIntent.Kind.SHOW_DROPPED,
+            IntentKind.SHOW_DROPPED,
             show_payload(target),
         )
     record_intent(
         user,
-        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        IntentKind.SHOW_WATCHLIST,
         show_payload(target),
         desired=target_state.on_watchlist,
     )
@@ -759,7 +758,7 @@ def switch_show_provider(
     ).select_related("episode"):
         record_intent(
             user,
-            TraktSyncIntent.Kind.EPISODE_HISTORY,
+            IntentKind.EPISODE_HISTORY,
             episode_payload(
                 target_user_episode.episode,
                 watched_at=target_user_episode.seen_at,
@@ -896,12 +895,12 @@ def drop_show(user, show: Show) -> UserShow:
     user_show.save(update_fields=["status", "on_watchlist", "updated_at"])
     record_intent(
         user,
-        TraktSyncIntent.Kind.SHOW_DROPPED,
+        IntentKind.SHOW_DROPPED,
         show_payload(show),
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        IntentKind.SHOW_WATCHLIST,
         show_payload(show),
         desired=False,
     )
@@ -929,13 +928,13 @@ def pause_show(user, show: Show) -> UserShow:
 def delete_show_data(user, show: Show) -> None:
     record_intent(
         user,
-        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        IntentKind.SHOW_WATCHLIST,
         show_payload(show),
         desired=False,
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.SHOW_DROPPED,
+        IntentKind.SHOW_DROPPED,
         show_payload(show),
         desired=False,
     )
@@ -955,7 +954,7 @@ def _require_tracking(user, show: Show) -> UserShow:
 def _record_episode_history_removal(user, episode: Episode, watched_at) -> None:
     record_intent(
         user,
-        TraktSyncIntent.Kind.EPISODE_HISTORY,
+        IntentKind.EPISODE_HISTORY,
         episode_payload(
             episode,
             watched_at=watched_at,
@@ -995,13 +994,13 @@ def mark_episode_watched(user, episode: Episode) -> UserEpisode:
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.SHOW_WATCHLIST,
+        IntentKind.SHOW_WATCHLIST,
         show_payload(episode.show),
         desired=False,
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.EPISODE_HISTORY,
+        IntentKind.EPISODE_HISTORY,
         episode_payload(episode, watched_at=user_episode.seen_at),
     )
     return user_episode

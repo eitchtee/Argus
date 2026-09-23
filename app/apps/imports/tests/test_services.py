@@ -204,7 +204,7 @@ class TraktExportImportTests(TestCase):
         self.assertEqual(show_state.status, UserShow.Status.DROPPED)
         self.assertFalse(show_state.on_watchlist)
 
-    @patch("apps.trakt.sync._apply_remote_shows", side_effect=RuntimeError("broken"))
+    @patch("apps.imports.trakt._apply_remote_shows", side_effect=RuntimeError("broken"))
     def test_import_rolls_back_partial_state_when_reconciliation_fails(
         self, _apply_remote_shows
     ):

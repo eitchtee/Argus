@@ -31,6 +31,6 @@ class EncryptedTextField(models.TextField):
             return _fernet().decrypt(value.encode("ascii")).decode("utf-8")
         except (InvalidToken, ValueError, UnicodeError) as exc:
             raise ImproperlyConfigured(
-                "Unable to decrypt a Trakt token. Reconnect the Trakt account "
+                "Unable to decrypt a stored token. Reconnect the account "
                 "after restoring the SECRET_KEY used to encrypt it."
             ) from exc

@@ -17,9 +17,8 @@ from apps.catalog.providers.registry import get_provider
 from apps.catalog.ratings import delete_ratings_for, transfer_rating
 from apps.catalog.tracking import find_tracking_match, identity_keys
 from apps.movies.models import Movie, UserMovie
-from apps.trakt.changes import record_intent
-from apps.trakt.identities import movie_payload
-from apps.trakt.models import TraktSyncIntent
+from apps.sync.changes import IntentKind, record_intent
+from apps.sync.identities import movie_payload
 
 
 def normalize_movie_status(raw_status: str) -> str:
@@ -224,7 +223,7 @@ def track_movie(
     user_movie.save(update_fields=["on_watchlist", "watchlist_added_at", "updated_at"])
     record_intent(
         user,
-        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        IntentKind.MOVIE_WATCHLIST,
         movie_payload(movie),
     )
     if hydrate_func is None:
@@ -280,7 +279,7 @@ def queue_track_movie(
         movie.save(update_fields=["sync_status", "updated_at"])
         record_intent(
             user,
-            TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+            IntentKind.MOVIE_WATCHLIST,
             movie_payload(movie),
         )
 
@@ -416,12 +415,12 @@ def switch_movie_provider(
     if target_state.is_seen:
         record_intent(
             user,
-            TraktSyncIntent.Kind.MOVIE_HISTORY,
+            IntentKind.MOVIE_HISTORY,
             movie_payload(target, watched_at=target_state.seen_at),
         )
     record_intent(
         user,
-        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        IntentKind.MOVIE_WATCHLIST,
         movie_payload(target),
         desired=target_state.on_watchlist,
     )
@@ -492,7 +491,7 @@ def _movie_switch_defaults(
 def remove_from_watchlist(user, movie: Movie) -> UserMovie | None:
     record_intent(
         user,
-        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        IntentKind.MOVIE_WATCHLIST,
         movie_payload(movie),
         desired=False,
     )
@@ -515,7 +514,7 @@ def remove_from_watchlist(user, movie: Movie) -> UserMovie | None:
 def delete_movie_data(user, movie: Movie) -> None:
     record_intent(
         user,
-        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        IntentKind.MOVIE_WATCHLIST,
         movie_payload(movie),
         desired=False,
     )
@@ -540,12 +539,12 @@ def mark_seen(user, movie: Movie) -> UserMovie:
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.MOVIE_HISTORY,
+        IntentKind.MOVIE_HISTORY,
         movie_payload(movie, watched_at=user_movie.seen_at),
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        IntentKind.MOVIE_WATCHLIST,
         movie_payload(movie),
         desired=False,
     )
@@ -570,13 +569,13 @@ def unmark_seen(user, movie: Movie) -> UserMovie:
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.MOVIE_HISTORY,
+        IntentKind.MOVIE_HISTORY,
         movie_payload(movie, watched_at=watched_at),
         desired=False,
     )
     record_intent(
         user,
-        TraktSyncIntent.Kind.MOVIE_WATCHLIST,
+        IntentKind.MOVIE_WATCHLIST,
         movie_payload(movie),
     )
     return user_movie

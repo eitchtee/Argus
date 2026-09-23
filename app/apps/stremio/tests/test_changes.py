@@ -1,14 +1,14 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.trakt.changes import record_intent
+from apps.sync.changes import record_intent
 from apps.stremio.models import StremioAccount, StremioSyncIntent
 from apps.tv.models import Show
 from apps.tv.services import drop_show
 
 
 class StremioChangeTests(TestCase):
-    def test_drop_show_records_stremio_removal_without_a_trakt_account(self):
+    def test_drop_show_records_stremio_watchlist_removal(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
         StremioAccount.objects.create(user=user, auth_key="auth-key")
         show = Show.objects.create(
@@ -45,7 +45,7 @@ class StremioChangeTests(TestCase):
             ).exists()
         )
 
-    def test_unsupported_trakt_intent_is_not_written_to_stremio(self):
+    def test_unsupported_intent_kind_is_not_written_to_stremio(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
         StremioAccount.objects.create(user=user, auth_key="auth-key")
 

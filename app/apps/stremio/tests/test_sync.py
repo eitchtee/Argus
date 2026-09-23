@@ -21,7 +21,7 @@ from apps.stremio.sync import (
     _memoized_metadata_getter,
     sync_account,
 )
-from apps.trakt.sync import LocalSnapshot
+from apps.sync.library import LocalSnapshot
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 from apps.stremio.models import StremioSyncIntent
 

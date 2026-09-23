@@ -2,7 +2,7 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
-import apps.trakt.fields
+import apps.sync.fields
 
 
 class Migration(migrations.Migration):
@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
                 ),
                 ("stremio_user_id", models.CharField(blank=True, max_length=255)),
                 ("stremio_username", models.CharField(blank=True, max_length=255)),
-                ("auth_key", apps.trakt.fields.EncryptedTextField(default="")),
+                ("auth_key", apps.sync.fields.EncryptedTextField(default="")),
                 ("initial_sync_complete", models.BooleanField(default=False)),
                 ("library_synced_at", models.DateTimeField(blank=True, null=True)),
                 (
