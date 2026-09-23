@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -256,6 +256,26 @@ class GetUpNextServiceTests(TestCase):
         self.assertEqual(sections.not_seen_in_a_while, [])
 
 
+    def test_includes_episode_airing_today_in_the_users_timezone(self):
+        # 00:00 in London on the source date is the previous evening in São Paulo.
+        show, season = self._make_show("My Show", "my-show")
+        show.airs_time = time(0, 0)
+        show.airs_timezone = "Europe/London"
+        show.save(update_fields=["airs_time", "airs_timezone"])
+
+        with timezone.override("America/Sao_Paulo"):
+            today = timezone.localdate()
+            episode = self._make_episode(
+                show, season, 1, today + timedelta(days=1), "Tonight"
+            )
+            sections = self._get_up_next()
+
+        self.assertEqual(
+            [entry.next_episode for entry in sections.not_started],
+            [episode],
+        )
+
+
 class UpcomingMonthServiceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com")
@@ -347,6 +367,22 @@ class UpcomingMonthServiceTests(TestCase):
         self.assertEqual(first.next_cursor, current_month)
         self.assertEqual(second.month_start, next_month)
         self.assertEqual([entry.episode.name for entry in second.entries], ["Next available month"])
+
+    def test_buckets_months_by_the_users_local_air_date(self):
+        show, season = self._make_show("My Show", "my-show")
+        show.airs_time = time(0, 0)
+        show.airs_timezone = "Europe/London"
+        show.save(update_fields=["airs_time", "airs_timezone"])
+
+        with timezone.override("America/Sao_Paulo"):
+            month_start = timezone.localdate().replace(day=1)
+            next_month_start = self._next_month_start(month_start)
+            episode = self._make_episode(show, season, 1, next_month_start, "Month end")
+            month = self._get_upcoming_month()
+
+        self.assertEqual(month.month_start, month_start)
+        self.assertEqual([entry.episode for entry in month.entries], [episode])
+        self.assertIsNone(month.next_cursor)
 
     def test_returns_none_after_last_available_month(self):
         show, season = self._make_show("My Show", "my-show")

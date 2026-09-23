@@ -555,9 +555,11 @@ class HomeUpcomingViewTests(TestCase):
         self.show.airs_timezone = "America/New_York"
         self.show.save(update_fields=["airs_time", "airs_timezone"])
         self._make_episode(1, self.today, "Timed episode")
+        # The request middleware activates the user's timezone setting.
+        self.user.settings.timezone = "America/Sao_Paulo"
+        self.user.settings.save(update_fields=["timezone"])
 
-        with timezone.override("America/Sao_Paulo"):
-            response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+        response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "10 p.m.")
 

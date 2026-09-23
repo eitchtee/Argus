@@ -114,6 +114,67 @@ class Season(models.Model):
         return self.name or f"{self.show} season {self.season_number}"
 
 
+class LocalAirDate(models.Func):
+    """Air date shifted from the show's airing timezone into ``target_timezone``.
+
+    Mirrors ``Episode.local_air_date`` in SQL so queries can filter on it.
+    Episodes whose show has no airing time keep their source date.
+    """
+
+    output_field = models.DateField()
+
+    def __init__(self, target_timezone, **extra):
+        super().__init__(
+            models.F("air_date"),
+            models.F("show__airs_time"),
+            models.F("show__airs_timezone"),
+            models.Value(target_timezone),
+            **extra,
+        )
+
+    def as_sql(self, compiler, connection, **extra_context):
+        (air_date, air_date_params), (air_time, air_time_params), (
+            source_tz,
+            source_tz_params,
+        ), (target_tz, target_tz_params) = (
+            compiler.compile(expression) for expression in self.get_source_expressions()
+        )
+        sql = (
+            f"CASE WHEN {air_time} IS NULL THEN {air_date} ELSE "
+            f"((({air_date} + {air_time}) AT TIME ZONE COALESCE(NULLIF({source_tz}, ''), 'UTC'))"
+            f" AT TIME ZONE CAST({target_tz} AS text))::date END"
+        )
+        params = (
+            *air_time_params,
+            *air_date_params,
+            *air_date_params,
+            *air_time_params,
+            *source_tz_params,
+            *target_tz_params,
+        )
+        return sql, params
+
+
+class EpisodeQuerySet(models.QuerySet):
+    def with_local_air_date(self):
+        """Annotate ``user_air_date``: the air date in the active timezone."""
+        return self.annotate(
+            user_air_date=LocalAirDate(timezone.get_current_timezone_name())
+        )
+
+    def aired(self, today=None):
+        """Episodes whose local air date is today or earlier."""
+        return self.with_local_air_date().filter(
+            user_air_date__lte=today or timezone.localdate()
+        )
+
+    def upcoming(self, today=None):
+        """Episodes whose local air date is after today."""
+        return self.with_local_air_date().filter(
+            user_air_date__gt=today or timezone.localdate()
+        )
+
+
 class Episode(models.Model):
     show = models.ForeignKey(
         Show,
@@ -146,6 +207,8 @@ class Episode(models.Model):
         ],
     )
     ratings = GenericRelation("catalog.MediaRating")
+
+    objects = EpisodeQuerySet.as_manager()
 
     class Meta:
         ordering = ("show__name", "season_number", "episode_number")

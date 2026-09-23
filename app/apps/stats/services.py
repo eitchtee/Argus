@@ -167,7 +167,7 @@ def get_user_stats(user) -> UserStats:
         season_number__gt=0,
     )
     pending_totals = (
-        tracked_episodes.filter(air_date__isnull=False, air_date__lte=today)
+        tracked_episodes.aired(today)
         .exclude(user_states__user=user)
         .aggregate(
             count=Count("id"),
@@ -181,7 +181,7 @@ def get_user_stats(user) -> UserStats:
             ),
         )
     )
-    upcoming_episodes = tracked_episodes.filter(air_date__gt=today).count()
+    upcoming_episodes = tracked_episodes.upcoming(today).count()
 
     pace_since = timezone.now() - timedelta(days=PACE_WINDOW_DAYS)
     recent_minutes = (

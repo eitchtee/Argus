@@ -888,12 +888,7 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
 
 
 def _show_is_fully_watched(user, show):
-    aired_episodes = Episode.objects.filter(
-        show=show,
-        season_number__gt=0,
-        air_date__isnull=False,
-        air_date__lte=timezone.localdate(),
-    )
+    aired_episodes = Episode.objects.filter(show=show, season_number__gt=0).aired()
     return aired_episodes.exists() and not aired_episodes.exclude(
         user_states__user=user
     ).exists()
