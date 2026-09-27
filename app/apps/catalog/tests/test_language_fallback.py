@@ -46,6 +46,15 @@ class RegionalFallbackTests(SimpleTestCase):
             "Game of Thrones",
         )
 
+    def test_tvdb_portuguese_variants_fall_back_to_each_other(self):
+        tvdb = {"eng": {"title": "Habeas Corpus"}, "pt": {"title": "Habeas Corpus PT"}}
+
+        self.assertEqual(regional_siblings(tvdb, "por"), ("pt",))
+        self.assertEqual(
+            resolve_from_map(tvdb, "title", "por", "eng"),
+            "Habeas Corpus PT",
+        )
+
     def test_a_sibling_never_leaks_across_base_languages(self):
         self.assertEqual(regional_siblings(self.translations, "pt-BR"), ("pt-PT",))
         self.assertEqual(regional_siblings(self.translations, "ar-AE"), ("ar-SA",))

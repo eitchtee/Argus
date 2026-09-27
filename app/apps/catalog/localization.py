@@ -4,6 +4,8 @@ from typing import Any
 
 from django.utils.formats import get_format
 
+from apps.catalog.languages import language_base_code
+
 
 PROVIDER_DEFAULT_LANGUAGES = {
     "tvdb": "eng",
@@ -98,17 +100,19 @@ def regional_siblings(
 
     Providers publish text per region rather than per language: TMDB has
     ``ar-SA`` but no ``ar``, so a viewer reading ``ar-AE`` has no exact match
-    even though Arabic text exists. Sorted for a stable pick when a base
-    language has several regions.
+    even though Arabic text exists. TVDB mixes ISO-639-2 and -1 codes for
+    variants (``por`` is Portugal, ``pt`` is Brazil), so bases are compared
+    normalized. Sorted for a stable pick when a base language has several
+    regions.
     """
-    base = str(language or "").split("-", 1)[0]
+    base = language_base_code(language)
     if not base:
         return ()
     return tuple(
         sorted(
             code
             for code in translations
-            if code != language and code.split("-", 1)[0] == base
+            if code != language and language_base_code(code) == base
         )
     )
 
