@@ -7,7 +7,6 @@ from apps.catalog.languages import (
     language_codes_match,
     language_base_code,
     language_choice_display_name,
-    language_display_name,
 )
 from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
 from apps.catalog.models import MediaArtwork
@@ -96,9 +95,9 @@ class MediaArtworkPreferenceForm(forms.Form):
                 0,
                 (
                     language,
-                    language_display_name(language)
+                    _language_label(language, media.provider)
                     if any(
-                        language_codes_match(language, available_code)
+                        _same_language(language, available_code, media.provider)
                         for available_code in available_codes
                     )
                     else _("Unavailable (fallback active)"),
@@ -178,25 +177,50 @@ def _language_choices_for_media(media, artworks):
     choices = []
     known_variants = set()
     for code, label in get_language_choices(media.provider):
-        variant = _language_variant_key(code)
+        variant = _language_variant_key(code, media.provider)
         if variant in known_variants or not any(
-            language_codes_match(code, available_code)
+            _same_language(code, available_code, media.provider)
             for available_code in available_codes
         ):
             continue
-        choices.append((code, language_choice_display_name(code, label)))
+        choices.append((code, _language_label(code, media.provider, label)))
         known_variants.add(variant)
 
     for code in sorted(available_codes):
-        variant = _language_variant_key(code)
+        variant = _language_variant_key(code, media.provider)
         if variant in known_variants:
             continue
-        choices.append((code, language_choice_display_name(code)))
+        choices.append((code, _language_label(code, media.provider)))
         known_variants.add(variant)
     return choices
 
 
-def _language_variant_key(code):
+# TVDB publishes regional variants as separate codes that normalize to the same
+# ISO base (``por`` is Portugal, ``pt`` is Brazil), so on TVDB a code is only
+# the same language as itself and is labelled by the region it stands for.
+_TVDB_REGIONAL_CODES = {
+    "por": "pt-PT",
+    "pt": "pt-BR",
+}
+
+
+def _language_variant_key(code, provider):
     normalized = str(code or "").replace("_", "-").casefold()
+    if provider == "tvdb" and normalized in _TVDB_REGIONAL_CODES:
+        normalized = _TVDB_REGIONAL_CODES[normalized].casefold()
     base, _, region = normalized.partition("-")
     return language_base_code(base), region or None
+
+
+def _same_language(left, right, provider):
+    if provider == "tvdb":
+        return _language_variant_key(left, provider) == _language_variant_key(
+            right, provider
+        )
+    return language_codes_match(left, right)
+
+
+def _language_label(code, provider, fallback=None):
+    if provider == "tvdb":
+        code = _TVDB_REGIONAL_CODES.get(str(code or "").casefold(), code)
+    return language_choice_display_name(code, fallback)

@@ -53,6 +53,60 @@ class MediaArtworkPreferenceLanguageChoiceTests(UnitTestCase):
         self.assertEqual(choices["pt-BR"], "Portuguese (pt-BR)")
         self.assertEqual(choices["pt-PT"], "Portuguese (pt-PT)")
 
+    def tvdb_form(self, translations, language="eng"):
+        return MediaArtworkPreferenceForm(
+            media=Show(
+                provider="tvdb",
+                external_id="1",
+                name="Habeas Corpus",
+                translations=translations,
+            ),
+            user=SimpleNamespace(is_authenticated=False),
+            artworks=[],
+            preference=SimpleNamespace(
+                language=language,
+                poster_artwork_id=None,
+                background_artwork_id=None,
+            ),
+        )
+
+    @patch(
+        "apps.catalog.forms.get_language_choices",
+        return_value=(
+            ("eng", "English"),
+            ("por", "Português - Portugal"),
+            ("pt", "Português - Brasil"),
+        ),
+    )
+    def test_tvdb_portuguese_variants_are_separate_choices(self, _choices):
+        form = self.tvdb_form(
+            {
+                "por": {"name": "Habeas Corpus (PT)"},
+                "pt": {"name": "Habeas Corpus (BR)"},
+            }
+        )
+
+        choices = dict(form.fields["language"].choices)
+
+        self.assertEqual(choices["por"], "Portuguese (pt-PT)")
+        self.assertEqual(choices["pt"], "Portuguese (pt-BR)")
+
+    @patch(
+        "apps.catalog.forms.get_language_choices",
+        return_value=(
+            ("eng", "English"),
+            ("por", "Português - Portugal"),
+            ("pt", "Português - Brasil"),
+        ),
+    )
+    def test_tvdb_offers_only_the_portuguese_variant_with_data(self, _choices):
+        form = self.tvdb_form({"pt": {"name": "Habeas Corpus"}})
+
+        choices = dict(form.fields["language"].choices)
+
+        self.assertIn("pt", choices)
+        self.assertNotIn("por", choices)
+
 
 @override_settings(
     STORAGES={
