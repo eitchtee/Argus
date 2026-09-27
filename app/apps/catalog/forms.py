@@ -9,6 +9,7 @@ from apps.catalog.languages import (
     language_choice_display_name,
     language_display_name,
 )
+from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
 from apps.catalog.models import MediaArtwork
 
 
@@ -90,10 +91,7 @@ class MediaArtworkPreferenceForm(forms.Form):
         language_choices = _language_choices_for_media(media, artworks)
         language_choice_codes = {code for code, _label in language_choices}
         if language and language not in language_choice_codes:
-            available_codes = set((getattr(media, "translations", {}) or {}).keys())
-            available_codes.update(
-                artwork.language for artwork in artworks if artwork.language
-            )
+            available_codes = _available_language_codes(media, artworks)
             language_choices.insert(
                 0,
                 (
@@ -165,20 +163,30 @@ class MediaArtworkPreferenceForm(forms.Form):
         return artwork
 
 
+def _available_language_codes(media, artworks):
+    codes = set((getattr(media, "translations", {}) or {}).keys())
+    codes.update(artwork.language for artwork in artworks if artwork.language)
+    return codes
+
+
 def _language_choices_for_media(media, artworks):
+    # Only offer languages this item has text or artwork in. The provider
+    # default is always kept since the base fields are stored in it.
+    available_codes = _available_language_codes(media, artworks)
+    available_codes.add(PROVIDER_DEFAULT_LANGUAGES[media.provider])
+
     choices = []
     known_variants = set()
     for code, label in get_language_choices(media.provider):
         variant = _language_variant_key(code)
-        if variant in known_variants:
+        if variant in known_variants or not any(
+            language_codes_match(code, available_code)
+            for available_code in available_codes
+        ):
             continue
         choices.append((code, language_choice_display_name(code, label)))
         known_variants.add(variant)
 
-    available_codes = set((getattr(media, "translations", {}) or {}).keys())
-    available_codes.update(
-        artwork.language for artwork in artworks if artwork.language
-    )
     for code in sorted(available_codes):
         variant = _language_variant_key(code)
         if variant in known_variants:

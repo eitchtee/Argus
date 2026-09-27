@@ -24,7 +24,16 @@ class MediaArtworkPreferenceLanguageChoiceTests(UnitTestCase):
     )
     def test_media_language_choices_keep_regional_languages_distinct(self, _choices):
         form = MediaArtworkPreferenceForm(
-            media=Movie(provider="tmdb", external_id="550", title="Fight Club"),
+            media=Movie(
+                provider="tmdb",
+                external_id="550",
+                title="Fight Club",
+                translations={
+                    "pt-AO": {"title": "Clube de Combate"},
+                    "pt-BR": {"title": "Clube da Luta"},
+                    "pt-PT": {"title": "Clube de Combate"},
+                },
+            ),
             user=SimpleNamespace(is_authenticated=False),
             artworks=[],
             preference=SimpleNamespace(
@@ -193,7 +202,7 @@ class MediaArtworkPreferenceViewTests(TestCase):
             ("pt-BR", "Portuguese (BR)"),
         ),
     )
-    def test_media_language_choices_keep_region_variants(self, _choices):
+    def test_media_language_choices_only_offer_languages_with_data(self, _choices):
         self.movie.translations = {
             "en-US": {"title": "Sidewalls"},
             "en-GB": {"title": "Sidewalls"},
@@ -213,9 +222,31 @@ class MediaArtworkPreferenceViewTests(TestCase):
 
         self.assertEqual(
             [code for code, _label in choices if code.startswith("en-")],
-            ["en-US", "en-AG", "en-GB"],
+            ["en-US", "en-GB"],
         )
+        # The only Portuguese data is an untagged-region poster, so pt-BR stays.
         self.assertIn(("pt-BR", "Portuguese (pt-BR)"), choices)
+
+    @patch(
+        "apps.catalog.forms.get_language_choices",
+        return_value=(
+            ("en-US", "English (US)"),
+            ("fr-FR", "French (FR)"),
+            ("ja-JP", "Japanese (JP)"),
+        ),
+    )
+    def test_media_language_choices_hide_languages_without_data(self, _choices):
+        self.movie.translations = {"fr-FR": {"title": "Fight Club"}}
+        self.movie.save(update_fields=["translations"])
+
+        form = MediaArtworkPreferenceForm(
+            media=self.movie,
+            user=self.user,
+            artworks=[],
+        )
+        codes = [code for code, _label in form.fields["language"].choices]
+
+        self.assertEqual(codes, ["", "en-US", "fr-FR"])
 
     @patch(
         "apps.catalog.forms.get_language_choices",
