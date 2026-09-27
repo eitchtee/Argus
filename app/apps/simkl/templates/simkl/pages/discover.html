@@ -7,7 +7,7 @@
 <div class="space-y-10">
   <div class="section-heading">
     <div>
-      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Powered by Simkl" %}</p>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% if simkl_available and mdblist_sections %}{% trans "Powered by Simkl and MDBList" %}{% elif mdblist_sections %}{% trans "Powered by MDBList" %}{% else %}{% trans "Powered by Simkl" %}{% endif %}</p>
       <h1 class="text-3xl font-bold tracking-tight">{% trans "Discover" %}</h1>
       <p class="mt-1 text-sm text-base-content/65">{% trans "What people are watching right now. Titles you already track are hidden from the trending lists." %}</p>
     </div>
@@ -16,9 +16,11 @@
   {% if not available %}
   <div class="flex items-start gap-3 rounded-box border border-warning/40 bg-warning/10 p-4 text-sm" role="status">
     <i data-lucide="triangle-alert" class="mt-0.5 text-warning" aria-hidden="true"></i>
-    <span>{% trans "SIMKL is not configured on this server. Ask the administrator to set SIMKL_CLIENT_ID to enable discovery." %}</span>
+    <span>{% trans "Discovery is not configured on this server. Ask the administrator to set SIMKL_CLIENT_ID or MDBLIST_API_KEY." %}</span>
   </div>
   {% else %}
+  {% include "mdblist/fragments/discover_sections.html" with sections=mdblist_top_sections %}
+  {% if simkl_available %}
   {% for section in sections %}
   <section aria-labelledby="discover-{{ section.key }}-heading">
     <div class="section-heading mb-3">
@@ -47,6 +49,8 @@
     </div>
   </section>
   {% endfor %}
+  {% endif %}
+  {% include "mdblist/fragments/discover_sections.html" with sections=mdblist_sections %}
   {% endif %}
 </div>
 {% endblock %}

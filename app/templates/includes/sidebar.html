@@ -1,4 +1,4 @@
-{% load settings %}
+{% load mdblist settings %}
 {% load i18n %}
 {% load active_link %}
 <div class="sidebar offcanvas-lg offcanvas-start flex flex-col bg-base-200/85! backdrop-blur-xl border-r border-base-300 shadow-xl"
@@ -36,7 +36,8 @@
         </a>
       </li>
       {% settings "SIMKL_CLIENT_ID" as simkl_client_id %}
-      {% if simkl_client_id %}
+      {% mdblist_available as mdblist_on %}
+      {% if simkl_client_id or mdblist_on %}
       <li>
         <a href="{% url 'discover' %}" hx-boost="true"
            class="sidebar-item {% active_link 'discover' css_class='menu-active' %}">

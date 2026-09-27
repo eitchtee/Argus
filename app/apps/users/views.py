@@ -1,6 +1,9 @@
 from apps.common.decorators.user import htmx_login_required
 from apps.users.forms import LoginForm, UserSettingsForm
 from apps.stremio.models import StremioAccount
+from apps.mdblist.config import oauth_configured as mdblist_oauth_configured
+from apps.mdblist.config import redirect_uri_for as mdblist_redirect_uri_for
+from apps.mdblist.models import MdblistAccount
 from apps.simkl.config import redirect_uri_for as simkl_redirect_uri_for
 from apps.simkl.models import SimklAccount
 from django.contrib import messages
@@ -56,6 +59,11 @@ def update_settings(request):
         .defer("access_token", "last_activities", "pending_pushes")
         .first()
     )
+    mdblist_account = (
+        MdblistAccount.objects.filter(user=request.user)
+        .defer("access_token", "refresh_token", "last_activities", "pending_pushes")
+        .first()
+    )
     return render(
         request,
         "users/pages/settings.html",
@@ -64,6 +72,9 @@ def update_settings(request):
             "stremio_account": stremio_account,
             "simkl_account": simkl_account,
             "simkl_redirect_uri": simkl_redirect_uri_for(request),
+            "mdblist_account": mdblist_account,
+            "mdblist_oauth": mdblist_oauth_configured(),
+            "mdblist_redirect_uri": mdblist_redirect_uri_for(request),
         },
     )
 

@@ -146,9 +146,11 @@ def clear_rating(user, media) -> int:
 
 
 def _record_rating_intent(user, media, *, score) -> None:
+    from apps.mdblist.changes import record_rating_intent as record_mdblist_rating_intent
     from apps.simkl.changes import record_rating_intent
 
     record_rating_intent(user, media, score=score)
+    record_mdblist_rating_intent(user, media, score=score)
 
 
 def get_user_rating(user, media) -> MediaRating | None:

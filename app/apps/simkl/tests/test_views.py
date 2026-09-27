@@ -197,12 +197,12 @@ class DiscoverViewTests(TestCase):
         cache.clear()
         _reset_vite_loader()
 
-    @override_settings(SIMKL_CLIENT_ID="")
+    @override_settings(SIMKL_CLIENT_ID="", MDBLIST_API_KEY="")
     def test_discover_page_explains_missing_configuration(self):
         response = self.client.get(reverse("discover"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "SIMKL is not configured")
+        self.assertContains(response, "Discovery is not configured")
 
     @override_settings(SIMKL_CLIENT_ID="client")
     def test_discover_page_lists_attributed_sections(self):

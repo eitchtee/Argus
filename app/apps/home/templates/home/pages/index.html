@@ -1,5 +1,5 @@
 {% extends "layouts/base.html" %}
-{% load i18n settings %}
+{% load i18n mdblist settings %}
 
 {% block title %}{% trans "Home" %}{% endblock %}
 
@@ -60,6 +60,10 @@
   {% settings "SIMKL_CLIENT_ID" as simkl_client_id %}
   {% if simkl_client_id %}
   {% include "simkl/fragments/home_trending.html" %}
+  {% endif %}
+  {% mdblist_available as mdblist_on %}
+  {% if mdblist_on %}
+  {% include "mdblist/fragments/home_charts.html" %}
   {% endif %}
 </div>
 {% endblock %}

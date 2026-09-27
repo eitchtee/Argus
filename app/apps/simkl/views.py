@@ -235,14 +235,25 @@ DISCOVER_SECTIONS = {
 @htmx_login_required
 @require_GET
 def discover(request):
+    from apps.mdblist.config import catalog_available_for
+    from apps.mdblist.views import discover_sections as mdblist_discover_sections
+
+    simkl_available = catalog_configured()
+    mdblist_sections = (
+        mdblist_discover_sections(request.user) if catalog_available_for(request.user) else []
+    )
     return render(
         request,
         "simkl/pages/discover.html",
         {
-            "available": catalog_configured(),
+            "available": simkl_available or bool(mdblist_sections),
+            "simkl_available": simkl_available,
             "sections": [
                 {"key": key, **section} for key, section in DISCOVER_SECTIONS.items()
             ],
+            # Personal recommendations lead the page; the rest follow SIMKL.
+            "mdblist_top_sections": [s for s in mdblist_sections if s["key"] == "recommended"],
+            "mdblist_sections": [s for s in mdblist_sections if s["key"] != "recommended"],
             "timeframes": trending.TIMEFRAMES,
         },
     )

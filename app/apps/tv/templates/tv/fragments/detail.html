@@ -216,6 +216,7 @@
   </section>
 
   {% include "simkl/fragments/media_info_slot.html" with media_type="tv" external_id=show.external_id provider=show.provider %}
+  {% include "mdblist/fragments/media_info_slot.html" with media_type="tv" external_id=show.external_id provider=show.provider %}
 
   {% include "catalog/fragments/provider_source.html" with provider=show.provider %}
 </div>

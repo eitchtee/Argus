@@ -1,0 +1,80 @@
+{% load humanize i18n %}
+<section id="mdblist-info" class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="mdblist-info-heading">
+  <div class="section-heading mb-4">
+    <h2 id="mdblist-info-heading" class="text-base font-semibold tracking-tight">
+      <i data-lucide="list-video" class="me-2 inline-block align-text-bottom text-secondary" aria-hidden="true"></i>{% trans "Ratings" %}
+    </h2>
+    {% if mdblist.state == 'ok' and mdblist.url %}
+    <a href="{{ mdblist.url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
+      <span>{% trans "View on MDBList" %}</span>
+      <i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+  </div>
+
+  {% if mdblist.state == 'not_found' %}
+  <p class="text-sm text-base-content/60">{% trans "MDBList has no ratings for this title yet." %}</p>
+  {% elif mdblist.state == 'error' %}
+  <p class="text-sm text-base-content/60">{% trans "MDBList is not reachable right now." %}</p>
+  {% elif mdblist.state == 'unavailable' %}
+  <p class="text-sm text-base-content/60">{% trans "MDBList is not configured on this server." %}</p>
+  {% else %}
+  <dl class="simkl-stats">
+    {% if mdblist.score %}
+    <div class="simkl-stat">
+      <dt>{% trans "MDBList score" %}</dt>
+      <dd><i data-lucide="star" class="text-warning" aria-hidden="true"></i><span class="tabular-nums">{{ mdblist.score }}</span><span class="simkl-stat__scale">/100</span></dd>
+    </div>
+    {% endif %}
+    {% for rating in mdblist.ratings %}
+    <div class="simkl-stat">
+      <dt>{% if rating.url %}<a href="{{ rating.url }}" target="_blank" rel="noopener noreferrer" class="hover:underline">{{ rating.label }}</a>{% else %}{{ rating.label }}{% endif %}</dt>
+      <dd>
+        <i data-lucide="star" class="text-warning" aria-hidden="true"></i>
+        <span class="tabular-nums">{{ rating.display }}</span><span class="simkl-stat__scale">{% if rating.suffix %}{{ rating.suffix }}{% else %}/{{ rating.scale }}{% endif %}</span>
+        {% if rating.votes %}<span class="simkl-stat__note tabular-nums">{% blocktrans count counter=rating.votes with votes=rating.votes|intcomma %}{{ votes }} vote{% plural %}{{ votes }} votes{% endblocktrans %}</span>{% endif %}
+      </dd>
+    </div>
+    {% endfor %}
+    {% if mdblist.certification %}
+    <div class="simkl-stat">
+      <dt>{% trans "Certification" %}</dt>
+      <dd><i data-lucide="shield" aria-hidden="true"></i><span>{{ mdblist.certification }}</span></dd>
+    </div>
+    {% endif %}
+    {% if mdblist.streams %}
+    <div class="simkl-stat">
+      <dt>{% trans "Streaming on" %}</dt>
+      <dd><i data-lucide="tv" aria-hidden="true"></i><span>{{ mdblist.streams|join:", " }}</span></dd>
+    </div>
+    {% endif %}
+    {% if mdblist.trailer_url %}
+    <div class="simkl-stat">
+      <dt>{% trans "Trailer" %}</dt>
+      <dd><a href="{{ mdblist.trailer_url }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text text-base"><i data-lucide="play" aria-hidden="true"></i><span>{% trans "Watch on YouTube" %}</span></a></dd>
+    </div>
+    {% endif %}
+  </dl>
+
+  {% if mdblist.recommendations %}
+  <h3 class="mb-3 mt-6 text-sm font-semibold text-base-content/80">{% trans "Similar titles" %}</h3>
+  <div class="simkl-rail simkl-rail--compact" role="list">
+    {% for item in mdblist.recommendations %}
+    <article class="simkl-card simkl-card--compact" role="listitem">
+      <a href="{{ item.href }}" {% if item.argus_url %}hx-boost="true" hx-target="body" hx-swap="innerHTML"{% else %}target="_blank" rel="noopener noreferrer"{% endif %} class="simkl-card__link" title="{{ item.title }}{% if item.year %} ({{ item.year }}){% endif %}">
+        <figure class="simkl-card__poster">
+          {% if item.poster_url %}
+          <img src="{{ item.poster_url }}" alt="{{ item.title }}" loading="lazy">
+          {% else %}
+          <div class="simkl-card__fallback" aria-hidden="true"><i data-lucide="{% if item.media_type == 'movie' %}film{% else %}tv{% endif %}"></i></div>
+          {% endif %}
+        </figure>
+        <h4 class="simkl-card__title">{{ item.title }}</h4>
+        {% if item.year %}<p class="simkl-card__meta"><span class="tabular-nums">{{ item.year }}</span></p>{% endif %}
+      </a>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+</section>

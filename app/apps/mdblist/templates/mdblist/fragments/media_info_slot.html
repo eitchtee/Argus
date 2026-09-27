@@ -1,0 +1,17 @@
+{% load i18n mdblist %}
+{% mdblist_available as mdblist_on %}
+{% if mdblist_on %}
+<section id="mdblist-info" class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="mdblist-info-heading" aria-busy="true"
+         hx-get="{% url 'mdblist-media-info' media_type=media_type external_id=external_id %}?provider={{ provider }}"
+         hx-trigger="load" hx-target="this" hx-swap="outerHTML" hx-disinherit="hx-target hx-swap">
+  <div class="section-heading mb-4">
+    <h2 id="mdblist-info-heading" class="text-base font-semibold tracking-tight">
+      <i data-lucide="list-video" class="me-2 inline-block align-text-bottom text-secondary" aria-hidden="true"></i>{% trans "Ratings" %}
+    </h2>
+  </div>
+  <div class="flex items-center gap-3 py-4 text-sm text-base-content/60" role="status">
+    <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+    <span>{% trans "Loading MDBList ratings" %}…</span>
+  </div>
+</section>
+{% endif %}

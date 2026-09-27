@@ -1,0 +1,29 @@
+{% load i18n %}
+{% for section in sections %}
+<section aria-labelledby="mdblist-discover-{{ section.key }}-heading">
+  <div class="section-heading mb-3">
+    {% include "mdblist/fragments/section_heading.html" with heading_id="mdblist-discover-"|add:section.key|add:"-heading" heading=section.heading link=section.link %}
+    {% if section.timeframes %}
+    <div role="tablist" class="tabs tabs-box tabs-sm w-fit">
+      {% for timeframe in timeframes %}
+      <input type="radio" name="mdblist-timeframe-{{ section.key }}" value="{{ timeframe }}" role="tab" class="tab"
+             aria-label="{% if timeframe == 'today' %}{% trans 'Today' %}{% elif timeframe == 'week' %}{% trans 'This week' %}{% else %}{% trans 'This month' %}{% endif %}"
+             {% if forloop.first %}checked{% endif %}
+             hx-get="{% url 'mdblist-discover-section' section=section.key %}?timeframe={{ timeframe }}"
+             hx-trigger="change" hx-target="#mdblist-discover-{{ section.key }}" hx-swap="innerHTML" hx-indicator="#mdblist-discover-{{ section.key }}">
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div id="mdblist-discover-{{ section.key }}" class="simkl-rail-target"
+       hx-get="{% url 'mdblist-discover-section' section=section.key %}"
+       hx-trigger="intersect once"
+       hx-target="this"
+       hx-swap="innerHTML"
+       hx-disinherit="hx-target hx-swap hx-indicator">
+    <div class="flex items-center justify-center py-12" aria-live="polite">
+      <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+    </div>
+  </div>
+</section>
+{% endfor %}

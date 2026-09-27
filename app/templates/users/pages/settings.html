@@ -83,6 +83,13 @@
       {% include "simkl/fragments/settings_panel.html" with simkl_account=simkl_account %}
     </div>
 
+    <input id="mdblist-settings-tab" type="radio" name="settings-tabs" role="tab"
+           class="tab min-h-11 px-4 text-xs font-semibold sm:px-6 sm:text-sm"
+           aria-label="MDBList" aria-controls="mdblist-settings-panel">
+    <div id="mdblist-settings-panel" role="tabpanel" class="tab-content w-full border-base-300 bg-base-100 p-4 sm:p-6" aria-labelledby="mdblist-settings-tab">
+      {% include "mdblist/fragments/settings_panel.html" with mdblist_account=mdblist_account %}
+    </div>
+
     <input id="import-settings-tab" type="radio" name="settings-tabs" role="tab"
            class="tab min-h-11 px-4 text-xs font-semibold sm:px-6 sm:text-sm"
            aria-label="{% trans 'Import' %}" aria-controls="import-settings-panel">

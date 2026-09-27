@@ -1,16 +1,19 @@
 """Library helpers shared by the sync providers and the Trakt export import.
 
-They resolve external media identities to catalog rows and read a user's
-local library state.
+They resolve external media identities to catalog rows, read a user's local
+library state and apply remote watches and ratings to it.
 """
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
 from django.db.models import Q
 
 from apps.catalog.localization import PROVIDER_DEFAULT_LANGUAGES
+from apps.catalog.models import MediaRating
 from apps.catalog.providers.exceptions import ProviderError
+from apps.catalog.ratings import HALF_STEP, MAX_SCORE, MIN_SCORE, SCORE_QUANTUM
 from apps.movies.models import Movie, UserMovie
 from apps.sync.identities import ids_from_media
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
@@ -381,3 +384,117 @@ def _ensure_episode(show: Show, season_number: int, episode_number: int, media: 
         if fields:
             episode.save(update_fields=[*fields])
     return episode
+
+
+def _mark_episodes(user, requests: list[tuple[WatchedEpisode, Show]], report) -> None:
+    if not requests:
+        return
+    # Keep the newest watch per episode before touching the catalog.
+    latest: dict[tuple[int, int, int], tuple[WatchedEpisode, Show]] = {}
+    for request, show in requests:
+        position = (show.id, request.season_number, request.episode_number)
+        current = latest.get(position)
+        if current is None or request.watched_at > current[0].watched_at:
+            latest[position] = (request, show)
+    pairs = list(latest.values())
+    episodes_by_key = _ensure_episodes_batch(pairs)
+    episode_ids = [
+        episodes_by_key[(show.id, request.season_number, request.episode_number)].id
+        for request, show in pairs
+    ]
+    existing = {
+        state.episode_id: state
+        for state in UserEpisode.objects.filter(user=user, episode_id__in=episode_ids)
+    }
+    to_create = []
+    to_update = []
+    for request, show in pairs:
+        episode = episodes_by_key[(show.id, request.season_number, request.episode_number)]
+        state = existing.get(episode.id)
+        if state is None:
+            to_create.append(UserEpisode(user=user, episode=episode, seen_at=request.watched_at))
+        elif state.seen_at is None or request.watched_at > state.seen_at:
+            state.seen_at = request.watched_at
+            to_update.append(state)
+    if to_create:
+        UserEpisode.objects.bulk_create(to_create, batch_size=500, ignore_conflicts=True)
+        report.episodes_marked += len(to_create)
+    if to_update:
+        UserEpisode.objects.bulk_update(to_update, ["seen_at"], batch_size=500)
+
+
+
+def _unmark_episodes(user, removals: list[tuple[Show, int, int]], report) -> None:
+    if not removals:
+        return
+    query = Q()
+    for show, season_number, episode_number in removals:
+        query |= Q(
+            episode__show_id=show.id,
+            episode__season_number=season_number,
+            episode__episode_number=episode_number,
+        )
+    deleted = UserEpisode.objects.filter(user=user).filter(query).delete()[0]
+    report.episodes_unmarked += deleted
+
+
+
+def _apply_rating(
+    user,
+    media,
+    content_type,
+    media_type,
+    *,
+    rating,
+    previous_rating,
+    pending,
+    rateable,
+    report,
+):
+    if rating:
+        if pending is False or not rateable:
+            return
+        score = _local_score(rating)
+        if score is None:
+            return
+        current = MediaRating.objects.filter(
+            user=user,
+            content_type=content_type,
+            object_id=media.pk,
+        ).first()
+        if current is None:
+            MediaRating.objects.create(
+                user=user,
+                media_type=media_type,
+                content_type=content_type,
+                object_id=media.pk,
+                score=score,
+            )
+            report.ratings_applied += 1
+        elif current.score != score:
+            current.score = score
+            current.save(update_fields=["score", "updated_at"])
+            report.ratings_applied += 1
+        return
+    if previous_rating and pending is not True:
+        deleted = MediaRating.objects.filter(
+            user=user,
+            content_type=content_type,
+            object_id=media.pk,
+        ).delete()[0]
+        report.ratings_applied += deleted
+
+
+
+def _local_score(raw) -> Decimal | None:
+    """Convert a 1-10 provider rating into the local 0.5-5 half-star scale."""
+    if raw in (None, ""):
+        return None
+    try:
+        score = (Decimal(str(raw)) / 2).quantize(SCORE_QUANTUM)
+    except (InvalidOperation, ArithmeticError, ValueError):
+        return None
+    score = (score / HALF_STEP).quantize(Decimal("1")) * HALF_STEP
+    if score < MIN_SCORE or score > MAX_SCORE:
+        return None
+    return score.quantize(SCORE_QUANTUM)

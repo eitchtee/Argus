@@ -85,6 +85,29 @@ def record_intent(user, kind: str, payload: dict, *, desired: bool = True):
                 desired,
             )
         )
+    from apps.mdblist.identities import identity_key_for_payload as mdblist_identity_key
+    from apps.mdblist.models import MdblistAccount, MdblistSyncIntent
+
+    if (
+        kind in {
+            MdblistSyncIntent.Kind.MOVIE_WATCHLIST,
+            MdblistSyncIntent.Kind.SHOW_WATCHLIST,
+            MdblistSyncIntent.Kind.MOVIE_HISTORY,
+            MdblistSyncIntent.Kind.EPISODE_HISTORY,
+            MdblistSyncIntent.Kind.SHOW_DROPPED,
+        }
+        and MdblistAccount.objects.filter(user_id=user.pk).exists()
+    ):
+        intents.append(
+            _record_provider_intent(
+                MdblistSyncIntent,
+                user,
+                kind,
+                mdblist_identity_key(kind, payload),
+                payload,
+                desired,
+            )
+        )
     return intents[0] if intents else None
 
 

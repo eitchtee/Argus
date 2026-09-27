@@ -1,0 +1,50 @@
+{% load i18n %}
+{% if subtitle %}<p class="mb-2 text-sm text-base-content/60">{{ subtitle }}</p>{% endif %}
+{% if entries %}
+<div class="simkl-rail" role="list">
+  {% for entry in entries %}
+  <article class="simkl-card" role="listitem">
+    <a href="{{ entry.href }}"
+       {% if entry.argus_url %}hx-boost="true" hx-target="body" hx-swap="innerHTML"{% else %}target="_blank" rel="noopener noreferrer"{% endif %}
+       class="simkl-card__link" title="{{ entry.title }}{% if entry.year %} ({{ entry.year }}){% endif %}">
+      <figure class="simkl-card__poster">
+        {% if entry.poster_url %}
+        <img src="{{ entry.poster_url }}" alt="{{ entry.title }}" loading="lazy">
+        {% else %}
+        <div class="simkl-card__fallback" aria-hidden="true">
+          <i data-lucide="{% if entry.media_type == 'movie' %}film{% else %}tv{% endif %}"></i>
+        </div>
+        {% endif %}
+        <span class="simkl-card__rank tabular-nums" aria-label="{% trans 'Position' %} {{ forloop.counter }}">{{ forloop.counter }}</span>
+        {% if entry.score %}
+        <span class="simkl-card__badge simkl-card__badge--rating" title="{% trans 'MDBList score' %}">
+          <i data-lucide="star" aria-hidden="true"></i><span class="tabular-nums">{{ entry.score }}</span>
+        </span>
+        {% endif %}
+        {% if entry.user_state %}
+        <span class="simkl-card__badge simkl-card__badge--state" title="{% if entry.user_state == 'watched' %}{% trans 'Watched' %}{% elif entry.user_state == 'watchlist' %}{% trans 'On watchlist' %}{% else %}{% trans 'Tracked' %}{% endif %}">
+          <i data-lucide="{% if entry.user_state == 'watched' %}eye{% elif entry.user_state == 'watchlist' %}bookmark{% else %}check{% endif %}" aria-hidden="true"></i>
+        </span>
+        {% endif %}
+      </figure>
+      <h3 class="simkl-card__title">{{ entry.title }}</h3>
+      <p class="simkl-card__meta">
+        {% if entry.year %}<span class="tabular-nums">{{ entry.year }}</span>{% endif %}
+        {% if entry.delta %}
+        <span title="{% trans 'Change since the previous chart' %}">
+          <i data-lucide="{% if entry.delta > 0 %}trending-up{% else %}trending-down{% endif %}" aria-hidden="true"></i><span class="tabular-nums">{{ entry.delta }}</span>
+        </span>
+        {% endif %}
+      </p>
+    </a>
+    {% if entry.mdblist_url %}
+    <a href="{{ entry.mdblist_url }}" target="_blank" rel="noopener noreferrer" class="simkl-card__external" title="{% trans 'View on MDBList' %}" aria-label="{{ entry.title }} {% trans 'on MDBList' %}">
+      <i data-lucide="list-video" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<p class="py-6 text-sm text-base-content/60">{% trans "Nothing to show right now." %}</p>
+{% endif %}

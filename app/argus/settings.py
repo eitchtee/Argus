@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "apps.stats.apps.StatsConfig",
     "apps.stremio.apps.StremioConfig",
     "apps.simkl.apps.SimklConfig",
+    "apps.mdblist.apps.MdblistConfig",
     "apps.sync.apps.SyncConfig",
     "apps.imports.apps.ImportsConfig",
     "apps.calendar.apps.CalendarConfig",
@@ -102,6 +103,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "apps.simkl.middleware.SimklActivityMiddleware",
+    "apps.mdblist.middleware.MdblistActivityMiddleware",
     "apps.common.middleware.localization.LocalizationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -523,6 +525,26 @@ SIMKL_IDLE_HOURS = int(os.getenv("SIMKL_IDLE_HOURS", 24))
 SIMKL_METADATA_REFRESH_DAYS = int(os.getenv("SIMKL_METADATA_REFRESH_DAYS", 7))
 SIMKL_METADATA_BATCH_SIZE = int(os.getenv("SIMKL_METADATA_BATCH_SIZE", 200))
 SIMKL_METADATA_CRON = os.getenv("SIMKL_METADATA_CRON", "30 5 * * *")
+# MDBList is optional. The server API key unlocks ratings on detail pages and
+# the discovery rails; account sync works with an OAuth application the
+# administrator registered, or with a personal API key each user pastes.
+MDBLIST_API_KEY = os.getenv("MDBLIST_API_KEY", "")
+MDBLIST_CLIENT_ID = os.getenv("MDBLIST_CLIENT_ID", "")
+MDBLIST_CLIENT_SECRET = os.getenv("MDBLIST_CLIENT_SECRET", "")
+MDBLIST_REDIRECT_URI = os.getenv("MDBLIST_REDIRECT_URI", "")
+try:
+    MDBLIST_SYNC_INTERVAL_MINUTES = max(
+        1,
+        int(os.getenv("MDBLIST_SYNC_INTERVAL_MINUTES", "15")),
+    )
+except ValueError:
+    MDBLIST_SYNC_INTERVAL_MINUTES = 15
+MDBLIST_SYNC_CRON = f"*/{MDBLIST_SYNC_INTERVAL_MINUTES} * * * *"
+# Every MDBList key has a daily request quota; idle accounts are not polled.
+MDBLIST_IDLE_HOURS = int(os.getenv("MDBLIST_IDLE_HOURS", 24))
+MDBLIST_METADATA_REFRESH_DAYS = int(os.getenv("MDBLIST_METADATA_REFRESH_DAYS", 7))
+MDBLIST_METADATA_BATCH_SIZE = int(os.getenv("MDBLIST_METADATA_BATCH_SIZE", 200))
+MDBLIST_METADATA_CRON = os.getenv("MDBLIST_METADATA_CRON", "45 5 * * *")
 CATALOG_SEARCH_CACHE_TTL = int(os.getenv("CATALOG_SEARCH_CACHE_TTL", 3600))
 CATALOG_MOVIE_SYNC_INTERVAL_DAYS = int(os.getenv("CATALOG_MOVIE_SYNC_INTERVAL_DAYS", 14))
 CATALOG_SHOW_SYNC_INTERVAL_DAYS = int(os.getenv("CATALOG_SHOW_SYNC_INTERVAL_DAYS", 2))
