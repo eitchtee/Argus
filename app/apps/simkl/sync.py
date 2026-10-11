@@ -302,19 +302,31 @@ def fetch_changes(client, account, activities: dict) -> RemoteChanges:
         if removed_at and removed_at != previous_block.get("removed_from_list"):
             removed_types.append(media_type)
 
-    for media_type in removed_types:
-        payload = client.get_all_items(media_type, extended="ids_only")
-        present = {
-            simkl_id
-            for _media_type, _media, _entry, simkl_id in _iter_entries(payload)
-        }
+    # Anime films are mirrored as movies, so the movie and anime lists are
+    # checked together: a mirrored movie may live in either.
+    groups = []
+    if "shows" in removed_types:
+        groups.append(("shows",))
+    if "movies" in removed_types or "anime" in removed_types:
+        groups.append(("movies", "anime"))
+
+    for group in groups:
+        present: set[int] = set()
+        for media_type in group:
+            payload = client.get_all_items(media_type, extended="ids_only")
+            present |= {
+                simkl_id
+                for _media_type, _media, _entry, simkl_id in _iter_entries(payload)
+            }
         rows = list(
-            account.library_items.filter(media_type=TYPE_TO_MEDIA[media_type])
+            account.library_items.filter(
+                media_type__in=[TYPE_TO_MEDIA[media_type] for media_type in group]
+            )
         )
         gone = [row for row in rows if row.simkl_id not in present]
         if len(gone) > REMOVAL_GUARD_MIN_ITEMS and len(gone) * 2 > len(rows):
             changes.warnings.append(
-                f"SIMKL reported {len(gone)} of {len(rows)} {media_type} removed; "
+                f"SIMKL reported {len(gone)} of {len(rows)} {' and '.join(group)} removed; "
                 "ignoring the removal as a safety measure."
             )
             continue
@@ -338,6 +350,14 @@ def _iter_entries(payload):
                 simkl_id = int(ids["simkl"])
             except (KeyError, ValueError):
                 continue
+            # SIMKL files anime films (Ghibli and the like) under anime, but
+            # their TMDB/TVDB ids are movie ids; importing them as shows would
+            # pull in whatever unrelated series shares the number.
+            if (
+                media_type == "anime"
+                and (entry.get("anime_type") or media.get("anime_type")) == "movie"
+            ):
+                media_type = "movie"
             yield media_type, media, entry, simkl_id
 
 

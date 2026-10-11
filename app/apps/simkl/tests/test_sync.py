@@ -323,6 +323,26 @@ class InitialSyncTests(SimklSyncTestCase):
         self.assertEqual(positions, {(2, 1), (2, 2)})
         self.assertEqual(Show.objects.get(pk=self.show.pk).name, "Lost")
 
+    def test_anime_movies_are_imported_as_movies(self):
+        # SIMKL lists Ghibli films as anime but with TMDB/TVDB *movie* ids;
+        # TMDB TV 550 is an unrelated series.
+        entry = show_entry(9, "completed", tmdb=550, title="Sen to Chihiro", watched_at="2026-03-01T20:00:00Z", anime=True)
+        entry["anime_type"] = "movie"
+        client = FakeSimklClient(
+            activities_responses=[ACTIVITIES_V1],
+            library={"anime": {"anime": [entry]}},
+        )
+        show_count = Show.objects.count()
+
+        self.run_sync(client)
+
+        self.assertEqual(Show.objects.count(), show_count)
+        self.assertFalse(UserShow.objects.filter(user=self.user).exists())
+        state = UserMovie.objects.get(user=self.user, movie=self.movie)
+        self.assertTrue(state.is_seen)
+        self.assertEqual(SimklLibraryItem.objects.get(simkl_id=9).media_type, "movie")
+        self.assertEqual(client.history_add, [])
+
     def test_normalize_items_reads_flat_and_nested_shapes(self):
         payload = {
             "movies": [movie_entry(1, "plantowatch", imdb="tt1")],
@@ -508,6 +528,25 @@ class ContinuousSyncTests(SimklSyncTestCase):
         self.assertFalse(UserEpisode.objects.exists())
         self.assertFalse(UserShow.objects.filter(show=self.show).exists())
         self.assertFalse(SimklLibraryItem.objects.exists())
+
+    def test_anime_movie_removed_from_simkl_is_unwatched(self):
+        entry = show_entry(9, "completed", tmdb=550, watched_at="2026-03-01T20:00:00Z", anime=True)
+        entry["anime_type"] = "movie"
+        client = FakeSimklClient(
+            activities_responses=[
+                ACTIVITIES_V1,
+                activities("2026-05-02T00:00:00Z", removed_movies="2026-05-02T00:00:00Z"),
+            ],
+            library={"anime": {"anime": [entry]}},
+            ids_only={"movies": {"movies": []}, "anime": {"anime": []}},
+        )
+        self.run_sync(client)
+        self.assertTrue(UserMovie.objects.get(movie=self.movie).is_seen)
+
+        self.run_sync(client)
+
+        self.assertFalse(UserMovie.objects.get(movie=self.movie).is_seen)
+        self.assertFalse(SimklLibraryItem.objects.filter(simkl_id=9).exists())
 
     def test_mass_removal_is_refused(self):
         entries = [movie_entry(index, "completed", tmdb=str(1000 + index), watched_at="2026-03-01T20:00:00Z", title=f"M{index}") for index in range(1, 40)]
