@@ -467,6 +467,23 @@ class ContinuousSyncTests(SimklSyncTestCase):
             [{"ids": {"imdb": "tt0411008", "tvdb": "73739"}, "title": "Lost", "use_tvdb_anime_seasons": True}],
         )
 
+    def test_remote_watch_dates_do_not_override_local_ones(self):
+        local_seen = timezone.now() - timedelta(days=400)
+        UserMovie.objects.create(user=self.user, movie=self.movie, is_seen=True, seen_at=local_seen)
+        UserEpisode.objects.create(user=self.user, episode=self.episodes[1], seen_at=local_seen)
+        client = FakeSimklClient(
+            activities_responses=[ACTIVITIES_V1],
+            library={
+                "movies": {"movies": [movie_entry(1, "completed", tmdb=550, watched_at="2026-03-01T20:00:00Z")]},
+                "shows": {"shows": [show_entry(2, "watching", tvdb=73739, episodes=[(1, 1, "2026-03-02T20:00:00Z")])]},
+            },
+        )
+
+        self.run_sync(client)
+
+        self.assertEqual(UserMovie.objects.get(movie=self.movie).seen_at, local_seen)
+        self.assertEqual(UserEpisode.objects.get(episode=self.episodes[1]).seen_at, local_seen)
+
     def test_removed_items_are_detected_by_diffing_ids(self):
         client = FakeSimklClient(
             activities_responses=[

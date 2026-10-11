@@ -413,7 +413,8 @@ def _mark_episodes(user, requests: list[tuple[WatchedEpisode, Show]], report) ->
         state = existing.get(episode.id)
         if state is None:
             to_create.append(UserEpisode(user=user, episode=episode, seen_at=request.watched_at))
-        elif state.seen_at is None or request.watched_at > state.seen_at:
+        elif state.seen_at is None:
+            # An episode already watched locally keeps its own date.
             state.seen_at = request.watched_at
             to_update.append(state)
     if to_create:

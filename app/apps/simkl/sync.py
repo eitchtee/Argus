@@ -541,10 +541,10 @@ def _apply_remote_movies(user, changes, previous, intents, report):
                 pass
             else:
                 state = state or UserMovie(user=user, movie=movie)
-                watched_at = item.last_watched_at or timezone.now()
+                # A watch Argus already holds keeps its own date.
+                if not state.is_seen or state.seen_at is None:
+                    state.seen_at = item.last_watched_at or timezone.now()
                 state.is_seen = True
-                if state.seen_at is None or watched_at > state.seen_at:
-                    state.seen_at = watched_at
                 state.on_watchlist = False
                 state.watchlist_added_at = None
                 state.save()
