@@ -105,6 +105,17 @@ def refresh_genre_catalog(provider_name: str):
     return len(collected)
 
 
+@app.periodic(cron="0 3 * * 0")
+@app.task(
+    name="cleanup_unused_catalog",
+    queueing_lock="cleanup_unused_catalog",
+)
+def cleanup_unused_catalog(timestamp: int | None = None):
+    from apps.catalog.cleanup import remove_unused_titles
+
+    return remove_unused_titles()
+
+
 @app.periodic(cron="0 5 * * *")
 @app.task(name="refresh_genre_catalogs")
 def refresh_genre_catalogs(timestamp: int | None = None):
