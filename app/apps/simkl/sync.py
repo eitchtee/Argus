@@ -1113,7 +1113,7 @@ def build_outbound(
             if desired and not rows and not locally_has_episodes:
                 _append_unique(outbound.list_shows, _list_item(payload, "show", PLANTOWATCH))
             elif not desired and status == PLANTOWATCH and not locally_tracked:
-                _append_unique(outbound.history_remove_shows, _bare_item(payload, "show"))
+                _remove_show(outbound.history_remove_shows, payload)
         elif kind == Kind.SHOW_DROPPED:
             if desired and status != DROPPED:
                 _append_unique(outbound.list_shows, _list_item(payload, "show", DROPPED))
@@ -1406,6 +1406,14 @@ def _add_episode(target: dict[str, dict], payload: dict, *, strip_timestamps: bo
             incoming_time = parse_timestamp(item.get("watched_at"))
             if existing_time is None or (incoming_time is not None and incoming_time > existing_time):
                 existing.update(item)
+
+
+def _remove_show(target: dict[str, dict], payload: dict) -> None:
+    """Queue a whole-show removal; it supersedes any episode removals already
+    queued for the same show."""
+    media = payload.get("show") if isinstance(payload.get("show"), dict) else payload
+    key = media_identity_key(media.get("ids"), title=media.get("title", ""))
+    target[key] = _bare_item(payload, "show")
 
 
 def _episode_count(item: dict) -> int:

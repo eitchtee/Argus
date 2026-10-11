@@ -444,6 +444,29 @@ class ContinuousSyncTests(SimklSyncTestCase):
         self.assertEqual(client.list_moves[0]["movies"][0]["to"], "plantowatch")
         self.assertEqual(client.history_add, [])
 
+    def test_local_watchlist_removal_removes_show_from_simkl(self):
+        client = self.complete_initial_sync(
+            FakeSimklClient(
+                activities_responses=[ACTIVITIES_V1],
+                library={"shows": {"shows": [show_entry(2, "plantowatch", tvdb=73739)]}},
+            )
+        )
+        UserShow.objects.filter(user=self.user, show=self.show).delete()
+        SimklSyncIntent.objects.create(
+            user=self.user,
+            kind=SimklSyncIntent.Kind.SHOW_WATCHLIST,
+            identity_key="imdb:tt0411008",
+            payload={"title": "Lost", "ids": {"imdb": "tt0411008", "tvdb": "73739"}},
+            desired=False,
+        )
+
+        self.run_sync(client)
+
+        self.assertEqual(
+            client.history_remove[0]["shows"],
+            [{"ids": {"imdb": "tt0411008", "tvdb": "73739"}, "title": "Lost", "use_tvdb_anime_seasons": True}],
+        )
+
     def test_removed_items_are_detected_by_diffing_ids(self):
         client = FakeSimklClient(
             activities_responses=[
