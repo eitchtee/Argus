@@ -68,6 +68,7 @@ class IndexViewTests(TestCase):
             None,
         )
 
+    @override_settings(SIMKL_CLIENT_ID="", MDBLIST_API_KEY="")
     def test_sidebar_renders_daisyui_hierarchy_with_boosted_links(self):
         response = self.client.get("/")
         content = response.content.decode()
@@ -177,6 +178,16 @@ class IndexViewTests(TestCase):
         navigation = sidebar.index("<nav")
         self.assertLess(logo_end, theme_toggle)
         self.assertLess(theme_toggle, navigation)
+
+    @override_settings(SIMKL_CLIENT_ID="client-id", MDBLIST_API_KEY="")
+    def test_sidebar_shows_discover_when_a_catalog_provider_is_configured(self):
+        sidebar = self._sidebar_menu(self.client.get("/"))
+
+        link = self._sidebar_link(sidebar, "Discover")
+        self.assertIn(f'href="{reverse("discover")}"', link)
+        self.assertIn('hx-boost="true"', link)
+        self.assertLess(sidebar.index(">Search</span>"), sidebar.index(">Discover</span>"))
+        self.assertLess(sidebar.index(">Discover</span>"), sidebar.index(">History</span>"))
 
     def test_sidebar_theme_toggle_reflects_light_session(self):
         session = self.client.session
