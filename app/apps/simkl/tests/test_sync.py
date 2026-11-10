@@ -399,6 +399,26 @@ class ContinuousSyncTests(SimklSyncTestCase):
         # The mirror follows the delta so the next diff starts from truth.
         self.assertEqual(SimklLibraryItem.objects.get(simkl_id=2).watched_episodes.keys(), {"1:1", "1:3"})
 
+    def test_completed_show_reopened_by_new_season_keeps_watched_episodes(self):
+        # Completed in one action: SIMKL synthesizes rows on the full pull...
+        library = {"shows": {"shows": [show_entry(2, "completed", tvdb=73739, episodes=[(1, 1, "2026-03-02T20:00:00Z"), (1, 2, "2026-03-02T20:00:00Z")])]}}
+        # ...then returns no rows once a new season moves it to watching.
+        reopened = show_entry(2, "watching", tvdb=73739, watched_at="2026-03-02T20:00:00Z")
+        reopened["watched_episodes_count"] = 2
+        client = FakeSimklClient(
+            activities_responses=[ACTIVITIES_V1, activities("2026-05-02T00:00:00Z", movies=ACTIVITIES_V1["movies"]["all"])],
+            library=library,
+            deltas={"shows": {"shows": [reopened]}},
+        )
+        self.run_sync(client)
+        seen_at = dict(UserEpisode.objects.values_list("episode__episode_number", "seen_at"))
+        self.assertEqual(set(seen_at), {1, 2})
+
+        report = self.run_sync(client)
+
+        self.assertEqual(report.episodes_unmarked, 0)
+        self.assertEqual(dict(UserEpisode.objects.values_list("episode__episode_number", "seen_at")), seen_at)
+
     def test_remote_hold_pauses_and_remote_watching_resumes(self):
         client = FakeSimklClient(
             activities_responses=[

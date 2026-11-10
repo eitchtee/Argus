@@ -735,6 +735,12 @@ def _apply_remote_shows(user, changes, previous, cache, intents, report, *, init
             reset = item.status == PLANTOWATCH and item.watched_episodes_count == 0
             if not item.has_episode_data and not reset:
                 continue
+            # SIMKL fakes episode rows for completed shows marked in one go
+            # and drops them once the show goes back to watching (a new season
+            # airs); fewer rows than the watched count means the list is
+            # partial, not that episodes were unwatched.
+            if len(item.episodes) < item.watched_episodes_count:
+                continue
             for key in set(prev.watched_episodes) - remote_episode_keys:
                 season_number, episode_number = parse_episode_key(key)
                 if _pending_episode_desired(intents, tokens, season_number, episode_number) is True:
