@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import prefetch_related_objects
 from django.contrib import messages
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
@@ -97,6 +99,85 @@ def movie_watchlist(request):
                 get_watchlist_movies(request.user),
                 request.user,
             ),
+        },
+    )
+
+
+def _pick_ratings(movies) -> dict[int, list[dict]]:
+    """Every rating synced for each movie, best-known source first."""
+    from apps.mdblist.enrichment import RATING_SOURCES, RatingBadge
+    from apps.mdblist.models import MdblistMediaInfo
+    from apps.simkl.models import SimklMediaInfo
+
+    lookup = {
+        "content_type": ContentType.objects.get_for_model(Movie),
+        "object_id__in": [movie.pk for movie in movies],
+        "status": "ok",
+    }
+    mdblist = {info.object_id: info for info in MdblistMediaInfo.objects.filter(**lookup)}
+    simkl = {info.object_id: info for info in SimklMediaInfo.objects.filter(**lookup)}
+
+    ratings = {}
+    for movie in movies:
+        found = []
+        mdb = mdblist.get(movie.pk)
+        by_source = {rating["source"]: rating for rating in (mdb.ratings if mdb else [])}
+        for source, (label, scale, suffix) in RATING_SOURCES.items():
+            if by_source.get(source, {}).get("value") is None:
+                continue
+            badge = RatingBadge(source, label, by_source[source]["value"], scale, suffix, None, None)
+            found.append({"source": source, "label": label, "value": badge.display + suffix})
+        if mdb and mdb.score:
+            found.append({"source": "mdblist", "label": "MDBList", "value": str(mdb.score)})
+        info = simkl.get(movie.pk)
+        sources = {rating["source"] for rating in found}
+        if info and info.imdb_rating and "imdb" not in sources:
+            found.insert(0, {"source": "imdb", "label": "IMDb", "value": f"{info.imdb_rating:.1f}"})
+        if info and info.simkl_rating:
+            found.append({"source": "simkl", "label": "Simkl", "value": f"{info.simkl_rating:.1f}"})
+        if movie.vote_average and "tmdb" not in sources:
+            found.append({"source": "tmdb", "label": "TMDB", "value": f"{movie.vote_average:.1f}"})
+        ratings[movie.pk] = found
+    return ratings
+
+
+@htmx_login_required
+@require_http_methods(["GET"])
+def movie_pick(request):
+    movies = get_watchlist_movies(request.user)
+    prefetch_related_objects(movies, "genres")
+    ratings = _pick_ratings(movies)
+    pool = []
+    for movie in localized_media_records(movies, request.user):
+        url = reverse("movie-detail", kwargs={"external_id": movie.external_id})
+        if movie.provider != "tmdb":
+            url = f"{url}?provider={movie.provider}"
+        people = [member.get("name") for member in movie.cast if member.get("name")]
+        if movie.director:
+            people.insert(0, movie.director)
+        pool.append(
+            {
+                "id": f"{movie.provider}:{movie.external_id}",
+                "title": movie.title,
+                "year": movie.release_date.year if movie.release_date else None,
+                "overview": movie.overview,
+                "poster": movie.poster_url,
+                "runtime": movie.runtime,
+                "score": movie.aggregate_score,
+                "ratings": ratings[movie.pk],
+                "genres": [resolve_field(genre, "name", movie.language) for genre in movie.genres.all()],
+                "people": people,
+                "url": url,
+            }
+        )
+    return render(
+        request,
+        "movies/pages/pick.html",
+        {
+            "pool": pool,
+            "people": sorted({name for movie in pool for name in movie["people"]}, key=str.casefold),
+            "runtime_options": [(0, _("Any length")), (90, "≤ 1h30"), (120, "≤ 2h"), (150, "≤ 2h30")],
+            "bracket_sizes": [4, 8, 16, 32],
         },
     )
 

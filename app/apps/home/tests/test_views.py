@@ -114,6 +114,7 @@ class IndexViewTests(TestCase):
             ">Watchlist</span>",
             ">Movies</span>",
             ">Watched</span>",
+            ">Pick a movie</span>",
             ">Calendar</span>",
         ]
         positions = [sidebar.index(label) for label in labels]
@@ -124,7 +125,7 @@ class IndexViewTests(TestCase):
             for anchor in re.findall(r"<a\b[^>]*>", sidebar)
             if "sidebar-item" in anchor
         ]
-        self.assertEqual(len(anchors), 10)
+        self.assertEqual(len(anchors), 11)
         for anchor in anchors:
             self.assertIn('hx-boost="true"', anchor)
 
@@ -140,6 +141,10 @@ class IndexViewTests(TestCase):
         self.assertIn(
             f'href="{movie_watched_url}"',
             self._sidebar_link(sidebar, "Watched"),
+        )
+        self.assertIn(
+            f'href="{reverse("movies-pick-page")}"',
+            self._sidebar_link(sidebar, "Pick a movie"),
         )
         self.assertIn(f'href="{up_next_url}"', self._sidebar_link(sidebar, "Up next"))
         self.assertIn(f'href="{upcoming_url}"', self._sidebar_link(sidebar, "Upcoming"))
