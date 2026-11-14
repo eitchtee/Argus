@@ -7,6 +7,8 @@ from django.urls import reverse
 from apps.catalog.models import Genre
 from apps.movies.models import Movie, UserMovie
 
+RELEASED = Movie.NormalizedStatus.RELEASED
+
 
 @override_settings(
     STORAGES={
@@ -39,7 +41,7 @@ class MoviePickViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
 
-    def test_pool_holds_only_unwatched_watchlist_movies(self):
+    def test_pool_holds_only_unwatched_released_watchlist_movies(self):
         drama = Genre.objects.create(provider="tmdb", external_id="18", name="Drama")
         wanted = Movie.objects.create(
             external_id="550",
@@ -49,13 +51,18 @@ class MoviePickViewTests(TestCase):
             vote_average=8.438,
             director="David Fincher",
             cast=[{"name": "Brad Pitt", "character": "Tyler"}],
+            normalized_status=RELEASED,
         )
         wanted.genres.add(drama)
-        seen = Movie.objects.create(external_id="13", title="Forrest Gump")
-        other = Movie.objects.create(external_id="680", title="Pulp Fiction")
+        seen = Movie.objects.create(external_id="13", title="Forrest Gump", normalized_status=RELEASED)
+        other = Movie.objects.create(external_id="680", title="Pulp Fiction", normalized_status=RELEASED)
+        upcoming = Movie.objects.create(
+            external_id="999", title="Not Out Yet", normalized_status=Movie.NormalizedStatus.UPCOMING
+        )
         UserMovie.objects.create(user=self.user, movie=wanted, on_watchlist=True)
         UserMovie.objects.create(user=self.user, movie=seen, on_watchlist=True, is_seen=True)
         UserMovie.objects.create(user=self.user, movie=other, on_watchlist=False)
+        UserMovie.objects.create(user=self.user, movie=upcoming, on_watchlist=True)
 
         response = self.client.get(reverse("movies-pick-page"))
 
@@ -81,7 +88,9 @@ class MoviePickViewTests(TestCase):
         from apps.mdblist.models import MdblistMediaInfo
         from apps.simkl.models import SimklMediaInfo
 
-        movie = Movie.objects.create(external_id="550", title="Fight Club", vote_average=8.4)
+        movie = Movie.objects.create(
+            external_id="550", title="Fight Club", vote_average=8.4, normalized_status=RELEASED
+        )
         UserMovie.objects.create(user=self.user, movie=movie, on_watchlist=True)
         target = {"content_type": ContentType.objects.get_for_model(Movie), "object_id": movie.pk}
         MdblistMediaInfo.objects.create(

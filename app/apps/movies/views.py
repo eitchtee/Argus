@@ -149,7 +149,11 @@ def _pick_ratings(movies) -> dict[int, list[dict]]:
 @htmx_login_required
 @require_http_methods(["GET"])
 def movie_pick(request):
-    movies = get_watchlist_movies(request.user)
+    movies = [
+        movie
+        for movie in get_watchlist_movies(request.user)
+        if movie.normalized_status == Movie.NormalizedStatus.RELEASED
+    ]
     prefetch_related_objects(movies, "genres")
     ratings = _pick_ratings(movies)
     pool = []
