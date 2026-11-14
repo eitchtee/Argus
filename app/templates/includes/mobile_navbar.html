@@ -6,9 +6,15 @@
       <span class="logo mobile" aria-hidden="true"></span>
       <span class="text-xl font-bold">{% settings "SITE_TITLE" %}</span>
     </a>
+    <div class="flex items-center gap-1">
+    <button type="button" class="btn btn-ghost btn-sm btn-circle" aria-label="{% trans 'Search library' %}"
+            onclick="document.getElementById('library-search-modal').showModal()">
+      <i data-lucide="search"></i>
+    </button>
     <button type="button" class="btn btn-ghost btn-sm btn-circle" data-bs-toggle="offcanvas" data-bs-target="#sidebar"
             aria-controls="sidebar" aria-label="{% trans 'Toggle navigation' %}">
       <i data-lucide="menu"></i>
     </button>
+    </div>
   </div>
 </nav>

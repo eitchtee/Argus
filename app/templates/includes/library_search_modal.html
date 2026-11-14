@@ -1,0 +1,20 @@
+{% load i18n %}
+<dialog id="library-search-modal" class="modal modal-top sm:modal-middle" aria-labelledby="library-search-heading">
+  <div class="modal-box max-w-xl border border-base-300 bg-base-100 p-4 shadow-2xl">
+    <h2 id="library-search-heading" class="sr-only">{% trans "Search your library" %}</h2>
+    <label class="input w-full">
+      <i data-lucide="search" class="text-base-content/50" aria-hidden="true"></i>
+      <input type="search" name="q" autofocus autocomplete="off" class="grow"
+             placeholder="{% trans 'Search movies, shows and episodes in your library' %}"
+             aria-label="{% trans 'Search your library' %}"
+             hx-get="{% url 'catalog-library-search' %}"
+             hx-trigger="input changed delay:250ms, search"
+             hx-target="#library-search-results"
+             hx-swap="innerHTML">
+    </label>
+    <div id="library-search-results" class="mt-3 max-h-[60vh] overflow-y-auto" aria-live="polite">
+      <p class="py-8 text-center text-sm text-base-content/60">{% trans "Type at least two characters to search your library." %}</p>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>{% trans "Close" %}</button></form>
+</dialog>
