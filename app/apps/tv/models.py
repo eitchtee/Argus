@@ -231,6 +231,12 @@ class Episode(models.Model):
         )
 
     @property
+    def has_not_aired(self):
+        """Whether the known airing time is still in the future."""
+        airs_at = self.airs_at
+        return airs_at is not None and airs_at > timezone.now()
+
+    @property
     def local_air_date(self):
         """``air_date`` shifted into the active timezone when the airing time is known."""
         airs_at = self.airs_at

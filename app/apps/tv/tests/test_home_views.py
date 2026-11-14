@@ -1,4 +1,4 @@
-from datetime import date, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -46,6 +46,33 @@ class HomeWatchlistViewTests(TestCase):
         self.assertContains(response, f"/tv/1/episodes/{episode.id}/\"")
         self.assertContains(response, "checkbox-lg")
         self.assertNotContains(response, "Mark watched")
+
+    def test_flags_episode_airing_later_today(self):
+        now = timezone.localtime()
+        show = Show.objects.create(
+            external_id="1",
+            name="My Show",
+            airs_time=time(23, 59),
+            airs_timezone=timezone.get_current_timezone_name(),
+        )
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        Episode.objects.create(
+            show=show, season=season, season_number=1, episode_number=1,
+            name="Pilot", air_date=now.date(),
+        )
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        with patch("django.utils.timezone.now", return_value=now.replace(hour=12)):
+            pending = self.client.get("/tv/home/watchlist/", HTTP_HX_REQUEST="true")
+        show.airs_time = time(0, 0)
+        show.save(update_fields=["airs_time"])
+        with patch("django.utils.timezone.now", return_value=now.replace(hour=12)):
+            aired = self.client.get("/tv/home/watchlist/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(pending, "data-not-aired")
+        self.assertContains(pending, "Airs today at")
+        self.assertContains(aired, "Pilot")
+        self.assertNotContains(aired, "data-not-aired")
 
     def test_uses_show_poster_image(self):
         show = Show.objects.create(
@@ -554,14 +581,22 @@ class HomeUpcomingViewTests(TestCase):
         self.show.airs_time = time(21, 0)
         self.show.airs_timezone = "America/New_York"
         self.show.save(update_fields=["airs_time", "airs_timezone"])
-        self._make_episode(1, self.today, "Timed episode")
         # The request middleware activates the user's timezone setting.
         self.user.settings.timezone = "America/Sao_Paulo"
         self.user.settings.save(update_fields=["timezone"])
 
-        response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+        # São Paulo has no DST, so the offset to New York changes with the season.
+        for air_date, expected in [(date(2026, 7, 15), "10 p.m."), (date(2027, 1, 15), "11 p.m.")]:
+            with self.subTest(air_date=air_date):
+                episode = self._make_episode(1, air_date, "Timed episode")
+                noon = datetime.combine(air_date, time(12), tzinfo=UTC)
+                with patch("django.utils.timezone.now", return_value=noon):
+                    # Log in under the frozen clock so the session isn't already expired.
+                    self.client.force_login(self.user)
+                    response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+                episode.delete()
 
-        self.assertContains(response, "10 p.m.")
+                self.assertContains(response, expected)
 
     def test_omits_air_time_when_the_show_has_none(self):
         self._make_episode(1, self.today, "Untimed episode")

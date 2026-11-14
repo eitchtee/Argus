@@ -8,6 +8,8 @@
     season_episode_label="S{{ entry.next_episode.season_number|stringformat:'02d' }} | E{{ entry.next_episode.episode_number|stringformat:'02d' }}"
     pending_text="{% if entry.pending_count > 0 %}+{{ entry.pending_count }}{% endif %}"
     episode_title="{{ entry.next_episode.name }}"
+    :not_aired="entry.next_episode.has_not_aired"
+    :airs_at="entry.next_episode.airs_at"
     title_url="{% url 'tv-episode-detail' external_id=entry.show.external_id episode_id=entry.next_episode.id %}{% if entry.show.provider and entry.show.provider != 'tvdb' %}?provider={{ entry.show.provider }}{% endif %}"
     checkbox_position="right"
     :checked="False"
