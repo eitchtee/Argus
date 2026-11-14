@@ -1,6 +1,7 @@
 volumes:
   argus_dev_postgres_data:
   argus_temp:
+  argus_node_modules:
 
 
 services:
@@ -36,7 +37,7 @@ services:
       - ./frontend/:/usr/src/frontend
       - ./app/:/usr/src/app/
       # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
-      - /usr/src/frontend/node_modules
+      - argus_node_modules:/usr/src/frontend/node_modules
     ports:
       - '${VITE_OUTBOUND_PORT:-5173}:${VITE_OUTBOUND_PORT:-5173}'
     environment:

@@ -2,10 +2,10 @@ FROM node:lts-alpine
 
 WORKDIR /usr/src/frontend
 
-COPY ./frontend/package.json ./frontend/package-lock.json* ./
+COPY ./docker/dev/vite/entrypoint.sh /usr/local/bin/vite-entrypoint
+RUN sed -i 's/\r$//g' /usr/local/bin/vite-entrypoint && \
+    chmod +x /usr/local/bin/vite-entrypoint
 
-RUN npm install --verbose && npm cache clean --force
+ENV PATH=./node_modules/.bin/:$PATH
 
-ENV PATH ./node_modules/.bin/:$PATH
-
-CMD ["npm", "run", "dev"]
+ENTRYPOINT ["vite-entrypoint"]
