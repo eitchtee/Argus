@@ -13,7 +13,10 @@
     </div>
   </div>
 
-  <div role="tablist" class="tabs tabs-lift w-full">
+  {# The open tab lives in the URL hash so reloads (sync, disconnect, save) keep it #}
+  <div role="tablist" class="tabs tabs-lift w-full"
+       _="on change[target.name is 'settings-tabs']
+            call history.replaceState(null, '', '#' + target.id.replace('-settings-tab', ''))">
     <input id="user-settings-tab" type="radio" name="settings-tabs" role="tab"
            class="tab min-h-11 px-4 text-xs font-semibold sm:px-6 sm:text-sm"
            aria-label="{% trans 'User settings' %}" aria-controls="user-settings-panel" checked>
@@ -133,5 +136,9 @@
       </div>
     </div>
   </div>
+  {# Inline and synchronous: hyperscript loads deferred, so restoring there flashes the first tab #}
+  <script>
+    (document.getElementById(location.hash.slice(1) + '-settings-tab') || {}).checked = true;
+  </script>
 </section>
 {% endblock %}
