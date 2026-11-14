@@ -1,0 +1,59 @@
+{% load i18n %}
+{% if titles or episodes %}
+<ul class="menu w-full gap-1 p-0" hx-boost="true">
+  {% for item in titles %}
+  <li>
+    <a href="{% if item.kind == 'movie' %}{% url 'movie-detail' external_id=item.record.external_id %}{% if item.record.provider != 'tmdb' %}?provider={{ item.record.provider }}{% endif %}{% else %}{% url 'tv-detail' external_id=item.record.external_id %}{% if item.record.provider != 'tvdb' %}?provider={{ item.record.provider }}{% endif %}{% endif %}"
+       class="flex items-center gap-3">
+      {% if item.record.poster_url %}
+      <img src="{{ item.record.poster_url }}" alt="" loading="lazy" class="h-14 w-10 shrink-0 rounded object-cover">
+      {% else %}
+      <span class="flex h-14 w-10 shrink-0 items-center justify-center rounded bg-base-200" aria-hidden="true">
+        <i data-lucide="{% if item.kind == 'movie' %}film{% else %}tv{% endif %}"></i>
+      </span>
+      {% endif %}
+      <span class="min-w-0 flex-1">
+        <span class="block truncate font-medium">{{ item.title }}</span>
+        <span class="block text-xs text-base-content/60">
+          {% if item.kind == 'movie' %}{% trans "Movie" %}{% if item.record.release_date %} · {{ item.record.release_date.year }}{% endif %}
+          {% else %}{% trans "TV Show" %}{% if item.record.first_aired %} · {{ item.record.first_aired.year }}{% endif %}{% endif %}
+        </span>
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+  {% if episodes %}
+  <li class="menu-title pt-3">{% trans "Episodes" %}</li>
+  {% for item in episodes %}
+  <li>
+    <a href="{% url 'tv-episode-detail' external_id=item.record.show.external_id episode_id=item.record.id %}{% if item.record.show.provider != 'tvdb' %}?provider={{ item.record.show.provider }}{% endif %}"
+       class="flex items-center gap-3">
+      <i data-lucide="clapperboard" class="shrink-0 text-base-content/60" aria-hidden="true"></i>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate">{{ item.title }}</span>
+        <span class="block truncate text-xs text-base-content/60">{{ item.show_title }} · S{{ item.record.season_number|stringformat:"02d" }}E{{ item.record.episode_number|stringformat:"02d" }}</span>
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+  {% endif %}
+</ul>
+{% elif query|length >= 2 %}
+<p class="py-8 text-center text-sm text-base-content/60">{% trans "Nothing in your library matches this search." %}</p>
+{% endif %}
+{% if query|length >= 2 %}
+<div class="mt-2 border-t border-base-300 pt-3">
+  <p class="mb-2 px-1 text-xs text-base-content/60">{% trans "Not in your library? Add it from" %}</p>
+  <div class="grid grid-cols-2 gap-2" hx-boost="true">
+    {% url 'catalog-search-page' as search_url %}
+    {% for type, type_label in search_types %}{% for provider in search_providers %}
+    <a href="{{ search_url }}?q={{ query|urlencode }}&type={{ type }}&provider={{ provider }}" class="btn btn-sm btn-ghost justify-start border-base-300">
+      <i data-lucide="{% if type == 'movie' %}film{% else %}tv{% endif %}" aria-hidden="true"></i>
+      {{ type_label }} · {{ provider|upper }}
+    </a>
+    {% endfor %}{% endfor %}
+  </div>
+</div>
+{% else %}
+<p class="py-8 text-center text-sm text-base-content/60">{% trans "Type at least two characters to search your library." %}</p>
+{% endif %}

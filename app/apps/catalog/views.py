@@ -58,6 +58,25 @@ def search_results(request):
 
 @only_htmx
 @htmx_login_required
+@require_http_methods(["GET"])
+def library_search(request):
+    from apps.catalog.library import search_library
+
+    query = request.GET.get("q", "").strip()
+    return render(
+        request,
+        "catalog/fragments/library_results.html",
+        {
+            "query": query,
+            "search_types": (("movie", _("Movies")), ("tv", _("TV Shows"))),
+            "search_providers": sorted(SUPPORTED_PROVIDERS),
+            **search_library(request.user, query),
+        },
+    )
+
+
+@only_htmx
+@htmx_login_required
 @require_http_methods(["POST"])
 def track(request):
     if settings.DEMO and not request.user.is_superuser:
