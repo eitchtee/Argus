@@ -1,6 +1,6 @@
 import pytz
 from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Fieldset, HTML, Layout, Submit
+from crispy_forms.layout import Div, Fieldset, HTML, Layout, Submit
 from django import forms
 from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm, UsernameField
@@ -131,7 +131,7 @@ class UserSettingsForm(forms.ModelForm):
             Fieldset(
                 _("Metadata"),
                 HTML(
-                    '<p class="text-sm text-base-content/70 mb-3">'
+                    '<p class="mb-3 text-sm text-base-content/65">'
                     + str(
                         _(
                             "Controls titles and descriptions from metadata providers. "
@@ -140,12 +140,17 @@ class UserSettingsForm(forms.ModelForm):
                     )
                     + "</p>"
                 ),
-                "tvdb_metadata_language",
-                "tmdb_metadata_language",
+                Div(
+                    "tvdb_metadata_language",
+                    "tmdb_metadata_language",
+                    css_class="grid gap-x-4 sm:grid-cols-2",
+                ),
             ),
-            "timezone",
-            "date_format",
-            "datetime_format",
+            Fieldset(
+                _("Date and time"),
+                "timezone",
+                Div("date_format", "datetime_format", css_class="grid gap-x-4 sm:grid-cols-2"),
+            ),
             "show_specials",
             Submit("submit", _("Save"), css_class="btn btn-primary"),
         )
