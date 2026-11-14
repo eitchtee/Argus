@@ -84,3 +84,45 @@ MDBList has no paused state, so paused shows stay in Argus (and the first pull d
 ### How the sync runs
 
 The first run pulls the whole library (watched history, ratings, watchlist, dropped shows). Every later run asks `/sync/last_activities` first. When watched or rated state moved, it replays the MDBList sync journal from the previous run's server time, which reports per-item additions and removals (episodes included); the watchlist or dropped list is re-read only when its own timestamp moved. If the journal's 30-day window has passed, the run falls back to a full pull. A local mirror of the MDBList library, keyed by TMDB id, records what each change is compared with; a snapshot that would wipe more than half of a list is refused as a safety measure. MDBList sync rows only carry TMDB and IMDb ids, so shows imported from MDBList get their TVDB id from TMDB first and keep TVDB as their source. Local changes are queued as intents and pushed in batches (at most 200 shows per write). Titles MDBList cannot match are reported on the settings page and are not retried until **Sync now** is pressed. Accounts idle for more than `MDBLIST_IDLE_HOURS` (default 24) are not polled unless they have local changes to push.
+
+## Development
+
+The development stack runs from `docker-compose.dev.yml`:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+Set `COMPOSE_FILE=docker-compose.dev.yml` in your `.env` to drop the `-f` flag.
+
+### Working in multiple git worktrees
+
+You can run one dev stack per [git worktree](https://git-scm.com/docs/git-worktree), side by side. Each worktree gets its own containers, images, database and volumes, because Compose names them after the worktree's folder.
+
+A new worktree has no `.env` (it's gitignored). After creating one, run this from the worktree's root:
+
+```bash
+sh docker/dev/worktree.sh
+```
+
+It copies `.env` from your main checkout, gives the worktree its own host ports (printed when it finishes) and installs `frontend/node_modules` for tools you run outside Docker. The database and `data/` cache start empty.
+
+To stop the worktree's containers and delete its volumes before removing it:
+
+```bash
+sh docker/dev/worktree.sh teardown
+```
+
+The commands work on Linux, macOS and Windows (Git Bash or WSL). PowerShell and cmd have no `sh`, so on Windows set up git aliases once in your clone; they run through Git's bundled shell from any terminal, and every worktree of the clone shares them:
+
+```bash
+git config alias.wt-setup '!sh docker/dev/worktree.sh'
+git config alias.wt-teardown '!sh docker/dev/worktree.sh teardown'
+```
+
+Run those two lines in Git Bash or PowerShell; cmd doesn't understand the single quotes.
+
+Then use `git wt-setup` and `git wt-teardown`. Tools that create worktrees for you, such as Orca, Conductor or Superset, usually have setup and archive hooks: put these commands there.
+
+> [!NOTE]
+> Ports come from the worktree's folder name, so two worktrees can rarely land on the same ones. If `docker compose up` reports a port in use, change `OUTBOUND_PORT`, `VITE_OUTBOUND_PORT` or `SQL_OUTBOUND_PORT` in that worktree's `.env`.
