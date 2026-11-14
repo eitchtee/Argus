@@ -353,6 +353,9 @@ CRISPY_TEMPLATE_PACK = "crispy-daisyui"
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_AGE = int(os.getenv("SESSION_EXPIRY_TIME", 2678400))  # 31 days
 SESSION_COOKIE_SECURE = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
+# Browsers share cookies across ports, so dev worktrees on localhost need distinct names
+SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "sessionid")
+CSRF_COOKIE_NAME = os.getenv("CSRF_COOKIE_NAME", "csrftoken")
 
 HTTPS_ENABLED = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if HTTPS_ENABLED else None
