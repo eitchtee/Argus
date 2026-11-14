@@ -1,4 +1,4 @@
-from datetime import date, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -581,14 +581,22 @@ class HomeUpcomingViewTests(TestCase):
         self.show.airs_time = time(21, 0)
         self.show.airs_timezone = "America/New_York"
         self.show.save(update_fields=["airs_time", "airs_timezone"])
-        self._make_episode(1, self.today, "Timed episode")
         # The request middleware activates the user's timezone setting.
         self.user.settings.timezone = "America/Sao_Paulo"
         self.user.settings.save(update_fields=["timezone"])
 
-        response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+        # São Paulo has no DST, so the offset to New York changes with the season.
+        for air_date, expected in [(date(2026, 7, 15), "10 p.m."), (date(2027, 1, 15), "11 p.m.")]:
+            with self.subTest(air_date=air_date):
+                episode = self._make_episode(1, air_date, "Timed episode")
+                noon = datetime.combine(air_date, time(12), tzinfo=UTC)
+                with patch("django.utils.timezone.now", return_value=noon):
+                    # Log in under the frozen clock so the session isn't already expired.
+                    self.client.force_login(self.user)
+                    response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+                episode.delete()
 
-        self.assertContains(response, "10 p.m.")
+                self.assertContains(response, expected)
 
     def test_omits_air_time_when_the_show_has_none(self):
         self._make_episode(1, self.today, "Untimed episode")
