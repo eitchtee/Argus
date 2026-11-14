@@ -1179,6 +1179,60 @@ class StremioRemoteSafetyTests(TestCase):
         )
 
         self.assertTrue(UserEpisode.objects.filter(user=user, episode=episode).exists())
+    def test_series_last_watched_does_not_overwrite_local_episode_dates(self):
+        user = get_user_model().objects.create_user("user@example.com", password="pw")
+        show = Show.objects.create(
+            imdb_id="tt0944947",
+            name="Game of Thrones",
+            external_id="1399",
+            tmdb_id="1399",
+        )
+        season = Season.objects.create(show=show, season_number=1)
+        first = Episode.objects.create(
+            show=show, season=season, season_number=1, episode_number=1, name="One"
+        )
+        Episode.objects.create(
+            show=show, season=season, season_number=1, episode_number=2, name="Two"
+        )
+        first_seen = datetime(2026, 8, 1, 10, tzinfo=timezone.utc)
+        UserEpisode.objects.create(user=user, episode=first, seen_at=first_seen)
+        video_ids = ["tt0944947:1:1", "tt0944947:1:2"]
+        meta = {
+            "videos": [
+                {"id": video_ids[0], "season": 1, "episode": 1},
+                {"id": video_ids[1], "season": 1, "episode": 2},
+            ]
+        }
+        remote = normalize_items(
+            [
+                {
+                    "_id": "tt0944947",
+                    "type": "series",
+                    "state": {
+                        "watched": encode_watched_bitfield(set(video_ids), video_ids),
+                        "lastWatched": "2026-08-08T10:00:00Z",
+                    },
+                }
+            ],
+            cinemeta_getter=lambda _imdb_id: meta,
+        )
+
+        _apply_remote(
+            user,
+            remote,
+            LocalSnapshot([], [], [], [], []),
+            [],
+            SyncReport(),
+            initial=False,
+            getter=lambda _imdb_id: meta,
+        )
+
+        seen = dict(
+            UserEpisode.objects.filter(user=user).values_list("episode__episode_number", "seen_at")
+        )
+        self.assertEqual(seen[1], first_seen)
+        self.assertEqual(seen[2], datetime(2026, 8, 8, 10, tzinfo=timezone.utc))
+
     def test_incomplete_series_state_does_not_delete_local_episode_history(self):
         user = get_user_model().objects.create_user("user@example.com", password="pw")
         show = Show.objects.create(

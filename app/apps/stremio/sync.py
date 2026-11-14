@@ -638,7 +638,8 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                 state.is_seen = True
                 state.on_watchlist = False
                 state.watchlist_added_at = None
-                if watched.watched_at and (state.seen_at is None or watched.watched_at > state.seen_at):
+                # A watch Argus already holds keeps its own date.
+                if watched.watched_at and (not movie_state_before[2] or state.seen_at is None):
                     state.seen_at = watched.watched_at
             elif (
                 not initial
@@ -736,7 +737,9 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                     defaults={"seen_at": watched.watched_at or django_timezone.now()},
                 )
                 local_states[episode.id] = state
-            if not created and watched.watched_at and (state.seen_at is None or watched.watched_at > state.seen_at):
+            # Stremio stamps every watched episode with the show's lastWatched,
+            # so a local watch keeps its own date.
+            if not created and watched.watched_at and state.seen_at is None:
                 state.seen_at = watched.watched_at
                 state.save(update_fields=["seen_at"])
             report.episodes_marked += int(created)
