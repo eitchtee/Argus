@@ -366,16 +366,32 @@
         @apply border-neutral/60 bg-neutral/90 text-neutral-content;
     }
 
+    .poster-card__ratings {
+        @apply pointer-events-none absolute start-2 top-2 z-[2] flex flex-col items-start gap-1;
+    }
+
     .poster-card__rating {
-        @apply pointer-events-none absolute start-2 top-2 z-[2] flex h-6 items-center gap-1 rounded-full border border-white/25 bg-black/70 px-2 text-xs font-semibold leading-none text-white shadow-md;
+        @apply flex h-6 items-center gap-1 rounded-full border border-white/25 bg-black/70 px-2 text-xs font-semibold leading-none text-white shadow-md;
+    }
+
+    /* The viewer's own rating: a filled yellow star. */
+    .poster-card__rating:not(.poster-card__rating--argus) svg.lucide {
+        fill: currentColor;
     }
 
     .poster-card__rating svg.lucide {
         @apply block;
     }
 
-    .poster-card__rating i {
+    .poster-card__rating i,
+    .poster-card__rating svg.lucide {
         @apply text-sm leading-none text-warning;
+    }
+
+    /* The Argus score: an outlined white star, so it never reads as the viewer's own. */
+    .poster-card__rating--argus i,
+    .poster-card__rating--argus svg.lucide {
+        @apply text-white;
     }
 
     .poster-card__copy {

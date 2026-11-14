@@ -112,6 +112,24 @@ class MovieWatchedViewTests(TestCase):
 
         self.assertNotContains(response, 'class="poster-card__rating"')
 
+    def test_argus_score_badge_sits_beside_the_users_rating(self):
+        watched = Movie.objects.create(
+            external_id="550",
+            title="Fight Club",
+            poster_path="/poster.jpg",
+            aggregate_score=82,
+        )
+        UserMovie.objects.create(user=self.user, movie=watched, is_seen=True)
+        rate_media(self.user, "movie", watched, Decimal("4.5"))
+
+        response = self.client.get(
+            reverse("movies-watched-page"), HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(response, 'class="poster-card__rating"')
+        self.assertContains(response, 'class="poster-card__rating poster-card__rating--argus"')
+        self.assertContains(response, ">82<")
+
     def test_missing_poster_renders_movie_placeholder(self):
         movie = Movie.objects.create(external_id="1", title="No Poster")
         UserMovie.objects.create(user=self.user, movie=movie, is_seen=True)

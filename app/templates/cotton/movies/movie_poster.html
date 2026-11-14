@@ -19,13 +19,22 @@
       </div>
       {% endif %}
       <div class="poster-card__gradient" aria-hidden="true"></div>
-      {% if watched and movie.user_rating %}
-      <span class="poster-card__rating"
-            aria-label="{% trans 'Your rating' %}: {{ movie.user_rating }}">
-        <i data-lucide="star" aria-hidden="true"></i>
-        <span class="tabular-nums">{{ movie.user_rating }}</span>
-      </span>
-      {% endif %}
+      <div class="poster-card__ratings">
+        {% if watched and movie.user_rating %}
+        <span class="poster-card__rating"
+              aria-label="{% trans 'Your rating' %}: {{ movie.user_rating }}">
+          <i data-lucide="star" aria-hidden="true"></i>
+          <span class="tabular-nums">{{ movie.user_rating }}</span>
+        </span>
+        {% endif %}
+        {% if movie.aggregate_score is not None %}
+        <span class="poster-card__rating poster-card__rating--argus"
+              aria-label="{% trans 'Argus score' %}: {{ movie.aggregate_score }}">
+          <i data-lucide="star" aria-hidden="true"></i>
+          <span class="tabular-nums">{{ movie.aggregate_score }}</span>
+        </span>
+        {% endif %}
+      </div>
       <div class="poster-card__badges">
         {% if movie.normalized_status %}
         <span class="poster-card__badge
