@@ -1,0 +1,23 @@
+{% load i18n %}
+<script type="text/hyperscript">
+behavior htmx_confirm_handler
+  -- Replaces the browser's confirm() for every hx-confirm with a SweetAlert dialog.
+  on htmx:confirm[detail.question]
+    halt the event's default
+    call Swal.fire({
+      title: event.detail.question,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: '{% trans "Confirm" %}',
+      cancelButtonText: '{% trans "Cancel" %}',
+      reverseButtons: true,
+      -- customClass replaces the mixin's object wholesale, so restate its cancel/actions classes
+      customClass: {
+        confirmButton: 'btn btn-error',
+        cancelButton: 'btn btn-soft',
+        actions: 'gap-2'
+      }
+    })
+    if it.isConfirmed call event.detail.issueRequest(true) end
+end
+</script>

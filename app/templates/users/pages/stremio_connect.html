@@ -9,7 +9,7 @@
     <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Account" %}</p>
     <h1 class="text-3xl font-bold tracking-tight">{% trans "Connect Stremio" %}</h1>
   </div>
-  <div class="space-y-4 rounded-box border border-base-300 bg-base-100 p-6">
+  <div class="flex flex-col items-center space-y-4 rounded-box border border-base-300 bg-base-100 p-6 text-center">
     {% if pending %}
       <p class="text-sm leading-6 text-base-content/70">{% trans "Stremio authorization is still waiting. Finish the link in Stremio, then try again." %}</p>
     {% else %}
