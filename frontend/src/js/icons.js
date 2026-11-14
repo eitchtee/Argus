@@ -1,6 +1,7 @@
 // Lucide icon rendering. Templates declare icons with <i data-lucide="icon-name">;
 // this replaces them with inline SVGs at runtime.
 import {
+    ArrowDownUp,
     ArrowRightLeft,
     ArrowRight,
     BookOpen,
@@ -83,6 +84,7 @@ import {
 import { createIcons } from 'lucide';
 
 const icons = {
+    ArrowDownUp,
     ArrowRightLeft,
     ArrowRight,
     BookOpen,

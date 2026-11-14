@@ -1,0 +1,58 @@
+{% load i18n %}
+<c-vars tabs="" tab_name="" tab="" tab_label="" statuses="" status="" ratings="" rating="" />
+{% trans "Filters" as filters_label %}
+{% trans "Genre" as genre_label %}
+{% trans "Show status" as status_label %}
+{% trans "Your rating" as rating_label %}
+
+<form id="{{ id }}-filters" method="get" action="{{ url }}"
+      hx-get="{{ url }}" hx-trigger="change, change from:#{{ id }}-sort" hx-target="#{{ target }}"
+      hx-indicator="#{{ target }}"
+      hx-swap="innerHTML" hx-push-url="true"
+      _="install init_tom_select"
+      class="mb-6 flex flex-wrap items-center justify-center gap-3"
+      aria-label="{{ filters_label }}">
+  {% if tabs %}
+  <div role="radiogroup" aria-label="{{ tab_label }}"
+       class="tabs tabs-box max-w-full flex-nowrap overflow-x-auto [scrollbar-width:none]">
+    {% for value, label, count in tabs %}
+    <label class="tab flex-nowrap gap-2 whitespace-nowrap has-checked:tab-active has-focus-visible:outline-2 has-focus-visible:outline-primary">
+      <input id="{{ id }}-{{ tab_name }}-{{ value }}" type="radio" class="sr-only"
+             name="{{ tab_name }}" value="{{ value }}"
+             {% if value == tab %}checked{% endif %}>
+      {{ label }}
+      <span class="badge badge-sm badge-ghost tabular-nums">{{ count }}</span>
+    </label>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="flex w-full flex-wrap justify-center gap-2 sm:w-auto">
+    <select id="{{ id }}-genre" name="genre" data-allow-empty-option="true" aria-label="{{ genre_label }}"
+            class="select select-sm min-w-36 flex-1 sm:w-44 sm:flex-none">
+      <option value="">{% trans "All genres" %}</option>
+      {% for name in genres %}
+      <option value="{{ name }}" {% if name == genre %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+    {% if statuses %}
+    <select id="{{ id }}-status" name="status" data-allow-empty-option="true" aria-label="{{ status_label }}"
+            class="select select-sm min-w-36 flex-1 sm:w-40 sm:flex-none">
+      <option value="">{% trans "Any status" %}</option>
+      {% for value, label in statuses %}
+      <option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    {% if ratings %}
+    <select id="{{ id }}-rating" name="rating" data-allow-empty-option="true" aria-label="{{ rating_label }}"
+            class="select select-sm min-w-36 flex-1 sm:w-40 sm:flex-none">
+      <option value="">{% trans "Any rating" %}</option>
+      {% for value, label in ratings %}
+      <option value="{{ value }}" {% if value == rating %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+  <noscript><button class="btn btn-sm" type="submit">{% trans "Apply" %}</button></noscript>
+</form>

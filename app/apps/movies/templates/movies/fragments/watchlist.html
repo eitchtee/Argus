@@ -1,21 +1,18 @@
 {% load i18n %}
-{% if movies %}
-<div class="mb-6">
-  <label class="input input-bordered h-10 min-h-10 w-full">
-    <i data-lucide="search" class="opacity-50" aria-hidden="true"></i>
-    <input type="search" placeholder="{% trans 'Search your watchlist' %}"
-           aria-label="{% trans 'Search your watchlist' %}" autocomplete="off"
-           _="on input
-                show <.poster-card/> in #movies-watchlist-grid
-                when its dataset.name.toLowerCase() contains my value.toLowerCase()" />
-  </label>
-</div>
+{% trans "Release" as release_label %}
+<c-library-filters id="movies-watchlist" :url="request.path" target="movies-watchlist-content"
+                   :tabs="releases" tab_name="release" :tab="release"
+                   :tab_label="release_label"
+                   :genres="genres" :genre="genre" />
 
+{% if movies %}
 <div id="movies-watchlist-grid" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
   {% for movie in movies %}
   <c-movies.movie-poster :movie="movie" :watched="False" :removable="True" />
   {% endfor %}
 </div>
+{% elif is_filtered %}
+<div class="empty-state py-12 text-center">{% trans "No movies match these filters." %}</div>
 {% else %}
 <div class="empty-state py-12 text-center">{% trans "No movies in your watchlist." %}</div>
 {% endif %}

@@ -1,0 +1,15 @@
+{% load i18n %}
+{% trans "Condition" as condition_label %}
+<c-library-filters id="tv-watchlist" :url="request.path" target="tv-watchlist-panel"
+                   :tabs="conditions" tab_name="condition" :tab="condition"
+                   :tab_label="condition_label"
+                   :genres="genres" :genre="genre"
+                   :statuses="statuses" :status="status" />
+
+{% if shows %}
+{% include "tv/fragments/watchlist_grid.html" %}
+{% elif is_filtered %}
+<div class="empty-state py-12 text-center">{% trans "No shows match these filters." %}</div>
+{% else %}
+<div class="empty-state py-12 text-center">{% trans "No shows in this section." %}</div>
+{% endif %}

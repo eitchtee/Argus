@@ -25,13 +25,16 @@ if [ ! -f .env ]; then
     # Same folder name -> same offset, so re-creating a worktree keeps its ports.
     # Bases differ from WYGIWYH's (18000/15100/15400) so both projects' worktrees can run at once.
     off=$(( $(basename "$PWD" | cksum | cut -d ' ' -f 1) % 100 + 1 ))
-    grep -v -E '^(OUTBOUND_PORT|VITE_OUTBOUND_PORT|SQL_OUTBOUND_PORT)=' "$main/.env" > .env || true
+    grep -v -E '^(OUTBOUND_PORT|VITE_OUTBOUND_PORT|SQL_OUTBOUND_PORT|SESSION_COOKIE_NAME|CSRF_COOKIE_NAME)=' "$main/.env" > .env || true
     {
         echo ""
         echo "# Host ports for this worktree, set by docker/dev/worktree.sh"
         echo "OUTBOUND_PORT=$((28000 + off))"
         echo "VITE_OUTBOUND_PORT=$((25100 + off))"
         echo "SQL_OUTBOUND_PORT=$((25400 + off))"
+        # Cookies ignore the port, so each worktree on localhost needs its own names
+        echo "SESSION_COOKIE_NAME=sessionid_$((28000 + off))"
+        echo "CSRF_COOKIE_NAME=csrftoken_$((28000 + off))"
     } >> .env
     echo "Created .env: app on http://localhost:$((28000 + off))"
 fi

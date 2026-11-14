@@ -28,7 +28,6 @@ from apps.catalog.localization import (
     resolve_title,
 )
 from apps.catalog.ratings import (
-    attach_user_scores,
     build_rating_url,
     format_score,
     get_user_score,
@@ -39,6 +38,13 @@ from apps.catalog.tracking import find_tracking_match
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.common.htmx import is_htmx_fragment_request
+from apps.catalog.library_filters import pick_sort
+from apps.movies.filters import (
+    WATCHED_SORT_CHOICES,
+    WATCHLIST_SORT_CHOICES,
+    filter_watched,
+    filter_watchlist,
+)
 from apps.movies.models import Movie, UserMovie
 from apps.movies.services import (
     get_watched_movies,
@@ -89,17 +95,16 @@ def movie_detail_content(request, external_id):
 @require_http_methods(["GET"])
 def movie_watchlist(request):
     if not is_htmx_fragment_request(request):
-        return render(request, "movies/pages/watchlist.html")
+        return render(
+            request,
+            "movies/pages/watchlist.html",
+            {"sorts": WATCHLIST_SORT_CHOICES, "sort": pick_sort(request.GET, WATCHLIST_SORT_CHOICES)},
+        )
 
     return render(
         request,
         "movies/fragments/watchlist.html",
-        {
-            "movies": localized_media_records(
-                get_watchlist_movies(request.user),
-                request.user,
-            ),
-        },
+        filter_watchlist(request.user, get_watchlist_movies(request.user), request.GET),
     )
 
 
@@ -186,17 +191,16 @@ def movie_pick(request):
 @require_http_methods(["GET"])
 def movie_watched_list(request):
     if not is_htmx_fragment_request(request):
-        return render(request, "movies/pages/watched.html")
+        return render(
+            request,
+            "movies/pages/watched.html",
+            {"sorts": WATCHED_SORT_CHOICES, "sort": pick_sort(request.GET, WATCHED_SORT_CHOICES)},
+        )
 
-    records = localized_media_records(
-        get_watched_movies(request.user),
-        request.user,
-    )
-    attach_user_scores(request.user, [record.source for record in records])
     return render(
         request,
         "movies/fragments/watched.html",
-        {"movies": records},
+        filter_watched(request.user, get_watched_movies(request.user), request.GET),
     )
 
 
