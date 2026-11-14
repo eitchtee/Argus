@@ -1174,6 +1174,7 @@ def get_watchlist_shows(user, section: str = "all") -> list[Show]:
             show.total_episode_count,
             show.upcoming_episode_count,
         )
+        show.tracking_started_at = user_show.tracking_started_at
     if section == "all":
         return shows
 

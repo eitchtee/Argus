@@ -1,0 +1,33 @@
+{% load i18n %}
+{% trans "Sort by" as sort_label %}
+
+{# The sort radios belong to the grid's filter form (form attribute), which reloads on their change. #}
+<div class="join relative z-30 w-full">
+  <label class="input input-bordered join-item h-10 min-h-10 flex-1">
+    <i data-lucide="search" class="opacity-50" aria-hidden="true"></i>
+    <input type="search" placeholder="{{ label }}" aria-label="{{ label }}" autocomplete="off"
+           _="on input or htmx:afterSwap from #{{ panel }}
+                show <.poster-card/> in #{{ panel }}
+                when its dataset.name.toLowerCase() contains my value.toLowerCase()" />
+  </label>
+  <div id="{{ id }}-sort" class="dropdown dropdown-end join-item border-0">
+    <button type="button" tabindex="0" aria-haspopup="true"
+            class="btn btn-square join-item h-10 min-h-10 border-base-content/20"
+            aria-label="{{ sort_label }}" title="{{ sort_label }}">
+      <i data-lucide="arrow-down-up" aria-hidden="true"></i>
+    </button>
+    <div role="radiogroup" aria-label="{{ sort_label }}" tabindex="0"
+         class="dropdown-content menu z-50 mt-2 w-56 rounded-box bg-base-100 p-2 shadow-xl">
+      <span class="menu-title">{{ sort_label }}</span>
+      {% for value, option in sorts %}
+      <label class="flex cursor-pointer items-center justify-between gap-2 rounded-field px-3 py-2 hover:bg-base-200 has-checked:text-primary has-focus-visible:outline-2 has-focus-visible:outline-primary">
+        <input type="radio" name="sort" value="{{ value }}" form="{{ id }}-filters"
+               class="peer sr-only" {% if value == sort %}checked{% endif %}
+               _="on change call document.activeElement.blur()">
+        {{ option }}
+        <i data-lucide="check" class="invisible size-4 peer-checked:visible" aria-hidden="true"></i>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+</div>
