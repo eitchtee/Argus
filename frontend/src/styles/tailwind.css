@@ -1424,3 +1424,24 @@ dialog.modal {
         transform: none;
     }
 }
+
+/* Blur a panel while htmx reloads it, using the same daisyUI spinner as the
+   page-load placeholders. The 200ms delay keeps fast responses from flashing. */
+.show-loading.htmx-request {
+    @apply relative min-h-24;
+
+    &::before,
+    &::after {
+        content: "";
+        opacity: 0;
+        animation: fade-in 0.1s ease-in 200ms forwards;
+    }
+
+    &::before {
+        @apply absolute inset-0 z-100 backdrop-blur-xs;
+    }
+
+    &::after {
+        @apply loading loading-spinner loading-lg absolute top-12 left-1/2 z-101 -translate-x-1/2;
+    }
+}

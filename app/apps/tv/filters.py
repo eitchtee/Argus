@@ -1,121 +1,93 @@
-import django_filters
+from collections import Counter
+
+from django.db.models import Max
 from django.utils.translation import gettext_lazy as _
 
-from apps.tv.models import Show
+from apps.catalog.artwork import localized_media_records
+from apps.catalog.library_filters import (
+    attach_genre_names,
+    pick,
+    pick_sort,
+    sorted_nulls_last,
+    title_key,
+)
+from apps.tv.models import Show, UserEpisode
 from apps.tv.services import get_watchlist_shows
 
 
-DEFAULT_CONDITION = "watching"
 CONDITION_CHOICES = (
     ("watching", _("Watching")),
     ("completed", _("Completed")),
-    ("dropped", _("Dropped")),
     ("paused", _("Paused")),
+    ("dropped", _("Dropped")),
+    ("all", _("All")),
 )
-NORMALIZED_STATUS_CHOICES = (
+STATUS_CHOICES = (
     (Show.NormalizedStatus.CONTINUING, _("Continuing")),
     (Show.NormalizedStatus.ENDED, _("Ended")),
     (Show.NormalizedStatus.UPCOMING, _("Upcoming")),
 )
+SORT_CHOICES = (
+    ("title", _("Title")),
+    ("watched", _("Recently watched")),
+    ("added", _("Recently added")),
+    ("airing", _("Airing next")),
+)
 
 
-class WatchlistFilter(django_filters.FilterSet):
-    condition = django_filters.MultipleChoiceFilter(
-        choices=CONDITION_CHOICES,
-        method="filter_condition",
-        label=_("Condition"),
-    )
-    normalized_status = django_filters.MultipleChoiceFilter(
-        field_name="normalized_status",
-        choices=NORMALIZED_STATUS_CHOICES,
-        label=_("Show status"),
-    )
+def filter_watchlist(user, params):
+    """Return the template context for the TV watchlist grid and its filters.
 
-    class Meta:
-        model = Show
-        fields = ("condition", "normalized_status")
+    Tab counts reflect the genre/status filters so each tab shows what
+    clicking it would reveal.
+    """
+    condition = pick(params, "condition", dict(CONDITION_CHOICES), "watching")
+    status = pick(params, "status", dict(STATUS_CHOICES))
+    sort = pick_sort(params, SORT_CHOICES)
 
-    def __init__(self, data=None, *args, request=None, **kwargs):
-        data = (data or {}).copy()
-        condition_values = {
-            value for value, _label in CONDITION_CHOICES
-        }
-        normalized_status_values = {
-            value for value, _label in NORMALIZED_STATUS_CHOICES
-        }
+    shows = get_watchlist_shows(user, "all")
+    genres = attach_genre_names(user, shows)
+    genre = pick(params, "genre", genres)
+    shows = [
+        show
+        for show in shows
+        if (not status or show.normalized_status == status)
+        and (not genre or genre in show.genre_names)
+    ]
+    counts = Counter(show.user_condition for show in shows)
+    counts["all"] = len(shows)
+    if condition != "all":
+        shows = [show for show in shows if show.user_condition == condition]
 
-        conditions = [
-            value
-            for value in self._get_values(data, "condition")
-            if value in condition_values
-        ]
-        if not conditions:
-            conditions = [DEFAULT_CONDITION]
-        self._set_values(data, "condition", conditions)
-
-        normalized_statuses = [
-            value
-            for value in self._get_values(data, "normalized_status")
-            if value in normalized_status_values
-        ]
-        if normalized_statuses:
-            self._set_values(data, "normalized_status", normalized_statuses)
-        else:
-            data.pop("normalized_status", None)
-        super().__init__(data, *args, request=request, **kwargs)
-
-    @staticmethod
-    def _get_values(data, name):
-        if hasattr(data, "getlist"):
-            return data.getlist(name)
-        value = data.get(name, [])
-        if isinstance(value, (list, tuple)):
-            return list(value)
-        return [value] if value else []
-
-    @staticmethod
-    def _set_values(data, name, values):
-        if hasattr(data, "setlist"):
-            data.setlist(name, values)
-        else:
-            data[name] = values
-
-    def filter_condition(self, queryset, _name, value):
-        user = getattr(self.request, "user", None)
-        if user is None or not user.is_authenticated:
-            self._condition_shows = []
-            return queryset.none()
-        condition_shows = {}
-        for condition in value or [DEFAULT_CONDITION]:
-            for show in get_watchlist_shows(user, condition):
-                condition_shows[show.pk] = show
-        self._condition_shows = sorted(
-            condition_shows.values(),
-            key=lambda show: (show.name.casefold(), show.pk),
+    records = sorted(localized_media_records(shows, user), key=title_key)
+    if sort == "watched":
+        last_seen = dict(
+            UserEpisode.objects.filter(user=user, episode__show__in=shows)
+            .values("episode__show_id")
+            .annotate(last_seen=Max("seen_at"))
+            .values_list("episode__show_id", "last_seen")
         )
-        return queryset.filter(pk__in=condition_shows)
+        records = sorted_nulls_last(
+            records, lambda record: last_seen.get(record.pk), reverse=True
+        )
+    elif sort == "added":
+        records = sorted(
+            records, key=lambda record: record.tracking_started_at, reverse=True
+        )
+    elif sort == "airing":
+        records = sorted_nulls_last(records, lambda record: record.next_air_date)
 
-    @property
-    def condition_shows(self):
-        if not hasattr(self, "_condition_shows"):
-            self.qs
-        return self._condition_shows
-
-    @property
-    def selected_condition(self):
-        return self.selected_conditions[0]
-
-    @property
-    def selected_conditions(self):
-        self.form.is_valid()
-        return self.form.cleaned_data.get("condition") or [DEFAULT_CONDITION]
-
-    @property
-    def selected_normalized_status(self):
-        statuses = self.selected_normalized_statuses
-        return statuses[0] if statuses else None
-
-    @property
-    def selected_normalized_statuses(self):
-        self.form.is_valid()
-        return self.form.cleaned_data.get("normalized_status") or []
+    return {
+        "shows": records,
+        "conditions": [
+            (value, label, counts[value]) for value, label in CONDITION_CHOICES
+        ],
+        "condition": condition,
+        "statuses": STATUS_CHOICES,
+        "status": status,
+        "genres": genres,
+        "genre": genre,
+        "sorts": SORT_CHOICES,
+        "sort": sort,
+        "is_filtered": bool(status or genre),
+    }

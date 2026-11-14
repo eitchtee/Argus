@@ -48,7 +48,8 @@ from apps.catalog.services import (
 from apps.common.decorators.htmx import only_htmx
 from apps.common.decorators.user import htmx_login_required
 from apps.common.htmx import is_htmx_fragment_request
-from apps.tv.filters import WatchlistFilter
+from apps.catalog.library_filters import pick_sort
+from apps.tv.filters import SORT_CHOICES, filter_watchlist
 from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
 from apps.tv.services import (
     delete_show_data,
@@ -124,34 +125,16 @@ def upcoming(request):
 @htmx_login_required
 @require_http_methods(["GET"])
 def watchlist(request):
-    watchlist_filter = _watchlist_filter(request)
-    context = {
-        "watchlist_filter": watchlist_filter,
-    }
-    if is_htmx_fragment_request(request):
-        filtered_show_ids = set(watchlist_filter.qs.values_list("pk", flat=True))
-        shows = [
-            show
-            for show in watchlist_filter.condition_shows
-            if show.pk in filtered_show_ids
-        ]
-        context["shows"] = localized_media_records(shows, request.user)
-        _attach_show_ratings(request.user, context["shows"])
-        return render(request, "tv/fragments/watchlist_grid.html", context)
-    return render(request, "tv/pages/watchlist.html", context)
+    if not is_htmx_fragment_request(request):
+        return render(
+            request,
+            "tv/pages/watchlist.html",
+            {"sorts": SORT_CHOICES, "sort": pick_sort(request.GET, SORT_CHOICES)},
+        )
 
-
-def _watchlist_filter(request):
-    data = request.GET.copy()
-    if not data.get("condition"):
-        data["condition"] = "watching"
-    return WatchlistFilter(
-        data,
-        queryset=Show.objects.filter(user_states__user=request.user).order_by(
-            "name", "id"
-        ),
-        request=request,
-    )
+    context = filter_watchlist(request.user, request.GET)
+    _attach_show_ratings(request.user, context["shows"])
+    return render(request, "tv/fragments/watchlist.html", context)
 
 
 @only_htmx
