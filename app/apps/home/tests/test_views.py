@@ -87,7 +87,7 @@ class IndexViewTests(TestCase):
         self.assertIn('class="menu menu-sm', sidebar)
         self.assertGreaterEqual(sidebar.count("<ul"), 3)
         self.assertIn(">Home</span>", sidebar)
-        self.assertIn(">Search</span>", sidebar)
+        self.assertIn(">Add new</span>", sidebar)
         self.assertIn(">History</span>", sidebar)
         self.assertIn(">TV</span>", sidebar)
         self.assertIn(">Up next</span>", sidebar)
@@ -105,7 +105,7 @@ class IndexViewTests(TestCase):
 
         labels = [
             ">Home</span>",
-            ">Search</span>",
+            ">Add new</span>",
             ">History</span>",
             ">Stats</span>",
             ">TV</span>",
@@ -153,7 +153,7 @@ class IndexViewTests(TestCase):
         self.assertIn(f'href="{watchlist_url}"', watchlist_links[0])
         self.assertIn(f'href="{movie_watchlist_url}"', watchlist_links[1])
 
-        self.assertIn(f'href="{search_url}"', self._sidebar_link(sidebar, "Search"))
+        self.assertIn(f'href="{search_url}"', self._sidebar_link(sidebar, "Add new"))
         self.assertIn(f'href="{calendar_url}"', self._sidebar_link(sidebar, "Calendar"))
         self.assertEqual(sidebar.count("data-theme-toggle"), 1)
         self.assertIn("swap swap-rotate", sidebar)
@@ -186,7 +186,7 @@ class IndexViewTests(TestCase):
         link = self._sidebar_link(sidebar, "Discover")
         self.assertIn(f'href="{reverse("discover")}"', link)
         self.assertIn('hx-boost="true"', link)
-        self.assertLess(sidebar.index(">Search</span>"), sidebar.index(">Discover</span>"))
+        self.assertLess(sidebar.index(">Add new</span>"), sidebar.index(">Discover</span>"))
         self.assertLess(sidebar.index(">Discover</span>"), sidebar.index(">History</span>"))
 
     def test_sidebar_theme_toggle_reflects_light_session(self):
