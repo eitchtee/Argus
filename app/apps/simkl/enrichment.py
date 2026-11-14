@@ -23,6 +23,7 @@ from django.utils import timezone
 
 from apps.simkl.client import SimklError, SimklNotFound
 from apps.simkl.config import build_client, catalog_configured
+from apps.catalog.aggregate import refresh_aggregate_score
 from apps.simkl.models import SimklMediaInfo, build_simkl_url
 
 
@@ -225,6 +226,7 @@ def refresh_media_info(media, *, client, ids: dict | None = None) -> SimklMediaI
         info.last_error = ""
         info.fetched_at = now
         info.save(update_fields=["status", "last_error", "fetched_at", "updated_at"])
+        refresh_aggregate_score(media)
         return info
 
     for field_name in INFO_FIELDS:
@@ -233,6 +235,7 @@ def refresh_media_info(media, *, client, ids: dict | None = None) -> SimklMediaI
     info.last_error = ""
     info.fetched_at = now
     info.save()
+    refresh_aggregate_score(media)
     return info
 
 

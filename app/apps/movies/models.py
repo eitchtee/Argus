@@ -39,6 +39,8 @@ class Movie(ProviderBackedModel):
     )
     vote_average = models.FloatField(null=True, blank=True)
     vote_count = models.PositiveIntegerField(null=True, blank=True)
+    # Argus score (0-100), combined from every synced rating; see catalog.aggregate.
+    aggregate_score = models.PositiveSmallIntegerField(null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True, related_name="movies")
     ratings = GenericRelation("catalog.MediaRating")
 

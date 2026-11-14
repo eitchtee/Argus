@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
+from apps.catalog.aggregate import refresh_aggregate_score
 from apps.catalog.models import Genre, MediaArtwork, SyncStatus
 from apps.catalog.artwork import sync_media_artworks
 from apps.catalog.localization import (
@@ -167,6 +168,7 @@ def import_movie(
             external_id=external_id,
             defaults=movie_defaults,
         )
+        refresh_aggregate_score(movie)
         if artwork_detail is not None:
             sync_media_artworks(artwork_detail, media_type="movie")
 

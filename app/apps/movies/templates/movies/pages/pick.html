@@ -1,0 +1,258 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Pick a movie" %}{% endblock %}
+
+{% block content %}
+{% trans "Final" as final_label %}
+{% trans "Semifinal" as semifinal_label %}
+{% trans "Quarterfinal" as quarterfinal_label %}
+{% trans "Round of" as round_of_label %}
+{% trans "No synopsis available." as no_synopsis %}
+<section class="space-y-6">
+  <div class="section-heading">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Movies" %}</p>
+      <h1 class="text-3xl font-bold tracking-tight">{% trans "Pick a movie" %}</h1>
+    </div>
+  </div>
+
+  {% if pool %}
+  {{ pool|json_script:"movie-pick-pool" }}
+  <div class="picker space-y-6"
+       x-data="moviePicker(JSON.parse(document.getElementById('movie-pick-pool').textContent))"
+       @keydown.window="onKey($event)">
+
+    <div class="card space-y-4 border border-base-300 bg-base-100 p-4">
+      <div class="flex flex-wrap gap-1.5" aria-label="{% trans 'Genres' %}">
+        <template x-for="genre in genres" :key="genre">
+          <button type="button" class="btn btn-xs rounded-full"
+                  :class="filters.genres.includes(genre) ? 'btn-primary' : 'btn-ghost border-base-300'"
+                  :aria-pressed="filters.genres.includes(genre)"
+                  @click="toggleGenre(genre)" x-text="genre"></button>
+        </template>
+      </div>
+      <div @change="filters.people = [...$event.target.selectedOptions].map((option) => option.value)">
+       <div _="install init_tom_select" x-ignore>
+        <select multiple aria-label="{% trans 'Actors and directors' %}"
+                placeholder="{% trans 'Actors and directors' %}" data-remove-button="true"
+                data-txt-remove="{% trans 'Remove' %}" data-txt-no-results="{% trans 'No one by that name' %}">
+          {% for name in people %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+        </select>
+       </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="join" role="group" aria-label="{% trans 'Maximum runtime' %}">
+          {% for minutes, label in runtime_options %}
+          <button type="button" class="btn btn-sm join-item"
+                  :class="filters.maxRuntime === {{ minutes }} && 'btn-active btn-primary'"
+                  :aria-pressed="filters.maxRuntime === {{ minutes }}"
+                  @click="filters.maxRuntime = {{ minutes }}">{{ label }}</button>
+          {% endfor %}
+        </div>
+        <p class="text-sm text-base-content/60 tabular-nums sm:ml-auto">
+          <span x-text="filtered.length"></span> {% trans "movies in the pool" %}
+        </p>
+      </div>
+    </div>
+
+    <div role="tablist" class="tabs tabs-box mx-auto w-fit">
+      <button type="button" role="tab" class="tab gap-2" :class="mode === 'swipe' && 'tab-active'"
+              :aria-selected="mode === 'swipe'" @click="mode = 'swipe'">
+        <i data-lucide="heart" aria-hidden="true"></i>{% trans "Swipe" %}
+      </button>
+      <button type="button" role="tab" class="tab gap-2" :class="mode === 'battle' && 'tab-active'"
+              :aria-selected="mode === 'battle'" @click="mode = 'battle'">
+        <i data-lucide="swords" aria-hidden="true"></i>{% trans "Battle" %}
+      </button>
+      <button type="button" role="tab" class="tab gap-2" :class="mode === 'dice' && 'tab-active'"
+              :aria-selected="mode === 'dice'" @click="mode = 'dice'">
+        <i data-lucide="dice-5" aria-hidden="true"></i>{% trans "Dice" %}
+      </button>
+    </div>
+
+    <div x-show="!filtered.length" class="empty-state py-12 text-center">
+      {% trans "No movies match these filters." %}
+    </div>
+
+    {# Result stage, shared by every mode: flashes candidates, then lands on the winner. #}
+    <div x-show="staged" x-cloak class="grid items-center gap-6 md:grid-cols-[minmax(0,18rem)_1fr] md:gap-10" aria-live="polite">
+      <div class="flex flex-col items-center gap-5">
+        <figure class="picker-poster picker-stage-poster w-56 md:w-full" :class="winner && 'is-landed'">
+          <img x-show="staged?.poster" :src="staged?.poster" :alt="staged?.title" draggable="false">
+          <span x-show="!staged?.poster" class="picker-poster__fallback" x-text="staged?.title"></span>
+        </figure>
+        <div x-show="rolling" class="flex items-center gap-3 text-lg font-semibold">
+          <span class="picker-die is-rolling text-5xl text-primary"><i data-lucide="dice-5" aria-hidden="true"></i></span>
+          {% trans "Picking…" %}
+        </div>
+      </div>
+      <div>
+        <div x-show="winner" class="picker-details space-y-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Tonight you're watching" %}</p>
+          <h2 class="text-3xl font-bold tracking-tight text-balance">
+            <span x-text="winner?.title"></span>
+            <span x-show="winner?.year" class="font-normal text-base-content/50 tabular-nums" x-text="winner?.year"></span>
+          </h2>
+          <p class="text-sm text-base-content/60 tabular-nums" x-text="winner && meta(winner, true)"></p>
+          <div class="flex flex-wrap gap-1.5">
+                <span x-show="winner?.score != null" class="picker-rating picker-rating--argus">Argus <b x-text="winner?.score"></b></span>
+                <template x-for="rating in winner?.ratings || []" :key="rating.source">
+                  <span class="picker-rating"><span x-text="rating.label"></span> <b x-text="rating.value"></b></span>
+                </template>
+              </div>
+          <p class="max-w-prose text-base-content/80" x-text="winner?.overview"></p>
+          <div class="flex flex-wrap gap-2">
+            <a class="btn btn-primary" :href="winner?.url">
+              <i data-lucide="clapperboard" aria-hidden="true"></i>{% trans "Open movie" %}
+            </a>
+            <button type="button" class="btn btn-ghost" @click="mode === 'dice' ? reveal(filtered) : reset()">
+              <i data-lucide="refresh-cw" aria-hidden="true"></i>{% trans "Again" %}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Swipe #}
+    <div x-show="mode === 'swipe' && !staged && filtered.length" class="mx-auto max-w-xs space-y-5">
+      <div class="picker-deck mt-14">
+        <template x-for="(movie, i) in deck.slice(0, 3)" :key="movie.id">
+          <article class="picker-card picker-poster" :data-top-card="i === 0"
+                   :style="{ zIndex: 3 - i, transform: `translateY(calc(${-i * 5}% - ${i * 12}px)) scale(${1 - i * 0.05})` }"
+                   :aria-hidden="i !== 0"
+                   @pointerdown="i === 0 && dragStart($event)" @pointermove="dragMove($event)"
+                   @pointerup="dragEnd($event)" @pointercancel="dragEnd($event)">
+            <img x-show="movie.poster" :src="movie.poster" :alt="movie.title" draggable="false">
+            <span x-show="!movie.poster" class="picker-poster__fallback" x-text="movie.title"></span>
+            <span class="picker-stamp picker-stamp--like" data-stamp="like">{% trans "Yes" %}</span>
+            <span class="picker-stamp picker-stamp--nope" data-stamp="nope">{% trans "Nope" %}</span>
+            <div class="picker-card__info">
+              <h2 class="text-lg font-bold leading-tight">
+                <span x-text="movie.title"></span>
+                <span x-show="movie.year" class="font-normal text-white/60 tabular-nums" x-text="movie.year"></span>
+              </h2>
+              <p class="text-xs text-white/70 tabular-nums" x-text="meta(movie)"></p>
+              <p class="text-xs text-white/70" x-text="movie.genres.slice(0, 3).join(', ')"></p>
+            </div>
+            <div class="picker-more" :class="showInfo && i === 0 && 'is-open'">
+              <p class="font-bold leading-tight" x-text="movie.title"></p>
+              <p class="text-xs text-white/60 tabular-nums" x-text="meta(movie)"></p>
+              <span class="flex flex-wrap gap-1.5 picker-ratings--dark">
+                <span x-show="movie?.score != null" class="picker-rating picker-rating--argus">Argus <b x-text="movie?.score"></b></span>
+                <template x-for="rating in movie.ratings" :key="rating.source">
+                  <span class="picker-rating"><span x-text="rating.label"></span> <b x-text="rating.value"></b></span>
+                </template>
+              </span>
+              <p class="text-sm leading-relaxed text-white/90" x-text="movie.overview || '{{ no_synopsis|escapejs }}'"></p>
+            </div>
+          </article>
+        </template>
+        <div x-show="!deck.length && !liked.length" class="flex h-full flex-col items-center justify-center gap-3 text-center">
+          <p class="text-base-content/60">{% trans "Nothing caught your eye." %}</p>
+          <button type="button" class="btn btn-sm" @click="reset()">
+            <i data-lucide="refresh-cw" aria-hidden="true"></i>{% trans "Shuffle again" %}
+          </button>
+        </div>
+      </div>
+      <div x-show="deck.length" class="flex items-center justify-center gap-6">
+        <button type="button" class="btn btn-circle btn-lg btn-outline btn-error" @click="swipe(false)"
+                aria-label="{% trans 'Not in the mood' %}">
+          <i data-lucide="x" aria-hidden="true"></i>
+        </button>
+        <p class="w-20 text-center text-sm text-base-content/60 tabular-nums">
+          <span class="font-semibold text-base-content" x-text="liked.length"></span> {% trans "liked" %}<br>
+          <span x-text="deck.length"></span> {% trans "left" %}
+        </p>
+        <button type="button" class="btn btn-circle btn-lg btn-outline btn-success" @click="swipe(true)"
+                aria-label="{% trans 'In the mood' %}">
+          <i data-lucide="heart" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div x-show="deck.length" class="flex flex-wrap items-center justify-center gap-2">
+        <button type="button" class="btn btn-sm btn-ghost" :class="showInfo && 'btn-active'"
+                :aria-pressed="showInfo" @click="showInfo = !showInfo">
+          <i data-lucide="book-open" aria-hidden="true"></i>{% trans "Synopsis" %}
+        </button>
+        <button type="button" x-show="liked.length > 1" class="btn btn-sm btn-ghost text-primary"
+                @click="deck = []; reveal(liked)">
+          {% trans "Decide now" %} (<span class="tabular-nums" x-text="liked.length"></span>)
+        </button>
+      </div>
+      <p x-show="deck.length" class="hidden text-center text-xs text-base-content/50 sm:block">
+        {% trans "Drag or use ← →. Tap the card or press ↑ for the synopsis." %}
+      </p>
+    </div>
+
+    {# Battle #}
+    <div x-show="mode === 'battle' && !staged && filtered.length" class="mx-auto max-w-2xl space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-bold"
+              x-text="round.length === 2 ? '{{ final_label|escapejs }}' : round.length === 4 ? '{{ semifinal_label|escapejs }}' : round.length === 8 ? '{{ quarterfinal_label|escapejs }}' : '{{ round_of_label|escapejs }} ' + round.length"></h2>
+          <div class="mt-2 flex gap-1.5" aria-hidden="true">
+            <template x-for="n in round.length / 2" :key="n">
+              <span class="picker-dot" :class="n <= matchIndex ? 'is-done' : n === matchIndex + 1 && 'is-current'"></span>
+            </template>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+        <button type="button" class="btn btn-sm btn-ghost" :class="showInfo && 'btn-active'"
+                :aria-pressed="showInfo" @click="showInfo = !showInfo">
+          <i data-lucide="book-open" aria-hidden="true"></i>{% trans "Synopsis" %}
+        </button>
+        <div class="join" role="group" aria-label="{% trans 'Bracket size' %}">
+          {% for size in bracket_sizes %}
+          <button type="button" class="btn btn-sm join-item tabular-nums"
+                  :class="wantedBracket === {{ size }} && 'btn-active btn-primary'"
+                  :aria-pressed="wantedBracket === {{ size }}"
+                  :disabled="filtered.length < {{ size }} / 2 + 1"
+                  @click="wantedBracket = {{ size }}">{{ size }}</button>
+          {% endfor %}
+        </div>
+        </div>
+      </div>
+      <p x-show="round.length < 2" class="empty-state py-12 text-center">{% trans "A battle needs at least two movies." %}</p>
+      <div x-show="round.length >= 2" class="relative grid grid-cols-2 items-start gap-4 sm:gap-10">
+        <template x-for="movie in pair" :key="`${round.length}-${matchIndex}-${movie.id}`">
+          <button type="button" class="picker-duel text-left"
+                  :data-state="chosen && (chosen === movie.id ? 'won' : 'lost')"
+                  @click="choose(movie)">
+            <span class="picker-poster block">
+              <img x-show="movie.poster" :src="movie.poster" :alt="movie.title" draggable="false">
+              <span x-show="!movie.poster" class="picker-poster__fallback" x-text="movie.title"></span>
+              <span class="picker-more p-3 sm:p-5" :class="showInfo && 'is-open'">
+              <span class="flex flex-wrap gap-1.5 picker-ratings--dark">
+                <span x-show="movie?.score != null" class="picker-rating picker-rating--argus">Argus <b x-text="movie?.score"></b></span>
+                <template x-for="rating in movie.ratings" :key="rating.source">
+                  <span class="picker-rating"><span x-text="rating.label"></span> <b x-text="rating.value"></b></span>
+                </template>
+              </span>
+              <span class="text-xs leading-relaxed text-white/90 sm:text-sm" x-text="movie.overview || '{{ no_synopsis|escapejs }}'"></span>
+            </span>
+            </span>
+            <span class="mt-2 block font-semibold leading-tight" x-text="movie.title"></span>
+            <span class="block text-sm text-base-content/50 tabular-nums" x-text="meta(movie)"></span>
+          </button>
+        </template>
+        <span class="picker-vs" aria-hidden="true">VS</span>
+      </div>
+    </div>
+
+    {# Dice #}
+    <div x-show="mode === 'dice' && !staged && filtered.length" class="flex flex-col items-center gap-4 py-10 text-center">
+      <button type="button" class="picker-dice-button" @click="reveal(filtered)">
+        <span class="picker-die text-7xl"><i data-lucide="dice-5" aria-hidden="true"></i></span>
+        <span class="sr-only">{% trans "Roll the dice" %}</span>
+      </button>
+      <p class="text-lg font-semibold">{% trans "Roll the dice" %}</p>
+      <p class="text-sm text-base-content/60">
+        {% blocktrans %}One random pick from the pool.{% endblocktrans %}
+      </p>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state py-12 text-center">{% trans "Add movies to your watchlist to start picking." %}</div>
+  {% endif %}
+</section>
+{% endblock %}

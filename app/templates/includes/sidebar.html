@@ -117,6 +117,13 @@
               <span>{% trans "Watched" %}</span>
             </a>
           </li>
+          <li>
+            <a href="{% url 'movies-pick-page' %}" hx-boost="true"
+               class="sidebar-item {% active_link 'movies-pick-page' css_class='menu-active' %}">
+              <i data-lucide="dices" class="lucide-fw"></i>
+              <span>{% trans "Pick a movie" %}</span>
+            </a>
+          </li>
         </ul>
       </li>
       <li>

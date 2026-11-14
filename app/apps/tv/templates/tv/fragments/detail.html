@@ -64,6 +64,12 @@
             <dd><i data-lucide="calendar" aria-hidden="true"></i>{% user_date show.release_date %}</dd>
           </div>
           {% endif %}
+          {% if show.aggregate_score is not None %}
+          <div class="detail-meta__item detail-meta__item--rating" title="{% trans 'Argus score, combined from every synced rating' %}">
+            <dt class="sr-only">{% trans "Argus score" %}</dt>
+            <dd><i data-lucide="star" aria-hidden="true"></i>{{ show.aggregate_score }}<span class="text-base-content/50">/100</span></dd>
+          </div>
+          {% endif %}
           {% if show.average_runtime %}
           <div class="detail-meta__item" title="{% trans 'Runtime' %}">
             <dt class="sr-only">{% trans "Runtime" %}</dt>

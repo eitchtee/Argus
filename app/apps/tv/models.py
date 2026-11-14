@@ -50,6 +50,8 @@ class Show(ProviderBackedModel):
     )
     network = models.CharField(max_length=255, null=True, blank=True)
     genres = models.ManyToManyField(Genre, blank=True, related_name="shows")
+    # Argus score (0-100), combined from every synced rating; see catalog.aggregate.
+    aggregate_score = models.PositiveSmallIntegerField(null=True, blank=True)
     aired_episode_count = models.PositiveIntegerField(default=0)
     ratings = GenericRelation("catalog.MediaRating")
 

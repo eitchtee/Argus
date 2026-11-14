@@ -366,16 +366,32 @@
         @apply border-neutral/60 bg-neutral/90 text-neutral-content;
     }
 
+    .poster-card__ratings {
+        @apply pointer-events-none absolute start-2 top-2 z-[2] flex flex-col items-start gap-1;
+    }
+
     .poster-card__rating {
-        @apply pointer-events-none absolute start-2 top-2 z-[2] flex h-6 items-center gap-1 rounded-full border border-white/25 bg-black/70 px-2 text-xs font-semibold leading-none text-white shadow-md;
+        @apply flex h-6 items-center gap-1 rounded-full border border-white/25 bg-black/70 px-2 text-xs font-semibold leading-none text-white shadow-md;
+    }
+
+    /* The viewer's own rating: a filled yellow star. */
+    .poster-card__rating:not(.poster-card__rating--argus) svg.lucide {
+        fill: currentColor;
     }
 
     .poster-card__rating svg.lucide {
         @apply block;
     }
 
-    .poster-card__rating i {
+    .poster-card__rating i,
+    .poster-card__rating svg.lucide {
         @apply text-sm leading-none text-warning;
+    }
+
+    /* The Argus score: an outlined white star, so it never reads as the viewer's own. */
+    .poster-card__rating--argus i,
+    .poster-card__rating--argus svg.lucide {
+        @apply text-white;
     }
 
     .poster-card__copy {
@@ -1444,4 +1460,244 @@ dialog.modal {
     &::after {
         @apply loading loading-spinner loading-lg absolute top-12 left-1/2 z-101 -translate-x-1/2;
     }
+}
+
+/* ---- Movie picker (swipe / battle / dice) ---- */
+@layer components {
+    .picker {
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .picker-poster {
+        @apply relative aspect-[2/3] overflow-hidden rounded-box bg-base-300 shadow-lg;
+    }
+
+    .picker-poster img {
+        @apply h-full w-full select-none object-cover;
+    }
+
+    .picker-poster__fallback {
+        @apply absolute inset-0 flex items-center justify-center p-6 text-center text-xl font-bold text-base-content/40 text-balance;
+    }
+
+    /* Swipe deck: cards stack via inline transforms; drag writes transform directly. */
+    .picker-deck {
+        @apply relative mx-auto aspect-[2/3] w-full;
+    }
+
+    .picker-card {
+        @apply absolute inset-0 cursor-grab select-none text-white;
+        touch-action: pan-y;
+        transform-origin: 50% 100%;
+        transition: transform 220ms var(--ease-out), opacity 220ms var(--ease-out);
+
+        @starting-style {
+            opacity: 0;
+        }
+    }
+
+    .picker-card:active {
+        cursor: grabbing;
+    }
+
+    .picker-card:not([data-top-card]) .picker-card__info {
+        opacity: 0;
+    }
+
+    .picker-card__info {
+        @apply pointer-events-none absolute inset-x-0 bottom-0 space-y-1.5 p-4 pt-16;
+        background: linear-gradient(to top, rgb(0 0 0 / 0.92), rgb(0 0 0 / 0.6) 60%, transparent);
+        transition: opacity 220ms ease;
+    }
+
+    /* Full synopsis over the poster; a toggled class so it can fade both ways. */
+    .picker-more {
+        @apply pointer-events-none absolute inset-0 z-[2] space-y-2 overflow-y-auto p-5 text-left text-white;
+        background: rgb(0 0 0 / 0.86);
+        scrollbar-width: thin;
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+    }
+
+    .picker-more > * {
+        @apply block;
+    }
+
+    .picker-more.is-open {
+        @apply pointer-events-auto;
+        opacity: 1;
+        transform: none;
+    }
+
+    .picker-card:has(.picker-more.is-open) .picker-card__info {
+        opacity: 0;
+    }
+
+    .picker-rating {
+        @apply inline-flex items-baseline gap-1 rounded-full bg-base-200 px-2.5 py-0.5 text-xs text-base-content/60 tabular-nums;
+    }
+
+    .picker-rating b {
+        @apply font-semibold text-base-content;
+    }
+
+    .picker .picker-rating.picker-rating--argus {
+        @apply bg-primary/15 text-primary;
+    }
+
+    .picker .picker-rating.picker-rating--argus b {
+        @apply text-primary;
+    }
+
+    .picker-ratings--dark .picker-rating {
+        @apply bg-white/10 text-white/60;
+    }
+
+    .picker-ratings--dark .picker-rating b {
+        @apply text-white;
+    }
+
+    .picker-stamp {
+        @apply pointer-events-none absolute z-[3] top-6 rounded-lg border-4 px-3 py-1 text-2xl font-black uppercase tracking-wider;
+        opacity: 0;
+        transition: opacity 120ms ease;
+    }
+
+    .picker-stamp--like {
+        @apply left-5 -rotate-12 border-success text-success;
+    }
+
+    .picker-stamp--nope {
+        @apply right-5 rotate-12 border-error text-error;
+    }
+
+    /* Battle */
+    .picker-duel {
+        @apply block cursor-pointer rounded-box outline-offset-4;
+        transition: transform 280ms var(--ease-out), opacity 280ms var(--ease-out);
+
+        @starting-style {
+            opacity: 0;
+            transform: translateY(12px) scale(0.97);
+        }
+    }
+
+    .picker-duel:nth-child(2) {
+        transition-delay: 50ms;
+    }
+
+    .picker-duel[data-state] {
+        transition-delay: 0ms;
+    }
+
+    .picker-duel:active {
+        transform: scale(0.97);
+    }
+
+    .picker-duel[data-state="won"] {
+        transform: scale(1.04);
+    }
+
+    .picker-duel[data-state="won"] .picker-poster {
+        @apply ring-4 ring-primary;
+    }
+
+    .picker-duel[data-state="lost"] {
+        opacity: 0.25;
+        transform: scale(0.94);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .picker-duel:not([data-state]):hover {
+            transform: translateY(-4px);
+        }
+    }
+
+    .picker-vs {
+        @apply pointer-events-none absolute left-1/2 top-[38%] flex size-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-base-100 text-sm font-black shadow-lg ring-1 ring-base-300;
+    }
+
+    .picker-dot {
+        @apply h-1.5 w-5 rounded-full bg-base-300;
+        transition: background-color 200ms ease;
+    }
+
+    .picker-dot.is-done {
+        @apply bg-primary;
+    }
+
+    .picker-dot.is-current {
+        @apply bg-primary/40;
+    }
+
+    /* Dice + reveal */
+    .picker-dice-button {
+        @apply flex size-36 cursor-pointer items-center justify-center rounded-[2rem] bg-primary/10 text-primary;
+        transition: transform 160ms ease-out, background-color 200ms ease;
+    }
+
+    .picker-dice-button:active {
+        transform: scale(0.95);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .picker-dice-button:hover {
+            @apply bg-primary/15;
+        }
+    }
+
+    .picker-die {
+        @apply inline-flex;
+    }
+
+    .picker-die.is-rolling {
+        animation: picker-tumble 1.3s var(--ease-out) both;
+    }
+
+    .picker-stage-poster.is-landed {
+        animation: picker-land 450ms var(--ease-out) both;
+    }
+
+    .picker-details > * {
+        transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
+
+        @starting-style {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+    }
+
+    .picker-details > :nth-child(2) { transition-delay: 40ms; }
+    .picker-details > :nth-child(3) { transition-delay: 80ms; }
+    .picker-details > :nth-child(4) { transition-delay: 120ms; }
+    .picker-details > :nth-child(5) { transition-delay: 160ms; }
+    .picker-details > :nth-child(6) { transition-delay: 200ms; }
+
+    @media (prefers-reduced-motion: reduce) {
+        .picker-card { transition: opacity 200ms ease; }
+        .picker-more,
+        .picker-duel,
+        .picker-duel[data-state],
+        .picker-duel:active,
+        .picker-details > * { transform: none !important; }
+        .picker-die.is-rolling { animation: none; }
+        .picker-stage-poster.is-landed { animation: picker-fade 200ms ease both; }
+    }
+}
+
+@keyframes picker-tumble {
+    0% { transform: rotate(0deg) scale(1); }
+    40% { transform: rotate(540deg) scale(1.15); }
+    100% { transform: rotate(1080deg) scale(1); }
+}
+
+@keyframes picker-land {
+    0% { transform: scale(0.94); box-shadow: 0 0 0 0 oklch(from var(--color-primary) l c h / 0.6); }
+    60% { transform: scale(1.02); }
+    100% { transform: scale(1); box-shadow: 0 0 0 14px oklch(from var(--color-primary) l c h / 0); }
+}
+
+@keyframes picker-fade {
+    from { opacity: 0; }
 }
