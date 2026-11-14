@@ -19,7 +19,8 @@
 
   {% if pool %}
   {{ pool|json_script:"movie-pick-pool" }}
-  <div class="picker space-y-6"
+  {# Clip only for swipe: a card flung right would widen the page, but battle's winner pop must not be cut #}
+  <div class="picker space-y-6" :class="mode === 'swipe' && 'overflow-x-clip'"
        x-data="moviePicker(JSON.parse(document.getElementById('movie-pick-pool').textContent))"
        @keydown.window="onKey($event)">
 
@@ -76,9 +77,9 @@
     </div>
 
     {# Result stage, shared by every mode: flashes candidates, then lands on the winner. #}
-    <div x-show="staged" x-cloak class="grid items-center gap-6 md:grid-cols-[minmax(0,18rem)_1fr] md:gap-10" aria-live="polite">
+    <div x-show="staged" x-cloak class="mx-auto grid max-w-4xl items-center gap-6 md:gap-10" :class="winner && 'md:grid-cols-[minmax(0,18rem)_1fr]'" aria-live="polite">
       <div class="flex flex-col items-center gap-5">
-        <figure class="picker-poster picker-stage-poster w-56 md:w-full" :class="winner && 'is-landed'">
+        <figure class="picker-poster picker-stage-poster w-56 md:w-72" :class="winner && 'is-landed'">
           <img x-show="staged?.poster" :src="staged?.poster" :alt="staged?.title" draggable="false">
           <span x-show="!staged?.poster" class="picker-poster__fallback" x-text="staged?.title"></span>
         </figure>
@@ -87,8 +88,8 @@
           {% trans "Picking…" %}
         </div>
       </div>
-      <div>
-        <div x-show="winner" class="picker-details space-y-4">
+      <div x-show="winner">
+        <div class="picker-details space-y-4">
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{% trans "Tonight you're watching" %}</p>
           <h2 class="text-3xl font-bold tracking-tight text-balance">
             <span x-text="winner?.title"></span>
