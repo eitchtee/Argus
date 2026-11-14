@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
+from apps.catalog.aggregate import aggregate
 from apps.catalog.artwork import (
     localized_media_records,
     media_artwork_overrides,
@@ -379,7 +380,7 @@ def _build_movie_context(user, external_id, provider="tmdb"):
             "runtime": movie.runtime,
             "status": movie.status,
             "normalized_status": movie.normalized_status,
-            "vote_average": movie.vote_average,
+            "aggregate_score": movie.aggregate_score,
             "director": movie.director,
             "trailer_url": movie.trailer_url,
             "imdb_id": movie.imdb_id,
@@ -444,7 +445,12 @@ def _movie_context_from_provider(user, external_id, provider, language):
         "runtime": detail.runtime,
         "status": detail.status,
         "normalized_status": normalize_movie_status(detail.status),
-        "vote_average": detail.vote_average,
+        # Untracked: nothing synced yet, so TMDB's own vote is the only input.
+        "aggregate_score": (
+            aggregate({"tmdb": (detail.vote_average * 10, detail.vote_count)})
+            if provider == "tmdb" and detail.vote_average
+            else None
+        ),
         "director": detail.director,
         "trailer_url": detail.trailer_url,
         "imdb_id": detail.imdb_id,

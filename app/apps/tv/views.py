@@ -783,6 +783,7 @@ def _build_show_context(user, external_id, provider="tvdb"):
         "trakt_id": show.trakt_id,
         "trailer_url": show.trailer_url,
         "average_runtime": show.average_runtime,
+        "aggregate_score": show.aggregate_score,
         "next_air_date": next_air_date,
         "last_air_date": show.last_air_date,
         "cast": show.cast,

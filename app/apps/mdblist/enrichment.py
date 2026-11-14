@@ -23,6 +23,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
+from apps.catalog.aggregate import refresh_aggregate_score
 from apps.mdblist.client import MdblistError
 from apps.mdblist.config import catalog_client_for
 from apps.mdblist.identities import normalize_ids
@@ -240,11 +241,13 @@ def _store(info: MdblistMediaInfo, data: dict | None, fields=INFO_FIELDS) -> Mdb
     if data is None:
         info.status = MdblistMediaInfo.Status.NOT_FOUND
         info.save(update_fields=["status", "last_error", "fetched_at", "updated_at"])
-        return info
-    for name in fields:
-        setattr(info, name, data[name])
-    info.status = MdblistMediaInfo.Status.OK
-    info.save()
+    else:
+        for name in fields:
+            setattr(info, name, data[name])
+        info.status = MdblistMediaInfo.Status.OK
+        info.save()
+    if info.content_object is not None:
+        refresh_aggregate_score(info.content_object)
     return info
 
 
