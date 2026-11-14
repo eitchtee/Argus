@@ -47,6 +47,33 @@ class HomeWatchlistViewTests(TestCase):
         self.assertContains(response, "checkbox-lg")
         self.assertNotContains(response, "Mark watched")
 
+    def test_flags_episode_airing_later_today(self):
+        now = timezone.localtime()
+        show = Show.objects.create(
+            external_id="1",
+            name="My Show",
+            airs_time=time(23, 59),
+            airs_timezone=timezone.get_current_timezone_name(),
+        )
+        season = Season.objects.create(show=show, season_number=1, name="Season 1")
+        Episode.objects.create(
+            show=show, season=season, season_number=1, episode_number=1,
+            name="Pilot", air_date=now.date(),
+        )
+        UserShow.objects.create(user=self.user, show=show, status=UserShow.Status.TRACKED)
+
+        with patch("django.utils.timezone.now", return_value=now.replace(hour=12)):
+            pending = self.client.get("/tv/home/watchlist/", HTTP_HX_REQUEST="true")
+        show.airs_time = time(0, 0)
+        show.save(update_fields=["airs_time"])
+        with patch("django.utils.timezone.now", return_value=now.replace(hour=12)):
+            aired = self.client.get("/tv/home/watchlist/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(pending, "data-not-aired")
+        self.assertContains(pending, "Airs today at")
+        self.assertContains(aired, "Pilot")
+        self.assertNotContains(aired, "data-not-aired")
+
     def test_uses_show_poster_image(self):
         show = Show.objects.create(
             external_id="1",
