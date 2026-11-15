@@ -5,6 +5,7 @@ from django.utils import timezone
 from procrastinate.contrib.django import app
 
 from apps.catalog.models import SyncStatus
+from apps.common.procrastinate import BACKGROUND_PRIORITY
 from apps.catalog.localization import (
     PROVIDER_DEFAULT_LANGUAGES,
     metadata_language_for_user,
@@ -29,7 +30,7 @@ def track_show(user_id: int, show_id: int):
     }
 
 
-@app.task(name="hydrate_show_translations")
+@app.task(name="hydrate_show_translations", priority=BACKGROUND_PRIORITY)
 def hydrate_show_translations(show_id: int):
     return tv_services.hydrate_show_translations_sync(show_id)
 
@@ -40,20 +41,10 @@ def sync_show(show_id: int):
     show.sync_status = SyncStatus.ERROR
     show.save(update_fields=["sync_status", "updated_at"])
 
-    try:
-        imported_show = tv_services.import_show(
-            show.external_id,
-            provider=show.provider,
-            language=PROVIDER_DEFAULT_LANGUAGES[show.provider],
-        )
-        translation_task_id = hydrate_show_translations.defer(show_id=imported_show.id)
-        return {
-            "item_id": imported_show.id,
-            "translation_task_id": translation_task_id,
-        }
-    except Exception:
-        Show.objects.filter(id=show_id).update(sync_status=SyncStatus.ERROR)
-        raise
+    # The default language is imported first and flips the status back to OK, so a
+    # failure in a later translation fails the job without marking the show broken.
+    imported_show = tv_services.hydrate_show_translations_sync(show_id)
+    return {"item_id": imported_show.id}
 
 
 @app.task(name="sync_tv")
@@ -94,7 +85,8 @@ def sync_tv(force_all: bool = False):
             .values_list("id", flat=True)
         )
 
-    return [sync_show.defer(show_id=show_id) for show_id in show_ids]
+    bulk_sync = sync_show.configure(priority=BACKGROUND_PRIORITY)
+    return [bulk_sync.defer(show_id=show_id) for show_id in show_ids]
 
 
 @app.periodic(cron="0 2 * * *")

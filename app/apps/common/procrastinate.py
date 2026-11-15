@@ -9,6 +9,10 @@ from django.db import close_old_connections
 
 _CONNECTION_CLEANUP_WRAPPED = "_argus_connection_cleanup_wrapped"
 
+# Bulk catalog refreshes run below the default 0 so the nightly sweep cannot
+# hold account syncs (Stremio, Simkl, MDBList) behind hundreds of jobs.
+BACKGROUND_PRIORITY = -1
+
 try:
     _malloc_trim = ctypes.CDLL("libc.so.6").malloc_trim
 except (OSError, AttributeError):  # not glibc (Windows, musl)

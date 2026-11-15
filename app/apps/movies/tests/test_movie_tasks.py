@@ -82,7 +82,7 @@ class MovieTaskTests(TransactionTestCase):
 
     @patch("apps.movies.tasks.hydrate_movie_translations")
     @patch("apps.movies.tasks.movie_services.import_movie")
-    def test_sync_movie_imports_existing_movie_and_queues_translation_hydration(
+    def test_sync_movie_imports_once_without_queueing_a_duplicate_hydration(
         self,
         import_movie,
         hydrate_movie_translations,
@@ -92,10 +92,11 @@ class MovieTaskTests(TransactionTestCase):
         movie = Movie.objects.create(provider="tmdb", external_id="550", title="Fight Club")
         import_movie.return_value = movie
 
-        sync_movie.func(movie.id)
+        result = sync_movie.func(movie.id)
 
         import_movie.assert_called_once_with("tmdb", "550", language="en-US")
-        hydrate_movie_translations.defer.assert_called_once_with(movie_id=movie.id)
+        hydrate_movie_translations.defer.assert_not_called()
+        self.assertEqual(result, {"item_id": movie.id})
 
     @patch("apps.movies.tasks.movie_services.import_movie")
     def test_sync_movie_uses_the_stored_provider(self, import_movie):
@@ -111,28 +112,6 @@ class MovieTaskTests(TransactionTestCase):
         sync_movie.func(movie.id)
 
         import_movie.assert_called_once_with("tvdb", "42", language="eng")
-
-    @patch("apps.movies.tasks.hydrate_movie_translations")
-    @patch("apps.movies.tasks.movie_services.import_movie")
-    def test_sync_movie_returns_the_translation_task_id(
-        self,
-        import_movie,
-        hydrate_movie_translations,
-    ):
-        from apps.movies.tasks import sync_movie
-
-        movie = Movie.objects.create(provider="tmdb", external_id="550", title="Fight Club")
-        import_movie.return_value = movie
-        hydrate_movie_translations.defer.return_value = 41
-
-        result = sync_movie.func(movie.id)
-
-        hydrate_movie_translations.defer.assert_called_once_with(movie_id=movie.id)
-
-        self.assertEqual(
-            result,
-            {"item_id": movie.id, "translation_task_id": 41},
-        )
 
     @patch("apps.movies.tasks.movie_services.import_movie")
     def test_sync_movie_marks_provider_failures_as_error(self, import_movie):
@@ -196,18 +175,19 @@ class MovieTaskTests(TransactionTestCase):
             on_watchlist=True,
         )
 
-        sync_movie.defer.side_effect = [41, 42, 43]
+        sync_movie.configure.return_value.defer.side_effect = [41, 42, 43]
 
         enqueued_task_ids = sync_movies.func()
 
         self.assertEqual(enqueued_task_ids, [41, 42, 43])
+        sync_movie.configure.assert_called_once_with(priority=-1)
         self.assertCountEqual(
-            [call.kwargs["movie_id"] for call in sync_movie.defer.call_args_list],
+            [call.kwargs["movie_id"] for call in sync_movie.configure.return_value.defer.call_args_list],
             [stale_tracked.id, alternate_provider_stale.id, never_synced_tracked.id],
         )
         self.assertNotIn(
             stale_untracked.id,
-            [call.kwargs["movie_id"] for call in sync_movie.defer.call_args_list],
+            [call.kwargs["movie_id"] for call in sync_movie.configure.return_value.defer.call_args_list],
         )
 
     @patch("apps.movies.tasks.sync_movie")
@@ -222,13 +202,13 @@ class MovieTaskTests(TransactionTestCase):
             title="TVDB movie",
         )
         Movie.objects.create(provider="other", external_id="3", title="Other provider")
-        sync_movie.defer.side_effect = [41, 42, 43]
+        sync_movie.configure.return_value.defer.side_effect = [41, 42, 43]
 
         result = sync_movies.func(force_all=True)
 
         self.assertEqual(result, [41, 42, 43])
         self.assertCountEqual(
-            [call.kwargs["movie_id"] for call in sync_movie.defer.call_args_list],
+            [call.kwargs["movie_id"] for call in sync_movie.configure.return_value.defer.call_args_list],
             [first.id, second.id, alternate.id],
         )
 

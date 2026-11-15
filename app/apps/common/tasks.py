@@ -11,7 +11,7 @@ from procrastinate.contrib.django import app
 async def cleanup_old_jobs(context, timestamp: int | None = None):
     return await builtin_tasks.remove_old_jobs(
         context,
-        max_hours=30 * 24,
+        max_hours=7 * 24,
         remove_failed=True,
         remove_cancelled=True,
         remove_aborted=True,

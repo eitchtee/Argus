@@ -5,6 +5,7 @@ from django.utils import timezone
 from procrastinate.contrib.django import app
 
 from apps.catalog.models import SyncStatus
+from apps.common.procrastinate import BACKGROUND_PRIORITY
 from apps.catalog.localization import (
     PROVIDER_DEFAULT_LANGUAGES,
     metadata_language_for_user,
@@ -30,7 +31,7 @@ def track_movie(user_id: int, movie_id: int):
     }
 
 
-@app.task(name="hydrate_movie_translations")
+@app.task(name="hydrate_movie_translations", priority=BACKGROUND_PRIORITY)
 def hydrate_movie_translations(movie_id: int):
     # One detail response already carries every translation the provider has
     # for a movie, so this no longer walks the language list. Genre names were
@@ -59,13 +60,8 @@ def sync_movie(movie_id: int):
             movie.external_id,
             language=PROVIDER_DEFAULT_LANGUAGES[movie.provider],
         )
-        translation_task_id = hydrate_movie_translations.defer(
-            movie_id=imported_movie.id,
-        )
-        return {
-            "item_id": imported_movie.id,
-            "translation_task_id": translation_task_id,
-        }
+        # No hydrate_movie_translations here: it would repeat this exact import.
+        return {"item_id": imported_movie.id}
     except Exception:
         Movie.objects.filter(id=movie_id).update(sync_status=SyncStatus.ERROR)
         raise
@@ -91,7 +87,8 @@ def sync_movies(force_all: bool = False):
             .values_list("id", flat=True)
         )
 
-    return [sync_movie.defer(movie_id=movie_id) for movie_id in movie_ids]
+    bulk_sync = sync_movie.configure(priority=BACKGROUND_PRIORITY)
+    return [bulk_sync.defer(movie_id=movie_id) for movie_id in movie_ids]
 
 
 @app.periodic(cron="0 2 * * *")

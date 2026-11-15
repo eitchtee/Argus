@@ -120,52 +120,25 @@ class TVTranslationTaskTests(TransactionTestCase):
         self.assertFalse(state.on_watchlist)
 
     @patch("apps.tv.tasks.hydrate_show_translations")
-    @patch("apps.tv.tasks.tv_services.import_show")
-    def test_sync_show_refreshes_metadata_and_returns_translation_task_id(
+    @patch("apps.tv.tasks.tv_services.hydrate_show_translations_sync")
+    def test_sync_show_imports_translations_inline_instead_of_queueing_them(
         self,
-        import_show,
+        hydrate_show_translations_sync,
         hydrate_show_translations,
     ):
         from apps.tv.tasks import sync_show
 
         show = Show.objects.create(external_id="123", name="Show")
-        import_show.return_value = show
-        hydrate_show_translations.defer.return_value = 41
+        hydrate_show_translations_sync.return_value = show
 
         result = sync_show.func(show.id)
 
-        import_show.assert_called_once_with(
-            "123",
-            provider="tvdb",
-            language="eng",
-        )
-        hydrate_show_translations.defer.assert_called_once_with(show_id=show.id)
-        self.assertEqual(
-            result,
-            {"item_id": show.id, "translation_task_id": 41},
-        )
+        hydrate_show_translations_sync.assert_called_once_with(show.id)
+        hydrate_show_translations.defer.assert_not_called()
+        self.assertEqual(result, {"item_id": show.id})
 
-    @patch("apps.tv.tasks.tv_services.import_show")
-    def test_sync_show_uses_the_stored_provider(self, import_show):
-        from apps.tv.tasks import sync_show
-
-        show = Show.objects.create(
-            provider="tmdb",
-            external_id="1399",
-            name="Game of Thrones",
-        )
-        import_show.return_value = show
-
-        sync_show.func(show.id)
-
-        import_show.assert_called_once_with(
-            "1399",
-            provider="tmdb",
-            language="en-US",
-        )
-
-    @patch("apps.tv.tasks.tv_services.import_show")
-    def test_sync_show_marks_provider_failures_as_error(self, import_show):
+    @patch("apps.tv.tasks.tv_services.hydrate_show_translations_sync")
+    def test_sync_show_marks_provider_failures_as_error(self, hydrate_show_translations_sync):
         from apps.tv.tasks import sync_show
 
         show = Show.objects.create(
@@ -173,7 +146,7 @@ class TVTranslationTaskTests(TransactionTestCase):
             name="Show",
             sync_status=SyncStatus.OK,
         )
-        import_show.side_effect = ProviderError("provider down")
+        hydrate_show_translations_sync.side_effect = ProviderError("provider down")
 
         with self.assertRaises(ProviderError):
             sync_show.func(show.id)
@@ -241,18 +214,19 @@ class TVTranslationTaskTests(TransactionTestCase):
         UserShow.objects.create(user=user, show=ended_stale)
         UserShow.objects.create(user=user, show=continuing_fresh)
         UserShow.objects.create(user=user, show=ended_fresh)
-        sync_show.defer.side_effect = [41, 42, 43]
+        sync_show.configure.return_value.defer.side_effect = [41, 42, 43]
 
         result = sync_tv.func()
 
         self.assertEqual(result, [41, 42, 43])
+        sync_show.configure.assert_called_once_with(priority=-1)
         self.assertCountEqual(
-            [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
+            [call.kwargs["show_id"] for call in sync_show.configure.return_value.defer.call_args_list],
             [continuing_stale.id, ended_stale.id, tmdb_stale.id],
         )
         self.assertNotIn(
             untracked_stale.id,
-            [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
+            [call.kwargs["show_id"] for call in sync_show.configure.return_value.defer.call_args_list],
         )
 
     @override_settings(
@@ -284,7 +258,7 @@ class TVTranslationTaskTests(TransactionTestCase):
         UserShow.objects.create(user=user, show=raw_status_mismatch)
 
         self.assertEqual(sync_tv.func(), [])
-        sync_show.defer.assert_not_called()
+        sync_show.configure.return_value.defer.assert_not_called()
 
     @patch("apps.tv.tasks.sync_show")
     def test_sync_tv_force_all_enqueues_every_supported_provider_show(self, sync_show):
@@ -298,13 +272,13 @@ class TVTranslationTaskTests(TransactionTestCase):
             name="TMDB show",
         )
         Show.objects.create(provider="other", external_id="3", name="Other provider")
-        sync_show.defer.side_effect = [41, 42, 43]
+        sync_show.configure.return_value.defer.side_effect = [41, 42, 43]
 
         result = sync_tv.func(force_all=True)
 
         self.assertEqual(result, [41, 42, 43])
         self.assertCountEqual(
-            [call.kwargs["show_id"] for call in sync_show.defer.call_args_list],
+            [call.kwargs["show_id"] for call in sync_show.configure.return_value.defer.call_args_list],
             [first.id, second.id, alternate.id],
         )
 

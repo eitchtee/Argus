@@ -20,7 +20,7 @@ class ProcrastinateJobRetentionTests(SimpleTestCase):
         "apps.common.tasks.builtin_tasks.remove_old_jobs",
         new_callable=AsyncMock,
     )
-    def test_cleanup_removes_final_jobs_older_than_thirty_days(self, remove_old_jobs):
+    def test_cleanup_removes_final_jobs_older_than_seven_days(self, remove_old_jobs):
         from apps.common.tasks import cleanup_old_jobs
 
         context = object()
@@ -29,7 +29,7 @@ class ProcrastinateJobRetentionTests(SimpleTestCase):
 
         remove_old_jobs.assert_awaited_once_with(
             context,
-            max_hours=30 * 24,
+            max_hours=7 * 24,
             remove_failed=True,
             remove_cancelled=True,
             remove_aborted=True,
