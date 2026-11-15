@@ -16,7 +16,7 @@ from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.ratings import HALF_STEP, MAX_SCORE, MIN_SCORE, SCORE_QUANTUM
 from apps.movies.models import Movie, UserMovie
 from apps.sync.identities import ids_from_media
-from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow, UserSkippedEpisode
 
 
 @dataclass(frozen=True)
@@ -422,6 +422,8 @@ def _mark_episodes(user, requests: list[tuple[WatchedEpisode, Show]], report) ->
         report.episodes_marked += len(to_create)
     if to_update:
         UserEpisode.objects.bulk_update(to_update, ["seen_at"], batch_size=500)
+    # A watch from elsewhere means the user did watch it after all.
+    UserSkippedEpisode.objects.filter(user=user, episode_id__in=episode_ids).delete()
 
 
 

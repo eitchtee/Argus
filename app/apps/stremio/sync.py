@@ -21,7 +21,7 @@ from apps.stremio.models import StremioAccount, StremioSyncIntent
 from apps.sync.changes import suppress_local_intents
 from apps.sync.library import LocalSnapshot, _collect_local_snapshot
 from apps.tv import services as tv_services
-from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow, UserSkippedEpisode
 
 
 _FULL_SYNC_INTERVAL = timedelta(hours=24)
@@ -718,6 +718,7 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                 user=user, episode__show=show
             ).select_related("episode")
         }
+        watched_episode_ids = []
         for season_number, episode_number in watched_pairs:
             if _pending_episode(intents, content_id, season_number, episode_number) is False:
                 continue
@@ -727,6 +728,7 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                 if episode is None:
                     continue
                 episodes_by_parts[(season_number, episode_number)] = episode
+            watched_episode_ids.append(episode.id)
             watched = remote.watched_episodes[(content_id, season_number, episode_number)]
             state = local_states.get(episode.id)
             created = False
@@ -743,6 +745,8 @@ def _apply_remote(user, remote, local, intents, report, *, initial, getter):
                 state.seen_at = watched.watched_at
                 state.save(update_fields=["seen_at"])
             report.episodes_marked += int(created)
+        # A watch from elsewhere means the user did watch it after all.
+        UserSkippedEpisode.objects.filter(user=user, episode_id__in=watched_episode_ids).delete()
 
         if prune_local:
             keep = {

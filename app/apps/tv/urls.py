@@ -45,6 +45,21 @@ urlpatterns = [
         name="tv-detail-episode-watched",
     ),
     path(
+        "tv/<str:external_id>/seasons/<int:season_id>/skipped/",
+        views.season_skipped,
+        name="tv-detail-season-skipped",
+    ),
+    path(
+        "tv/<str:external_id>/episodes/<int:episode_id>/skipped/",
+        views.episode_skipped,
+        name="tv-detail-episode-skipped",
+    ),
+    path(
+        "tv/<str:external_id>/episodes/<int:episode_id>/detail-skipped/",
+        views.episode_detail_skipped,
+        name="tv-episode-detail-skipped",
+    ),
+    path(
         "tv/<str:external_id>/episodes/<int:episode_id>/content/",
         views.episode_detail_content,
         name="tv-episode-detail-content",

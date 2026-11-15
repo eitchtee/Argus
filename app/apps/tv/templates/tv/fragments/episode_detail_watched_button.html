@@ -2,9 +2,20 @@
 {% trans "Mark unwatched" as mark_unwatched_label %}
 {% trans "Mark watched" as mark_watched_label %}
 {% trans "Episode actions" as episode_actions_label %}
+{% trans "Won't watch. Click to clear" as clear_skip_label %}
 
 <div id="episode-watched-button" class="media-poster-actions" role="group" aria-label="{{ episode_actions_label }}">
   <div class="join media-action-join join-horizontal">
+    {% if skipped %}
+    <button type="button"
+            aria-label="{{ clear_skip_label }}"
+            data-tippy-content="{{ clear_skip_label }}"
+            class="btn btn-sm join-item media-action-button"
+            hx-delete="{% url 'tv-episode-detail-skipped' external_id=show_external_id episode_id=episode_id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
+            hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this">
+      <i data-lucide="ban" aria-hidden="true"></i>
+    </button>
+    {% else %}
     <button type="button"
             aria-label="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
             data-tippy-content="{% if watched %}{{ mark_unwatched_label }}{% else %}{{ mark_watched_label }}{% endif %}"
@@ -15,6 +26,25 @@
             hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this">
       <i data-lucide="{% if watched %}eye-off{% else %}eye{% endif %}" aria-hidden="true"></i>
     </button>
+    {% if not watched %}
+    <div class="dropdown dropdown-end join-item">
+      <button type="button" tabindex="0" aria-haspopup="true"
+              aria-label="{% trans 'More episode actions' %}"
+              class="btn btn-sm join-item media-action-button btn-success px-1">
+        <i data-lucide="chevron-down" aria-hidden="true"></i>
+      </button>
+      <ul tabindex="0" class="dropdown-content menu z-50 mt-2 w-48 rounded-box bg-base-100 p-2 shadow-xl">
+        <li>
+          <button type="button"
+                  hx-post="{% url 'tv-episode-detail-skipped' external_id=show_external_id episode_id=episode_id %}{% if show_provider and show_provider != 'tvdb' %}?provider={{ show_provider }}{% endif %}"
+                  hx-target="#episode-watched-button" hx-swap="outerHTML" hx-disabled-elt="this">
+            <i data-lucide="ban" aria-hidden="true"></i>{% trans "Won't watch" %}
+          </button>
+        </li>
+      </ul>
+    </div>
+    {% endif %}
+    {% endif %}
   </div>
 </div>
 

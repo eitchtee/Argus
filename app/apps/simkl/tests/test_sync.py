@@ -11,7 +11,7 @@ from apps.movies.models import Movie, UserMovie
 from apps.movies.services import mark_seen, unmark_seen
 from apps.simkl.models import SimklAccount, SimklLibraryItem, SimklSyncIntent
 from apps.simkl.sync import normalize_items, sync_account
-from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow, UserSkippedEpisode
 from apps.tv.services import pause_show
 
 
@@ -193,6 +193,26 @@ class SimklSyncTestCase(TestCase):
 
 
 class InitialSyncTests(SimklSyncTestCase):
+    def test_remote_watch_clears_a_local_wont_watch(self):
+        UserShow.objects.create(user=self.user, show=self.show)
+        for number in (1, 3):
+            UserSkippedEpisode.objects.create(user=self.user, episode=self.episodes[number])
+        client = FakeSimklClient(
+            activities_responses=[ACTIVITIES_V1],
+            library={
+                "shows": {
+                    "shows": [show_entry(2, "watching", tvdb=73739, episodes=[(1, 1, "2026-03-02T20:00:00Z")])]
+                },
+            },
+        )
+
+        self.run_sync(client)
+
+        self.assertEqual(
+            list(UserSkippedEpisode.objects.values_list("episode_id", flat=True)),
+            [self.episodes[3].id],
+        )
+
     def test_full_pull_imports_remote_state_and_stores_cursor(self):
         client = FakeSimklClient(
             activities_responses=[ACTIVITIES_V1],

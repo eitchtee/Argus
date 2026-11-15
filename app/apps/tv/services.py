@@ -28,7 +28,14 @@ from apps.simkl.changes import record_simkl_intent
 from apps.simkl.models import SimklSyncIntent
 from apps.sync.changes import IntentKind, record_intent
 from apps.sync.identities import episode_payload, show_payload
-from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+from apps.tv.models import (
+    Episode,
+    Season,
+    Show,
+    UserEpisode,
+    UserShow,
+    UserSkippedEpisode,
+)
 
 
 def normalize_show_status(
@@ -720,6 +727,17 @@ def switch_show_provider(
                 transfer_rating(user, source=source_episode, target=target_episode)
             source_user_episode.delete()
 
+        for skip in UserSkippedEpisode.objects.filter(
+            user=user, episode__show=source
+        ).select_related("episode"):
+            target_episode = target.episodes.filter(
+                season_number=skip.episode.season_number,
+                episode_number=skip.episode.episode_number,
+            ).first()
+            if target_episode is not None:
+                UserSkippedEpisode.objects.get_or_create(user=user, episode=target_episode)
+            skip.delete()
+
         source_state.delete()
         source_removed = not source.user_states.exists() and not source.episodes.filter(
             user_states__isnull=False
@@ -941,6 +959,7 @@ def delete_show_data(user, show: Show) -> None:
     delete_ratings_for(user, show)
     delete_episode_ratings_for_show(user, show)
     UserEpisode.objects.filter(user=user, episode__show=show).delete()
+    UserSkippedEpisode.objects.filter(user=user, episode__show=show).delete()
     UserShow.objects.filter(user=user, show=show).delete()
 
 
@@ -988,6 +1007,7 @@ def mark_episode_watched(user, episode: Episode) -> UserEpisode:
     if user_episode.seen_at is None or watched_at > user_episode.seen_at:
         user_episode.seen_at = watched_at
         user_episode.save(update_fields=["seen_at"])
+    UserSkippedEpisode.objects.filter(user=user, episode=episode).delete()
     UserShow.objects.filter(user=user, show=episode.show).update(
         on_watchlist=False,
         updated_at=timezone.now(),
@@ -1013,7 +1033,7 @@ def unmark_episode_watched(user, episode: Episode) -> None:
 
 def mark_season_watched(user, season: Season) -> None:
     _require_tracking(user, season.show)
-    aired_episodes = season.episodes.aired()
+    aired_episodes = season.episodes.aired().not_skipped(user)
     for episode in aired_episodes:
         mark_episode_watched(user, episode)
 
@@ -1038,7 +1058,9 @@ def unmark_season_watched(user, season: Season) -> None:
 
 def mark_show_watched(user, show: Show) -> None:
     _require_tracking(user, show)
-    aired_episodes = Episode.objects.filter(show=show, season_number__gt=0).aired()
+    aired_episodes = (
+        Episode.objects.filter(show=show, season_number__gt=0).aired().not_skipped(user)
+    )
     for episode in aired_episodes:
         mark_episode_watched(user, episode)
 
@@ -1063,6 +1085,23 @@ def unmark_show_watched(user, show: Show) -> None:
             user_episode.episode,
             user_episode.seen_at,
         )
+
+
+def skip_episodes(user, show: Show, episodes) -> None:
+    """Mark the unwatched episodes in ``episodes`` as "won't watch"."""
+    _require_tracking(user, show)
+    UserSkippedEpisode.objects.bulk_create(
+        [
+            UserSkippedEpisode(user=user, episode=episode)
+            for episode in episodes.exclude(user_states__user=user)
+        ],
+        ignore_conflicts=True,
+    )
+
+
+def unskip_episodes(user, show: Show, episodes) -> None:
+    _require_tracking(user, show)
+    UserSkippedEpisode.objects.filter(user=user, episode__in=episodes).delete()
 
 
 @dataclass
@@ -1114,10 +1153,14 @@ def _attach_watchlist_progress(user, shows: list[Show]) -> None:
         return
 
     show_ids = [show.id for show in shows]
-    available_episodes = Episode.objects.filter(
-        show_id__in=show_ids,
-        season_number__gt=0,
-    ).aired()
+    available_episodes = (
+        Episode.objects.filter(
+            show_id__in=show_ids,
+            season_number__gt=0,
+        )
+        .aired()
+        .not_skipped(user)
+    )
     total_counts = {
         row["show_id"]: row["total_count"]
         for row in available_episodes.order_by()
@@ -1140,6 +1183,7 @@ def _attach_watchlist_progress(user, shows: list[Show]) -> None:
             season_number__gt=0,
         )
         .upcoming()
+        .not_skipped(user)
         .order_by()
         .values("show_id")
         .annotate(upcoming_count=Count("id"))
@@ -1228,6 +1272,7 @@ def get_watchlist(user) -> list[WatchlistEntry]:
     aired_episodes = (
         Episode.objects.filter(show__in=tracked_shows, season_number__gt=0)
         .aired()
+        .not_skipped(user)
         .prefetch_related("show")
         .order_by("show_id", "user_air_date", "episode_number")
     )
@@ -1296,6 +1341,7 @@ def get_watchlist_entry(user, show: Show) -> WatchlistEntry | None:
         Episode.objects.filter(show=show, season_number__gt=0)
         .aired()
         .exclude(user_states__user=user)
+        .not_skipped(user)
         .order_by("user_air_date", "episode_number")
     )
     if not pending:
@@ -1353,6 +1399,7 @@ def _upcoming_queryset(user):
         )
         .with_local_air_date()
         .filter(user_air_date__gte=yesterday)
+        .not_skipped(user)
         .select_related("show")
         .order_by(
             "user_air_date",

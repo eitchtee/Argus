@@ -144,6 +144,7 @@ def _get_episode_events(user, start_date, end_date, filters):
             air_date__gte=start_date,
             air_date__lte=end_date,
         )
+        .not_skipped(user)
         .select_related("show", "season")
         .prefetch_related(
             Prefetch(

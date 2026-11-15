@@ -50,7 +50,14 @@ from apps.common.decorators.user import htmx_login_required
 from apps.common.htmx import is_htmx_fragment_request
 from apps.catalog.library_filters import pick_sort
 from apps.tv.filters import SORT_CHOICES, filter_watchlist
-from apps.tv.models import Episode, Season, Show, UserEpisode, UserShow
+from apps.tv.models import (
+    Episode,
+    Season,
+    Show,
+    UserEpisode,
+    UserShow,
+    UserSkippedEpisode,
+)
 from apps.tv.services import (
     delete_show_data,
     drop_show,
@@ -64,12 +71,14 @@ from apps.tv.services import (
     mark_season_watched,
     mark_show_watched,
     pause_show,
+    skip_episodes,
     switch_show_provider,
     queue_track_show,
     refresh_show,
     unmark_episode_watched,
     unmark_season_watched,
     unmark_show_watched,
+    unskip_episodes,
 )
 
 
@@ -395,6 +404,74 @@ def episode_watched(request, external_id, episode_id):
     return render(request, "tv/fragments/season_inner.html", context)
 
 
+def _toggle_skip(request, show, episodes):
+    """POST marks ``episodes`` as won't watch, DELETE clears it. Returns an error response or None."""
+    if settings.DEMO and not request.user.is_superuser:
+        return HttpResponseForbidden("Demo mode is read-only.")
+    try:
+        if request.method == "POST":
+            skip_episodes(request.user, show, episodes)
+        else:
+            unskip_episodes(request.user, show, episodes)
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+    return None
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST", "DELETE"])
+def season_skipped(request, external_id, season_id):
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
+    season = get_object_or_404(Season, id=season_id, show=show)
+    if error := _toggle_skip(request, show, season.episodes.all()):
+        return error
+    context = {
+        "season": _build_season_context(request.user, season),
+        "show_external_id": external_id,
+        "show_provider": provider,
+    }
+    return render(request, "tv/fragments/season_inner.html", context)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST", "DELETE"])
+def episode_skipped(request, external_id, episode_id):
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
+    episode = get_object_or_404(Episode, id=episode_id, show=show)
+    if error := _toggle_skip(request, show, Episode.objects.filter(id=episode.id)):
+        return error
+    context = {
+        "season": _build_season_context(request.user, episode.season),
+        "show_external_id": external_id,
+        "show_provider": provider,
+    }
+    return render(request, "tv/fragments/season_inner.html", context)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["POST", "DELETE"])
+def episode_detail_skipped(request, external_id, episode_id):
+    provider = _provider_from_request(request)
+    show = get_object_or_404(Show, provider=provider, external_id=external_id)
+    episode = get_object_or_404(Episode, id=episode_id, show=show)
+    if error := _toggle_skip(request, show, Episode.objects.filter(id=episode.id)):
+        return error
+    context = {
+        "tracked": True,
+        "watched": False,
+        "skipped": request.method == "POST",
+        "show_external_id": external_id,
+        "show_provider": provider,
+        "episode_id": episode.id,
+    }
+    return render(request, "tv/fragments/episode_detail_watched_button.html", context)
+
+
 @htmx_login_required
 @require_http_methods(["GET"])
 def episode_detail(request, external_id, episode_id):
@@ -425,6 +502,11 @@ def episode_detail_content(request, external_id, episode_id):
         status=UserShow.Status.TRACKED,
     ).exists()
     watched = tracked and UserEpisode.objects.filter(user=request.user, episode=episode).exists()
+    skipped = (
+        tracked
+        and not watched
+        and UserSkippedEpisode.objects.filter(user=request.user, episode=episode).exists()
+    )
     localized_show = _localize_show(show, request.user)
     show_title = localized_show.name
     # Providers only publish an airing time per show, so episodes borrow it.
@@ -451,6 +533,7 @@ def episode_detail_content(request, external_id, episode_id):
         "show_provider": provider,
         "tracked": tracked,
         "watched": watched,
+        "skipped": skipped,
         "user_rating": format_score(get_user_score(request.user, episode)) if watched else None,
         "rating_url": build_rating_url("episode", episode.id),
         "previous_episode": _adjacent_episode(episode, direction="previous"),
@@ -822,6 +905,11 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
                 "episode_id", flat=True
             )
         )
+        skipped_ids = set(
+            UserSkippedEpisode.objects.filter(user=user, episode__show=show).values_list(
+                "episode_id", flat=True
+            )
+        )
         season_queryset = Season.objects.filter(show=show, episodes__isnull=False)
         if not show_specials:
             season_queryset = season_queryset.filter(season_number__gt=0)
@@ -832,6 +920,7 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
                 watched_ids,
                 tracked,
                 language,
+                skipped_ids,
             )
             for season in season_queryset.distinct().order_by("season_number")
         ]
@@ -872,7 +961,9 @@ def _build_show_episodes_context(user, external_id, provider="tvdb"):
 
 
 def _show_is_fully_watched(user, show):
-    aired_episodes = Episode.objects.filter(show=show, season_number__gt=0).aired()
+    aired_episodes = (
+        Episode.objects.filter(show=show, season_number__gt=0).aired().not_skipped(user)
+    )
     return aired_episodes.exists() and not aired_episodes.exclude(
         user_states__user=user
     ).exists()
@@ -902,8 +993,13 @@ def _build_season_context(user, season: Season):
             "episode_id", flat=True
         )
     )
+    skipped_ids = set(
+        UserSkippedEpisode.objects.filter(user=user, episode__season=season).values_list(
+            "episode_id", flat=True
+        )
+    )
     episodes = list(season.episodes.select_related("show").order_by("episode_number"))
-    return _season_context(season, episodes, watched_ids, tracked, language)
+    return _season_context(season, episodes, watched_ids, tracked, language, skipped_ids)
 
 
 def _season_context(
@@ -912,6 +1008,7 @@ def _season_context(
     watched_ids: set,
     tracked: bool,
     language: str = "eng",
+    skipped_ids: set = frozenset(),
 ):
     today = timezone.localdate()
     episode_rows = []
@@ -922,8 +1019,10 @@ def _season_context(
         air_date = episode.local_air_date
         air_status = _episode_air_status(air_date, today)
         aired = air_status == "aired"
-        watched = episode.id in watched_ids
-        if aired:
+        # Skipped episodes count as neither pending nor watched, matching the watchlist queries.
+        skipped = episode.id in skipped_ids
+        watched = not skipped and episode.id in watched_ids
+        if aired and not skipped:
             aired_count += 1
             if watched:
                 aired_watched_count += 1
@@ -938,6 +1037,7 @@ def _season_context(
                 "aired": aired,
                 "air_status": air_status,
                 "watched": watched,
+                "skipped": skipped,
             }
         )
 
@@ -963,6 +1063,8 @@ def _season_context(
         ),
         "unaired_count": len(episode_rows) - aired_count,
         "fully_watched": aired_count > 0 and aired_watched_count == aired_count,
+        "fully_skipped": bool(episode_rows) and all(row["skipped"] for row in episode_rows),
+        "has_unwatched": any(not row["watched"] and not row["skipped"] for row in episode_rows),
         "tracked": tracked,
     }
 

@@ -1114,6 +1114,11 @@
         min-height: 3.25rem;
     }
 
+    /* Each row is its own stacking context, so lift the one holding an open dropdown above its siblings. */
+    .episode-row:focus-within {
+        z-index: 1;
+    }
+
     /* Bleed the hover background past the row's content box so the text isn't
        flush against its edge, without widening the separator border. */
     .episode-row:hover::before {

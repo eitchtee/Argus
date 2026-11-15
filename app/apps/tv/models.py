@@ -176,6 +176,10 @@ class EpisodeQuerySet(models.QuerySet):
             user_air_date__gt=today or timezone.localdate()
         )
 
+    def not_skipped(self, user):
+        """Drop episodes the user marked as "won't watch"."""
+        return self.exclude(user_skips__user=user)
+
 
 class Episode(models.Model):
     show = models.ForeignKey(
@@ -311,3 +315,30 @@ class UserEpisode(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.episode}"
+
+
+class UserSkippedEpisode(models.Model):
+    """An episode the user won't watch: left out of progress, Up Next and upcoming."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="skipped_episodes",
+    )
+    episode = models.ForeignKey(
+        Episode,
+        on_delete=models.CASCADE,
+        related_name="user_skips",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "episode"],
+                name="tv_userskippedepisode_user_episode_uniq",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} - {self.episode} (skipped)"

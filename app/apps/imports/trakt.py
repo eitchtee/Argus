@@ -33,7 +33,7 @@ from apps.sync.library import (
     _save_media_ids,
 )
 from apps.tv import services as tv_services
-from apps.tv.models import Episode, Show, UserEpisode, UserShow
+from apps.tv.models import Episode, Show, UserEpisode, UserShow, UserSkippedEpisode
 
 
 @dataclass(frozen=True)
@@ -573,6 +573,8 @@ def _apply_remote_shows(user, remote, report):
             report.episodes_marked += len(to_create)
         if to_update:
             UserEpisode.objects.bulk_update(to_update, ["seen_at"], batch_size=500)
+        # A watch from elsewhere means the user did watch it after all.
+        UserSkippedEpisode.objects.filter(user=user, episode_id__in=episode_ids).delete()
 
     for media in remote.watched_shows.values():
         show = ensure(media)
