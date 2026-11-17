@@ -1,10 +1,22 @@
-{% load i18n %}
+{% load i18n toasts %}
 {% if messages %}
   <div class="toast-container flex flex-col gap-2">
     {% for message in messages %}
-      <div class="alert alert-{{ message.tags|default:'info' }} shadow-lg">
-        <span>{{ message }}</span>
-      </div>
+      {% with style=message.tags|toast_style %}
+        <div class="toasty alert {{ style.alert }} shadow-lg grid-cols-[auto_1fr_auto] items-start gap-3 pe-2"
+             role="alert" aria-live="assertive" aria-atomic="true"
+             _="init wait 5s then remove me">
+          <i data-lucide="{{ style.icon }}" class="size-5 mt-0.5" aria-hidden="true"></i>
+          <div class="min-w-0 break-words">
+            <strong>{{ style.title }}</strong>
+            <div>{{ message }}</div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm btn-square -mt-1" _="on click remove closest .toasty"
+                  aria-label="{% translate 'Close' %}">
+            <i data-lucide="x" class="size-4" aria-hidden="true"></i>
+          </button>
+        </div>
+      {% endwith %}
     {% endfor %}
   </div>
 {% endif %}

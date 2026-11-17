@@ -83,3 +83,21 @@ class ToastEndpointTests(TestCase):
         self.assertNotContains(response, 'id="toasts"')
         self.assertNotContains(response, "hx-get=")
         self.assertNotIn("HX-Trigger", response)
+
+    def test_toast_is_coloured_by_level_and_dismissible(self):
+        from django.contrib import messages
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+
+        request = RequestFactory().get("/")
+        request.session = self.client.session
+        request._messages = FallbackStorage(request)
+        messages.error(request, "Boom", extra_tags="sticky")
+
+        html = render_to_string("common/fragments/toast_messages.html", request=request)
+
+        self.assertIn("toasty alert alert-error", html)
+        self.assertIn('data-lucide="circle-alert"', html)
+        self.assertIn('_="on click remove closest .toasty"', html)
+        self.assertIn('_="init wait 5s then remove me"', html)
