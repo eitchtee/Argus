@@ -165,11 +165,12 @@ def _entry(item, media_type: str) -> DiscoveryEntry | None:
 
 def _score(item: dict) -> int | None:
     score = _as_int(item.get("score"))
-    if score:
+    # MDBList sends -1 for unrated titles.
+    if score and score > 0:
         return score
     for rating in item.get("ratings") or []:
         if isinstance(rating, dict) and rating.get("source") == "mdblist":
-            return _as_int(rating.get("score")) or None
+            return max(_as_int(rating.get("score")) or 0, 0) or None
     return None
 
 

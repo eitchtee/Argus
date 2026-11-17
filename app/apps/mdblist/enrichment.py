@@ -129,7 +129,8 @@ def parse_media(detail: dict) -> dict:
         "mdblist_id": str(ids.get("mdblist") or "")[:32],
         "slug": slugify(str(detail.get("title") or ""))[:255],
         "imdb_id": str(ids.get("imdb") or "")[:32],
-        "score": _as_int(detail.get("score")) or None,
+        # MDBList sends -1 for unrated titles.
+        "score": max(_as_int(detail.get("score")) or 0, 0) or None,
         "ratings": ratings,
         "certification": str(detail.get("certification") or "")[:32],
         "trailer_url": str(detail.get("trailer") or "")[:255],

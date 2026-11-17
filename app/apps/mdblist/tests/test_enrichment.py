@@ -117,6 +117,11 @@ class CardTests(TestCase):
         # Batch lookups carry no recommendations; the stored ones stay.
         self.assertEqual(len(info.recommendations), 1)
 
+        # MDBList sends -1 for titles nobody has rated yet.
+        refresh_media_batch([movie], client=FakeCatalogClient({**FIGHT_CLUB, "score": -1, "recommendations": []}))
+        info.refresh_from_db()
+        self.assertIsNone(info.score)
+
     @override_settings(MDBLIST_API_KEY="")
     def test_without_any_key_the_card_is_unavailable(self):
         self.assertEqual(load_card("movie", "tmdb", "550", language="en", user=self.user)["state"], "unavailable")
