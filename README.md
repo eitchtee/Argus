@@ -2,6 +2,112 @@
 
 Argus is a self-hosted tracker for movies and TV shows.
 
+## How to run
+
+You'll need [Docker](https://docs.docker.com/engine/install/) with [Docker Compose](https://docs.docker.com/compose/install/).
+
+```bash
+# Create a folder for Argus and go into it
+$ mkdir argus && cd argus
+
+# Paste the contents of https://github.com/eitchtee/Argus/blob/main/docker-compose.prod.yml
+$ nano docker-compose.yml
+
+# Paste the contents of https://github.com/eitchtee/Argus/blob/main/.env.example and fill it in
+$ nano .env
+
+# Run the app
+$ docker compose up -d
+
+# Create the first admin account. Not needed if you set ADMIN_EMAIL and ADMIN_PASSWORD.
+$ docker compose exec -it web python manage.py createsuperuser
+```
+
+There are no releases yet, so the only published image is `eitchtee/argus:nightly`, built from every push to `main`. In `docker-compose.yml`, replace the `build:` block and `image: argus:latest` under `web` with `image: eitchtee/argus:nightly`. Expect undocumented breaking changes.
+
+At minimum, set `SECRET_KEY`, `SQL_PASSWORD`, `URL`, `DJANGO_ALLOWED_HOSTS` and `TMDB_API_KEY`. Search and catalog data come from TMDB, so Argus can't add anything without that key.
+
+### Running locally
+
+To reach Argus at `http://localhost:OUTBOUND_PORT` without a domain or HTTPS:
+
+1. Remove `URL`.
+2. Set `HTTPS_ENABLED=false`.
+3. Keep the default `DJANGO_ALLOWED_HOSTS` (`localhost 127.0.0.1 [::1]`).
+
+> [!NOTE]
+> To reach it from another machine (a LAN IP, Tailscale), add that IP or hostname to `DJANGO_ALLOWED_HOSTS` without `http://`, and the full origin (`http://100.x.y.z:8000`) to `URL`.
+
+### Environment variables
+
+The defaults in `.env.example` fit a personal instance with 1 to 3 users.
+
+| variable | type | default | explanation |
+|---|---|---|---|
+| SECRET_KEY | string | *required* | Signs sessions and encrypts the Stremio, SIMKL and MDBList tokens at rest. If it changes, users must reconnect those accounts. |
+| DEBUG | true\|false | false | Shows detailed error pages. Don't use in production. |
+| URL | string | http://localhost http://127.0.0.1 | Space-separated origins, with the scheme, trusted for unsafe requests (e.g. POST). See [CSRF_TRUSTED_ORIGINS](https://docs.djangoproject.com/en/5.2/ref/settings/#csrf-trusted-origins). |
+| DJANGO_ALLOWED_HOSTS | string | localhost 127.0.0.1 | Space-separated domains and IPs Argus answers to. See [ALLOWED_HOSTS](https://docs.djangoproject.com/en/5.2/ref/settings/#allowed-hosts). |
+| HTTPS_ENABLED | true\|false | false | Marks cookies as secure and trusts the `X-Forwarded-Proto` header from your reverse proxy. Set it when Argus is served over HTTPS. |
+| TZ | string | UTC | Timezone for dates and for the task worker's schedules. |
+| SESSION_EXPIRY_TIME | int | 2678400 (31 days) | How long you stay logged in, in seconds. |
+| SESSION_COOKIE_NAME | string | sessionid | Session cookie name. Only needed to run several instances on the same host. |
+| CSRF_COOKIE_NAME | string | csrftoken | CSRF cookie name. Only needed to run several instances on the same host. |
+| ADMIN_EMAIL | string | None | Creates an admin account with this email on startup. Needs `ADMIN_PASSWORD`. |
+| ADMIN_PASSWORD | string | None | Password for the `ADMIN_EMAIL` account. Remove both after your first login. |
+| DEMO | true\|false | false | Demo mode: creates a `demo@demo.com` user and closes the API to everyone but superusers. |
+| SERVER_NAME | string | argus_server | Container name of the app (compose only). |
+| INTERNAL_PORT | int | 8000 | The port the app listens on inside the container. |
+| OUTBOUND_PORT | int | 8000 | The host port the app is published on (compose only). |
+| DB_NAME | string | argus_pg | Container name of the database (compose only). Point `SQL_HOST` at it. |
+| SQL_DATABASE | string | *required* | Postgres database name. |
+| SQL_USER | string | user | Postgres user. |
+| SQL_PASSWORD | string | password | Postgres password. |
+| SQL_HOST | string | localhost | Postgres host. |
+| SQL_PORT | string | 5432 | Postgres port. |
+| DB_POOL_MAX_SIZE | int | the larger of GUNICORN_THREADS and PROCRASTINATE_WORKER_CONCURRENCY, + 1 | Database connections each process may open. Only set it if you see `PoolTimeout` errors. |
+| WEB_CONCURRENCY | int | 1 | Web worker processes. Each one is a full copy of the app in memory (about 220 MiB). |
+| GUNICORN_THREADS | int | 1 | Threads per web worker. Threads share their worker's memory, so 1 worker with 4 threads serves more requests at once than 2 workers, with half the RAM. |
+| TASK_WORKERS | int | 1 | Background task worker processes. Each one is a full copy of the app in memory, so prefer raising `PROCRASTINATE_WORKER_CONCURRENCY`. |
+| PROCRASTINATE_WORKER_CONCURRENCY | int | 1 | How many background tasks each worker runs at once. 2 keeps account syncs running while a long import or catalog refresh is in progress. |
+| TMDB_API_KEY | string | "" | [TMDB](https://www.themoviedb.org/settings/api) API key. Required for search and catalog data. |
+| TMDB_IMAGE_BASE_URL | string | https://image.tmdb.org/t/p/ | Where posters and backdrops are loaded from. |
+| TVDB_API_KEY | string | "" | [TVDB](https://thetvdb.com/api-information) API key. TV shows use TVDB as their metadata source. |
+| CATALOG_SEARCH_CACHE_TTL | int | 3600 | How long search results are cached, in seconds. |
+| CATALOG_MOVIE_SYNC_INTERVAL_DAYS | int | 14 | How often a movie's metadata is refreshed, in days. |
+| CATALOG_SHOW_SYNC_INTERVAL_DAYS | int | 2 | How often a running show's metadata is refreshed, in days. |
+| CATALOG_ENDED_SHOW_SYNC_INTERVAL_DAYS | int | 30 | How often an ended show's metadata is refreshed, in days. |
+| STREMIO_SYNC_INTERVAL_MINUTES | int | 5 | Minutes between Stremio syncs. See [Stremio setup](#stremio-setup). |
+| SIMKL_CLIENT_ID | string | "" | SIMKL app client id. Enables Discover, trending rails and community ratings. See [SIMKL setup](#simkl-setup). |
+| SIMKL_CLIENT_SECRET | string | "" | SIMKL app secret. Needed for per-user sync. |
+| SIMKL_REDIRECT_URI | string | derived from the request | Only set it if Argus is reached under a different public URL than the one it sees. |
+| SIMKL_APP_NAME | string | argus | App name sent to SIMKL. |
+| SIMKL_APP_VERSION | string | the image version | App version sent to SIMKL. |
+| SIMKL_SYNC_INTERVAL_MINUTES | int | 15 | Minutes between SIMKL syncs. |
+| SIMKL_IDLE_HOURS | int | 24 | Accounts idle for longer aren't polled unless they have changes to push. |
+| SIMKL_METADATA_REFRESH_DAYS | int | 7 | How often SIMKL ratings for a title are refreshed, in days. |
+| SIMKL_METADATA_BATCH_SIZE | int | 200 | Titles refreshed per nightly SIMKL ratings run. |
+| SIMKL_METADATA_CRON | string | 30 5 * * * | When the SIMKL ratings refresh runs. |
+| MDBLIST_API_KEY | string | "" | Server [MDBList](https://mdblist.com/preferences/) key. Enables the ratings card, streaming charts and Discover lists. See [MDBList setup](#mdblist-setup). |
+| MDBLIST_CLIENT_ID | string | "" | MDBList OAuth app client id. Without one, users connect by pasting their own API key. |
+| MDBLIST_CLIENT_SECRET | string | "" | MDBList OAuth app secret. |
+| MDBLIST_REDIRECT_URI | string | derived from the request | Only set it if Argus is reached under a different public URL than the one it sees. |
+| MDBLIST_SYNC_INTERVAL_MINUTES | int | 15 | Minutes between MDBList syncs. |
+| MDBLIST_IDLE_HOURS | int | 24 | Accounts idle for longer aren't polled unless they have changes to push. |
+| MDBLIST_METADATA_REFRESH_DAYS | int | 7 | How often MDBList ratings for a title are refreshed, in days. |
+| MDBLIST_METADATA_BATCH_SIZE | int | 200 | Titles refreshed per nightly MDBList ratings run. |
+| MDBLIST_METADATA_CRON | string | 45 5 * * * | When the MDBList ratings refresh runs. |
+| OIDC_CLIENT_NAME | string | OpenID Connect | Name shown on the OIDC login button. |
+| OIDC_CLIENT_ID | string | None | OIDC client id. OIDC login is enabled when the id, secret and server URL are all set. |
+| OIDC_CLIENT_SECRET | string | None | OIDC client secret. |
+| OIDC_SERVER_URL | string | None | OIDC provider URL. |
+| OIDC_ALLOW_SIGNUP | true\|false | true | Whether a first OIDC login creates a new account. |
+| DJANGO_VITE_DEV_MODE | true\|false | false | Serves frontend assets from Vite's dev server. Development only. |
+| DJANGO_VITE_DEV_SERVER_PORT | int | 5173 | Vite dev server port. Development only. |
+| DJANGO_VITE_DEV_SERVER_HOST | string | localhost | Vite dev server host. Development only. |
+| VITE_OUTBOUND_PORT | int | 5173 | Host port for the Vite dev server (dev compose only). |
+| SQL_OUTBOUND_PORT | int | SQL_PORT | Host port for Postgres (dev compose only). |
+
 ## Trakt.tv
 
 > [!WARNING]
