@@ -98,7 +98,7 @@ class GetWatchlistServiceTests(TestCase):
         self._make_episode(first_show, 1, 1, self.today - timedelta(days=2))
         self._make_episode(second_show, 1, 1, self.today - timedelta(days=1))
 
-        with self.assertNumQueries(4):
+        with self.assertNumQueries(1):
             entries = get_watchlist(self.user)
             [entry.next_episode.show.name for entry in entries]
 
@@ -275,6 +275,23 @@ class GetUpNextServiceTests(TestCase):
             [episode],
         )
 
+    def test_query_count_is_bounded(self):
+        for idx in range(3):
+            show, season = self._make_show(f"Show {idx}", f"show-{idx}")
+            ep1 = self._make_episode(show, season, 1, self.today - timedelta(days=5), "Ep 1")
+            self._make_episode(show, season, 2, self.today - timedelta(days=2), "Ep 2")
+            self._make_episode(show, season, 3, self.today - timedelta(days=1), "Ep 3")
+            if idx == 0:
+                UserEpisode.objects.create(user=self.user, episode=ep1)
+
+        with self.assertNumQueries(2):
+            sections = self._get_up_next()
+
+        self.assertEqual(len(sections.active), 1)
+        self.assertEqual(sections.active[0].pending_count, 1)
+        self.assertEqual(len(sections.not_started), 2)
+        self.assertEqual(sections.not_started[0].pending_count, 2)
+
 
 class UpcomingMonthServiceTests(TestCase):
     def setUp(self):
@@ -392,6 +409,21 @@ class UpcomingMonthServiceTests(TestCase):
 
         self.assertIsNone(month.next_cursor)
         self.assertIsNone(self._get_upcoming_month(after_month=month.month_start))
+
+    def test_query_count_is_bounded(self):
+        for idx in range(3):
+            show, season = self._make_show(f"Show {idx}", f"show-{idx}")
+            for ep in range(1, 5):
+                episode = self._make_episode(show, season, ep, self.today, f"Ep {ep}")
+                if ep == 1:
+                    UserEpisode.objects.create(user=self.user, episode=episode)
+
+        with self.assertNumQueries(3):
+            month = self._get_upcoming_month()
+
+        self.assertEqual(len(month.entries), 3)
+        self.assertTrue(month.entries[0].watched)
+        self.assertFalse(month.entries[0].additional_episodes[0].watched)
 
 
 class GetWatchlistEntryServiceTests(TestCase):
@@ -522,3 +554,16 @@ class GetUpcomingEpisodesServiceTests(TestCase):
             [item.episode for item in entries[0].additional_episodes],
             episodes[1:],
         )
+
+    def test_runs_in_a_single_query(self):
+        for number in range(1, 6):
+            ep = self._make_episode(number, self.today + timedelta(days=number), name=f"Ep {number}")
+            if number == 1:
+                UserEpisode.objects.create(user=self.user, episode=ep)
+
+        with self.assertNumQueries(1):
+            entries = get_upcoming_episodes(self.user, count=5)
+
+        self.assertEqual(len(entries), 5)
+        self.assertTrue(entries[0].watched)
+        self.assertFalse(entries[1].watched)

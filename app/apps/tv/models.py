@@ -218,6 +218,12 @@ class Episode(models.Model):
 
     class Meta:
         ordering = ("show__name", "season_number", "episode_number")
+        indexes = [
+            models.Index(
+                fields=["show", "air_date"],
+                name="tv_episode_show_air_date_idx",
+            )
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["show", "season_number", "episode_number"],

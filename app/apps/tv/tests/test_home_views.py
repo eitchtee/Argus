@@ -325,6 +325,56 @@ class UpNextViewTests(TestCase):
         self.assertContains(response, 'id="up-next-not-started-list"')
         self.assertFalse(UserEpisode.objects.filter(user=self.user, episode=episode).exists())
 
+    def test_shows_premiere_and_finale_badges_in_up_next(self):
+        premiere_show, premiere_season = self._make_show("Premiere Show", "premiere")
+        self._make_episode(
+            premiere_show, premiere_season, 1, self.today - timedelta(days=1), "Opener"
+        )
+
+        midseason_show, midseason_season = self._make_show("Midseason Show", "midseason")
+        Episode.objects.create(
+            show=midseason_show,
+            season=midseason_season,
+            season_number=1,
+            episode_number=5,
+            air_date=self.today - timedelta(days=2),
+            name="Halfway",
+            finale_type="midseason",
+        )
+
+        finale_show, finale_season = self._make_show("Finale Show", "finale")
+        Episode.objects.create(
+            show=finale_show,
+            season=finale_season,
+            season_number=1,
+            episode_number=10,
+            air_date=self.today - timedelta(days=3),
+            name="Season End",
+            finale_type="season",
+        )
+
+        series_show, series_season = self._make_show("Series Show", "series")
+        Episode.objects.create(
+            show=series_show,
+            season=series_season,
+            season_number=1,
+            episode_number=12,
+            air_date=self.today - timedelta(days=4),
+            name="The End",
+            finale_type="series",
+        )
+
+        response = self.client.get("/tv/up-next/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, 'class="episode-badge episode-badge--premiere"')
+        self.assertContains(response, "Season Premiere")
+        self.assertContains(response, 'class="episode-badge episode-badge--midseason-finale"')
+        self.assertContains(response, "Midseason Finale")
+        self.assertContains(response, 'class="episode-badge episode-badge--season-finale"')
+        self.assertContains(response, "Season Finale")
+        self.assertContains(response, 'class="episode-badge episode-badge--series-finale"')
+        self.assertContains(response, "Series Finale")
+
 
 @override_settings(
     STORAGES={
@@ -360,14 +410,16 @@ class UpcomingViewTests(TestCase):
             return month_start.replace(year=month_start.year + 1, month=1)
         return month_start.replace(month=month_start.month + 1)
 
-    def _make_episode(self, number, air_date, name):
+    def _make_episode(self, number, air_date, name, *, finale_type=None, season=None):
+        season = season or self.season
         return Episode.objects.create(
             show=self.show,
-            season=self.season,
-            season_number=1,
+            season=season,
+            season_number=season.season_number,
             episode_number=number,
             air_date=air_date,
             name=name,
+            finale_type=finale_type,
         )
 
     def test_requires_auth(self):
@@ -467,6 +519,61 @@ class UpcomingViewTests(TestCase):
             response = self.client.get(f"/tv/upcoming/?after={cursor}")
             self.assertEqual(response.status_code, 400)
 
+    def test_shows_season_premiere_badge_only_on_first_episode(self):
+        season_two = Season.objects.create(show=self.show, season_number=2, name="Season 2")
+        self._make_episode(1, self.today, "Season 2 Opener", season=season_two)
+        self._make_episode(2, self.today + timedelta(days=1), "Regular Episode", season=season_two)
+
+        response = self.client.get("/tv/upcoming/", HTTP_HX_REQUEST="true")
+
+        content = response.content.decode()
+        self.assertContains(response, 'class="episode-badge episode-badge--premiere"')
+        self.assertEqual(content.count("Season Premiere"), 1)
+        self.assertNotContains(response, "Season Finale")
+        self.assertNotContains(response, "Series Finale")
+
+    def test_shows_midseason_season_and_series_finale_badges(self):
+        self._make_episode(5, self.today, "Midseason Ep", finale_type="midseason")
+        self._make_episode(10, self.today + timedelta(days=1), "Season Ender", finale_type="season")
+        season_two = Season.objects.create(show=self.show, season_number=2, name="Season 2")
+        self._make_episode(
+            12,
+            self.today + timedelta(days=2),
+            "Grand Finale",
+            finale_type="series",
+            season=season_two,
+        )
+
+        response = self.client.get("/tv/upcoming/", HTTP_HX_REQUEST="true")
+
+        content = response.content.decode()
+        self.assertEqual(content.count('class="episode-badge episode-badge--midseason-finale"'), 1)
+        self.assertEqual(content.count("Midseason Finale"), 1)
+        self.assertEqual(content.count('class="episode-badge episode-badge--season-finale"'), 1)
+        self.assertEqual(content.count("Season Finale"), 1)
+        self.assertEqual(content.count('class="episode-badge episode-badge--series-finale"'), 1)
+        self.assertEqual(content.count("Series Finale"), 1)
+        self.assertNotContains(response, "Season Premiere")
+
+    def test_shows_badges_on_grouped_additional_episodes(self):
+        self._make_episode(1, self.today, "Drop Opener")
+        self._make_episode(2, self.today, "Drop Middle")
+        self._make_episode(3, self.today, "Drop Closer", finale_type="season")
+
+        response = self.client.get("/tv/upcoming/", HTTP_HX_REQUEST="true")
+
+        content = response.content.decode()
+        self.assertEqual(content.count("Season Premiere"), 1)
+        self.assertEqual(content.count("Season Finale"), 1)
+        self.assertLess(
+            content.index("Season Premiere"),
+            content.index("upcoming-episode-group-additional-item"),
+        )
+        self.assertLess(
+            content.index("Drop Closer"),
+            content.index("Season Finale"),
+        )
+
 
 class HomeUpcomingViewTests(TestCase):
     def setUp(self):
@@ -477,14 +584,16 @@ class HomeUpcomingViewTests(TestCase):
         self.season = Season.objects.create(show=self.show, season_number=1, name="Season 1")
         UserShow.objects.create(user=self.user, show=self.show, status=UserShow.Status.TRACKED)
 
-    def _make_episode(self, number, air_date, name):
+    def _make_episode(self, number, air_date, name, *, finale_type=None, season=None):
+        season = season or self.season
         return Episode.objects.create(
             show=self.show,
-            season=self.season,
-            season_number=1,
+            season=season,
+            season_number=season.season_number,
             episode_number=number,
             air_date=air_date,
             name=name,
+            finale_type=finale_type,
         )
 
     def test_requires_htmx_header(self):
@@ -619,3 +728,20 @@ class HomeUpcomingViewTests(TestCase):
         self.assertEqual(response.content.decode().count('id="upcoming-episode-'), 10)
         self.assertContains(response, f'href="{reverse("tv-upcoming")}"')
         self.assertContains(response, "Show more")
+
+    def test_shows_premiere_and_finale_badges(self):
+        self._make_episode(1, self.today, "Premiere")
+        Episode.objects.create(
+            show=self.show,
+            season=self.season,
+            season_number=1,
+            episode_number=8,
+            air_date=self.today + timedelta(days=1),
+            name="Finale",
+            finale_type="series",
+        )
+
+        response = self.client.get("/tv/home/upcoming/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Season Premiere")
+        self.assertContains(response, "Series Finale")

@@ -64,7 +64,7 @@
           {% if episode.finale_type %}
           <span class="episode-status episode-status--finale">
             <i data-lucide="flag" aria-hidden="true"></i>
-            {% if episode.finale_type == "series" %}{% trans "Series Finale" %}{% else %}{% trans "Season Finale" %}{% endif %}
+            {% if episode.finale_type == "series" %}{% trans "Series Finale" %}{% elif episode.finale_type == "midseason" %}{% trans "Midseason Finale" %}{% else %}{% trans "Season Finale" %}{% endif %}
           </span>
           {% endif %}
         </div>

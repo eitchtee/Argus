@@ -159,6 +159,18 @@ class EpisodeDetailViewTests(TestCase):
         self.assertContains(response, "Season Finale")
         self.assertNotContains(response, "Series Finale")
 
+    def test_shows_midseason_finale_label(self):
+        self.episode.finale_type = "midseason"
+        self.episode.save(update_fields=["finale_type"])
+
+        response = self.client.get(
+            f"/tv/123/episodes/{self.episode.id}/content/", HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(response, 'class="episode-status episode-status--finale"')
+        self.assertContains(response, "Midseason Finale")
+        self.assertNotContains(response, "Season Finale")
+
     def test_shows_show_air_time_next_to_episode_air_date(self):
         self.show.airs_time = time(21, 0)
         self.show.airs_timezone = "America/New_York"

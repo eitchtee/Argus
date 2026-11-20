@@ -19,6 +19,7 @@
             S{{ additional.episode.season_number|stringformat:'02d' }} | E{{ additional.episode.episode_number|stringformat:'02d' }}
           </span>
           <span class="min-w-0 truncate">{{ additional.episode.name }}</span>
+          {% include "tv/fragments/episode_badges.html" with episode=additional.episode %}
         </a>
       </li>
       {% endfor %}

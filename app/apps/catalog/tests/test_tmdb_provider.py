@@ -364,6 +364,65 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertIn("/tv/1399", opener.requests[0][0].full_url)
         self.assertIn("/tv/1399/season/1", opener.requests[1][0].full_url)
 
+    def test_fetch_episodes_maps_tmdb_episode_type_to_finale_type(self):
+        opener = SequenceOpener(
+            [
+                {
+                    "id": 1399,
+                    "status": "Ended",
+                    "seasons": [
+                        {"season_number": 1},
+                        {"season_number": 2},
+                    ],
+                },
+                {
+                    "season_number": 1,
+                    "episodes": [
+                        {"episode_number": 1, "name": "Ep 1", "episode_type": "standard"},
+                        {"episode_number": 5, "name": "Ep 5", "episode_type": "mid_season"},
+                        {"episode_number": 10, "name": "Ep 10", "episode_type": "finale"},
+                    ],
+                },
+                {
+                    "season_number": 2,
+                    "episodes": [
+                        {"episode_number": 1, "name": "S2E1"},
+                        {"episode_number": 8, "name": "S2E8", "episode_type": "finale"},
+                    ],
+                },
+            ]
+        )
+        provider = TMDBProvider(opener=opener)
+
+        episodes = provider.fetch_episodes("1399", language="en-US")
+
+        self.assertEqual(
+            [ep.finale_type for ep in episodes],
+            [None, "midseason", "season", None, "series"],
+        )
+
+    def test_fetch_episodes_keeps_final_season_finale_as_season_when_returning(self):
+        opener = SequenceOpener(
+            [
+                {
+                    "id": 1400,
+                    "status": "Returning Series",
+                    "seasons": [{"season_number": 1}],
+                },
+                {
+                    "season_number": 1,
+                    "episodes": [
+                        {"episode_number": 10, "name": "S1E10", "episode_type": "finale"},
+                    ],
+                },
+            ]
+        )
+        provider = TMDBProvider(opener=opener)
+
+        episodes = provider.fetch_episodes("1400", language="en-US")
+
+        self.assertEqual(episodes[0].finale_type, "season")
+
     def test_fetch_detail_normalizes_all_movie_translations(self):
         payload = load_fixture("tmdb_movie_detail.json")
         payload["translations"] = load_fixture("tmdb_movie_translations.json")

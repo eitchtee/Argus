@@ -1156,6 +1156,26 @@
         @apply border-error/35 bg-error/10 text-error;
     }
 
+    .episode-badge {
+        @apply inline-flex shrink-0 self-center items-center rounded-full border px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.06em] leading-4 whitespace-nowrap;
+    }
+
+    .episode-badge--premiere {
+        @apply border-info/35 bg-info/10 text-info;
+    }
+
+    .episode-badge--season-finale {
+        @apply border-warning/40 bg-warning/10 text-warning;
+    }
+
+    .episode-badge--midseason-finale {
+        @apply border-warning/40 border-dashed bg-warning/10 text-warning;
+    }
+
+    .episode-badge--series-finale {
+        @apply border-error/35 bg-error/10 text-error;
+    }
+
     .episodes-loading {
         @apply min-h-24 rounded-box border border-dashed border-base-300 bg-base-100/65;
     }

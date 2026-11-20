@@ -315,25 +315,61 @@ class TMDBProvider(BaseProvider):
             for season in payload.get("seasons", [])
         ]
 
+    @staticmethod
+    def _episode_finale_type(
+        episode: dict,
+        *,
+        season_number: int,
+        final_season_number: int | None,
+        show_ended: bool,
+    ) -> str | None:
+        episode_type = (episode.get("episode_type") or "").strip().lower()
+        if episode_type == "mid_season":
+            return "midseason"
+        if episode_type == "finale":
+            if (
+                show_ended
+                and final_season_number is not None
+                and season_number == final_season_number
+            ):
+                return "series"
+            return "season"
+        return None
+
     def fetch_episodes(self, external_id: str, *, language: str) -> list[EpisodeDTO]:
         summary = self._get_tv_summary(external_id, language)
+        seasons = summary.get("seasons", [])
+        show_ended = (summary.get("status") or "").strip().lower() in {"ended", "canceled"}
+        regular_seasons = [
+            season.get("season_number")
+            for season in seasons
+            if (season.get("season_number") or 0) > 0
+        ]
+        final_season_number = max(regular_seasons) if regular_seasons else None
         episodes = []
-        for season in summary.get("seasons", []):
+        for season in seasons:
             season_number = season.get("season_number")
             payload = self._get_json(
                 f"/tv/{external_id}/season/{season_number}",
                 {"language": language},
             )
             for episode in payload.get("episodes", []):
+                ep_season_number = episode.get("season_number") or season_number or 0
                 episodes.append(
                     EpisodeDTO(
-                        season_number=episode.get("season_number") or season_number or 0,
+                        season_number=ep_season_number,
                         episode_number=episode.get("episode_number") or 0,
                         name=episode.get("name") or "",
                         overview=episode.get("overview") or "",
                         still_path=self._image_url(episode.get("still_path"), "w300"),
                         air_date=episode.get("air_date") or None,
                         runtime=episode.get("runtime"),
+                        finale_type=self._episode_finale_type(
+                            episode,
+                            season_number=ep_season_number,
+                            final_season_number=final_season_number,
+                            show_ended=show_ended,
+                        ),
                         translations={
                             language: {
                                 field: value

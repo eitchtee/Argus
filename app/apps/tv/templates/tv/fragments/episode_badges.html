@@ -1,0 +1,11 @@
+{% load i18n %}
+{% if episode.season_number > 0 and episode.episode_number == 1 %}
+<span class="episode-badge episode-badge--premiere">{% trans "Season Premiere" %}</span>
+{% endif %}
+{% if episode.finale_type == "series" %}
+<span class="episode-badge episode-badge--series-finale">{% trans "Series Finale" %}</span>
+{% elif episode.finale_type == "season" %}
+<span class="episode-badge episode-badge--season-finale">{% trans "Season Finale" %}</span>
+{% elif episode.finale_type == "midseason" %}
+<span class="episode-badge episode-badge--midseason-finale">{% trans "Midseason Finale" %}</span>
+{% endif %}

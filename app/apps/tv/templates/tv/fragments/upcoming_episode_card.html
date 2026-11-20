@@ -8,6 +8,9 @@
     episode_title="{{ episode.name }}"
     extra_class="{% if group_main %}upcoming-episode-group-main{% if group_has_additional %} rounded-b-none{% endif %}{% endif %}"
     title_url="{% url 'tv-episode-detail' external_id=episode.show.external_id episode_id=episode.id %}{% if episode.show.provider and episode.show.provider != 'tvdb' %}?provider={{ episode.show.provider }}{% endif %}">
+  <c-slot name="badges">
+    {% include "tv/fragments/episode_badges.html" with episode=episode %}
+  </c-slot>
   <c-slot name="side">
     <div class="font-bold text-lg">{{ countdown }}</div>
     <div class="text-subtle text-xs tabular-nums">{% user_date episode.local_air_date %}</div>

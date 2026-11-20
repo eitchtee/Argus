@@ -15,5 +15,8 @@
     :checked="False"
     toggle_url="{% if watch_toggle_url %}{{ watch_toggle_url }}{% else %}{% url 'tv-home-watchlist-episode-watched' episode_id=entry.next_episode.id %}{% endif %}"
     :toggle_target="toggle_target">
+  <c-slot name="badges">
+    {% include "tv/fragments/episode_badges.html" with episode=entry.next_episode %}
+  </c-slot>
 </c-ui.components.episode-card>
 {% endwith %}

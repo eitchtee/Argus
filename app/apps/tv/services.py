@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, time, timedelta
 
 from django.db import transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Count, Exists, F, Max, Min, OuterRef, Q, Window
 from django.utils import timezone
 
 from apps.catalog.artwork import sync_media_artworks
@@ -1260,42 +1260,53 @@ def get_watchlist_shows(user, section: str = "all") -> list[Show]:
     return selected
 
 
-def get_watchlist(user) -> list[WatchlistEntry]:
-    tracked_shows = list(
-        Show.objects.filter(user_states__user=user, user_states__status=UserShow.Status.TRACKED)
-    )
-    if not tracked_shows:
-        return []
+# Maximum shift between any two IANA timezones is 26 hours (UTC-12 to UTC+14),
+# so a 2-day buffer on raw ``air_date`` lets PostgreSQL use the index before
+# evaluating the per-row ``LocalAirDate`` expression.
+_TIMEZONE_DATE_BUFFER = timedelta(days=2)
 
-    shows_by_id = {show.id: show for show in tracked_shows}
 
-    aired_episodes = (
-        Episode.objects.filter(show__in=tracked_shows, season_number__gt=0)
-        .aired()
+def _pending_aired_episodes(user, *, show: Show | None = None, today: date | None = None):
+    today = today or timezone.localdate()
+    filters = {
+        "season_number__gt": 0,
+        "air_date__lte": today + _TIMEZONE_DATE_BUFFER,
+    }
+    if show is not None:
+        filters["show"] = show
+    else:
+        filters["show__user_states__user"] = user
+        filters["show__user_states__status"] = UserShow.Status.TRACKED
+
+    return (
+        Episode.objects.filter(**filters)
+        .aired(today=today)
+        .exclude(user_states__user=user)
         .not_skipped(user)
-        .prefetch_related("show")
-        .order_by("show_id", "user_air_date", "episode_number")
     )
 
-    watched_ids = set(
-        UserEpisode.objects.filter(user=user, episode__show__in=tracked_shows).values_list(
-            "episode_id", flat=True
-        )
-    )
 
-    entries = []
-    for show_id, episodes in itertools.groupby(aired_episodes, key=lambda episode: episode.show_id):
-        pending = [episode for episode in episodes if episode.id not in watched_ids]
-        if not pending:
-            continue
-        entries.append(
-            WatchlistEntry(
-                show=shows_by_id[show_id],
-                next_episode=pending[0],
-                pending_count=len(pending) - 1,
+def get_watchlist(user) -> list[WatchlistEntry]:
+    next_episodes = list(
+        _pending_aired_episodes(user)
+        .select_related("show")
+        .annotate(
+            total_pending=Window(
+                expression=Count("id"),
+                partition_by=[F("show_id")],
             )
         )
-
+        .order_by("show_id", "user_air_date", "episode_number", "id")
+        .distinct("show_id")
+    )
+    entries = [
+        WatchlistEntry(
+            show=episode.show,
+            next_episode=episode,
+            pending_count=episode.total_pending - 1,
+        )
+        for episode in next_episodes
+    ]
     entries.sort(key=lambda entry: entry.next_episode.user_air_date, reverse=True)
     return entries
 
@@ -1337,16 +1348,19 @@ def get_up_next(user) -> UpNextSections:
 
 
 def get_watchlist_entry(user, show: Show) -> WatchlistEntry | None:
-    pending = list(
-        Episode.objects.filter(show=show, season_number__gt=0)
-        .aired()
-        .exclude(user_states__user=user)
-        .not_skipped(user)
-        .order_by("user_air_date", "episode_number")
+    next_episode = (
+        _pending_aired_episodes(user, show=show)
+        .annotate(total_pending=Window(expression=Count("id")))
+        .order_by("user_air_date", "episode_number", "id")
+        .first()
     )
-    if not pending:
+    if next_episode is None:
         return None
-    return WatchlistEntry(show=show, next_episode=pending[0], pending_count=len(pending) - 1)
+    return WatchlistEntry(
+        show=show,
+        next_episode=next_episode,
+        pending_count=next_episode.total_pending - 1,
+    )
 
 
 @dataclass
@@ -1385,21 +1399,55 @@ def _next_month_start(month_start: date) -> date:
     return month_start.replace(month=month_start.month + 1)
 
 
-def _upcoming_queryset(user):
-    tracked_shows = Show.objects.filter(
-        user_states__user=user,
-        user_states__status=UserShow.Status.TRACKED,
-    )
+def _upcoming_queryset(
+    user,
+    *,
+    min_date: date | None = None,
+    max_date: date | None = None,
+    include_watched: bool = False,
+):
     yesterday = timezone.localdate() - timedelta(days=1)
+    lower_bound = max(yesterday, min_date) if min_date is not None else yesterday
 
-    return (
-        Episode.objects.filter(
-            show__in=tracked_shows,
-            season_number__gt=0,
-        )
+    filters = {
+        "show__user_states__user": user,
+        "show__user_states__status": UserShow.Status.TRACKED,
+        "season_number__gt": 0,
+        "air_date__gte": lower_bound - _TIMEZONE_DATE_BUFFER,
+    }
+    if max_date is not None:
+        filters["air_date__lt"] = max_date + _TIMEZONE_DATE_BUFFER
+
+    qs = (
+        Episode.objects.filter(**filters)
         .with_local_air_date()
-        .filter(user_air_date__gte=yesterday)
+        .filter(user_air_date__gte=lower_bound)
         .not_skipped(user)
+    )
+    if max_date is not None:
+        qs = qs.filter(user_air_date__lt=max_date)
+    if include_watched:
+        qs = qs.annotate(
+            is_watched=Exists(
+                UserEpisode.objects.filter(user=user, episode_id=OuterRef("pk"))
+            )
+        )
+    return qs
+
+
+def _upcoming_ordered_queryset(
+    user,
+    *,
+    min_date: date | None = None,
+    max_date: date | None = None,
+):
+    return (
+        _upcoming_queryset(
+            user,
+            min_date=min_date,
+            max_date=max_date,
+            include_watched=True,
+        )
         .select_related("show")
         .order_by(
             "user_air_date",
@@ -1412,31 +1460,26 @@ def _upcoming_queryset(user):
     )
 
 
-def _build_upcoming_entries(user, episodes) -> list[UpcomingEntry]:
-    if not episodes:
-        return []
-
+def _build_upcoming_entries(episodes, *, limit: int | None = None) -> list[UpcomingEntry]:
     today = timezone.localdate()
-    watched_ids = set(
-        UserEpisode.objects.filter(user=user, episode__in=episodes).values_list(
-            "episode_id", flat=True
-        )
-    )
-
-    episode_entries = [
+    episode_entries = (
         UpcomingEpisode(
             episode=episode,
             countdown=countdown_label(episode.user_air_date, today),
-            watched=episode.id in watched_ids,
+            watched=episode.is_watched,
         )
         for episode in episodes
-    ]
-    entries = []
-    for _group_key, grouped_entries in itertools.groupby(
+    )
+    grouped = itertools.groupby(
         episode_entries,
         key=lambda entry: (entry.episode.show_id, entry.episode.user_air_date),
-    ):
-        grouped_entries = list(grouped_entries)
+    )
+    if limit is not None:
+        grouped = itertools.islice(grouped, limit)
+
+    entries = []
+    for _group_key, group in grouped:
+        grouped_entries = list(group)
         primary = grouped_entries[0]
         entries.append(
             UpcomingEntry(
@@ -1450,31 +1493,33 @@ def _build_upcoming_entries(user, episodes) -> list[UpcomingEntry]:
 
 
 def get_upcoming_episodes(user, count: int = 10) -> list[UpcomingEntry]:
-    entries = _build_upcoming_entries(user, _upcoming_queryset(user))
-    return entries[:count]
+    if count <= 0:
+        return []
+    return _build_upcoming_entries(_upcoming_ordered_queryset(user), limit=count)
 
 
 def get_upcoming_month(user, after_month: date | None = None) -> UpcomingMonth | None:
-    episodes = _upcoming_queryset(user)
-    if after_month is not None:
-        episodes = episodes.filter(user_air_date__gte=_next_month_start(after_month))
-
-    first_episode = episodes.first()
-    if first_episode is None:
+    min_date = _next_month_start(after_month) if after_month is not None else None
+    first_date = _upcoming_queryset(user, min_date=min_date).aggregate(
+        first_date=Min("user_air_date")
+    )["first_date"]
+    if first_date is None:
         return None
 
-    month_start = first_episode.user_air_date.replace(day=1)
+    month_start = first_date.replace(day=1)
     following_month = _next_month_start(month_start)
-    month_episodes = list(
-        episodes.filter(user_air_date__gte=month_start, user_air_date__lt=following_month)
+    month_episodes = _upcoming_ordered_queryset(
+        user,
+        min_date=month_start,
+        max_date=following_month,
     )
     next_cursor = (
         month_start
-        if episodes.filter(user_air_date__gte=following_month).exists()
+        if _upcoming_queryset(user, min_date=following_month).exists()
         else None
     )
     return UpcomingMonth(
         month_start=month_start,
-        entries=_build_upcoming_entries(user, month_episodes),
+        entries=_build_upcoming_entries(month_episodes),
         next_cursor=next_cursor,
     )
