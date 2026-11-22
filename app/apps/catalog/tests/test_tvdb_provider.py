@@ -902,6 +902,7 @@ class TVDBAirsTimeTests(SimpleTestCase):
         names = [member.name for member in detail.cast]
         self.assertNotIn("David Benioff", names)
 
+    @override_settings(TVDB_API_KEY="test-tvdb-key")
     def test_find_by_remote_id_picks_the_record_of_the_asked_type(self):
         cache.clear()  # a cached token would skip the login response
         opener = SequenceOpener(
