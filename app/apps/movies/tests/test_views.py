@@ -5,7 +5,13 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.catalog.models import SyncStatus
-from apps.catalog.providers.base import CastMemberDTO, DetailDTO
+from apps.catalog.providers.base import (
+    CastMemberDTO,
+    CollectionDTO,
+    CollectionPartDTO,
+    DetailDTO,
+)
+from apps.catalog.providers.exceptions import ProviderError
 from apps.movies.models import Movie, UserMovie
 
 
@@ -87,6 +93,30 @@ class MovieDetailViewTests(TestCase):
         self.assertContains(response, "https://www.youtube.com/watch?v=SUXWAEX2jlg")
         self.assertContains(response, "Edward Norton")
         self.assertContains(response, "The Narrator")
+
+    def test_renders_extras_slot_from_db(self):
+        Movie.objects.create(
+            external_id="165",
+            title="Back to the Future Part II",
+            last_synced_at=timezone.now(),
+            mid_credits=True,
+            post_credits=True,
+            tmdb_collection_id="264",
+        )
+
+        response = self.client.get("/movies/165/content/", HTTP_HX_REQUEST="true")
+
+        self.assertContains(
+            response, 'hx-get="/movies/165/extras/?mid=1&amp;post=1&amp;collection=264"'
+        )
+        self.assertContains(response, 'hx-trigger="load, movie-state-changed from:body"')
+
+    def test_omits_extras_slot_when_untagged(self):
+        Movie.objects.create(external_id="550", title="Fight Club", last_synced_at=timezone.now())
+
+        response = self.client.get("/movies/550/content/", HTTP_HX_REQUEST="true")
+
+        self.assertNotContains(response, "/extras/")
 
     def test_detail_fragment_sets_movie_document_title(self):
         Movie.objects.create(external_id="550", title="Fight Club")
@@ -284,6 +314,82 @@ class MovieDetailViewTests(TestCase):
         )
 
 
+class MovieExtrasViewTests(TestCase):
+    URL = "/movies/165/extras/?mid=0&post=0&collection=264"
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("user@example.com", password="password")
+        self.client.login(username="user@example.com", password="password")
+
+    @patch("apps.movies.views.get_movie_collection")
+    def test_marks_seen_tracked_current_and_upcoming_parts(self, get_collection_mock):
+        get_collection_mock.return_value = CollectionDTO(
+            name="Back to the Future Collection",
+            parts=[
+                CollectionPartDTO(tmdb_id="105", title="Back to the Future", release_date="1985-07-03"),
+                CollectionPartDTO(tmdb_id="165", title="Back to the Future Part II", release_date="1989-11-22"),
+                CollectionPartDTO(tmdb_id="196", title="Back to the Future Part III", release_date="1990-05-25"),
+                CollectionPartDTO(tmdb_id="999", title="Back to the Future Part IV", release_date="2999-01-01"),
+            ],
+        )
+        seen = Movie.objects.create(provider="tmdb", external_id="105", title="Back to the Future")
+        UserMovie.objects.create(user=self.user, movie=seen, is_seen=True)
+        tracked = Movie.objects.create(provider="tmdb", external_id="196", title="Part III")
+        UserMovie.objects.create(user=self.user, movie=tracked, on_watchlist=True)
+
+        response = self.client.get(self.URL, HTTP_HX_REQUEST="true")
+        parts = response.context["parts"]
+
+        self.assertEqual(
+            [(p["is_seen"], p["is_tracked"], p["is_current"], p["is_released"]) for p in parts],
+            [(True, True, False, True), (False, False, True, True),
+             (False, True, False, True), (False, False, False, False)],
+        )
+        self.assertContains(response, 'data-lucide="eye"', count=1)
+        self.assertContains(response, 'data-lucide="bookmark"', count=1)
+        self.assertContains(response, "1 of 3 watched")
+        self.assertContains(response, "Coming 2999")
+        self.assertContains(response, 'href="/movies/105/"')
+        self.assertNotContains(response, 'href="/movies/165/"')
+
+    @patch("apps.movies.views.get_movie_collection")
+    def test_renders_nothing_for_single_part_collection(self, get_collection_mock):
+        get_collection_mock.return_value = CollectionDTO(
+            name="Solo", parts=[CollectionPartDTO(tmdb_id="165", title="Solo")],
+        )
+
+        response = self.client.get(self.URL, HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.content, b"")
+
+    @patch("apps.movies.views.get_movie_collection", side_effect=ProviderError("down"))
+    def test_renders_nothing_when_tmdb_is_unreachable(self, _get_collection_mock):
+        response = self.client.get(self.URL, HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.content, b"")
+
+    @patch("apps.movies.views.get_movie_collection", side_effect=ProviderError("down"))
+    def test_credits_still_render_when_collection_fails(self, _get_collection_mock):
+        response = self.client.get(
+            "/movies/165/extras/?mid=1&post=1&collection=264", HTTP_HX_REQUEST="true"
+        )
+
+        self.assertContains(response, "a scene during the credits and another one after them")
+        self.assertNotContains(response, "franchise-rail")
+
+    @patch("apps.movies.views.get_movie_collection")
+    def test_post_credits_only_skips_tmdb(self, get_collection_mock):
+        response = self.client.get("/movies/165/extras/?mid=0&post=1", HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "a scene after the credits.")
+        get_collection_mock.assert_not_called()
+
+    def test_renders_nothing_without_credits_or_collection(self):
+        response = self.client.get("/movies/165/extras/?mid=0&post=0", HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.content, b"")
+
+
 class MovieTrackViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user("user@example.com", password="password")
@@ -329,6 +435,8 @@ class MovieTrackViewTests(TestCase):
         response = self.client.delete("/movies/550/track/", HTTP_HX_REQUEST="true")
 
         self.assertContains(response, 'aria-label="Add to watchlist"')
+        # Tells the credits and franchise card to reload its dots.
+        self.assertEqual(response["HX-Trigger"], "movie-state-changed")
         self.assertFalse(
             UserMovie.objects.filter(user=self.user, movie=movie, on_watchlist=True).exists()
         )

@@ -72,6 +72,7 @@ def show_detail(**overrides):
                 name="Emilia Clarke",
                 character="Daenerys Targaryen",
                 photo_url="https://artworks.thetvdb.com/clarke.jpg",
+                tvdb_id="247897",
             ),
         ],
         "average_runtime": 57,
@@ -476,6 +477,8 @@ class ShowImportTests(TestCase):
                 "name": "Emilia Clarke",
                 "character": "Daenerys Targaryen",
                 "photo_url": "https://artworks.thetvdb.com/clarke.jpg",
+                "tmdb_id": None,
+                "tvdb_id": "247897",
             }],
         )
         self.assertEqual(

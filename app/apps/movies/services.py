@@ -16,6 +16,7 @@ from apps.catalog.localization import (
 from apps.catalog.providers.exceptions import ProviderError
 from apps.catalog.providers.registry import get_provider
 from apps.catalog.ratings import delete_ratings_for, transfer_rating
+from apps.catalog.services import get_movie_detail
 from apps.catalog.tracking import find_tracking_match, identity_keys
 from apps.movies.models import Movie, UserMovie
 from apps.sync.changes import IntentKind, record_intent
@@ -54,6 +55,32 @@ def normalize_movie_status(raw_status: str) -> str:
         return Movie.NormalizedStatus.UPCOMING
 
     return Movie.NormalizedStatus.UNKNOWN
+
+
+def tmdb_movie_extras(detail, provider: str, *, provider_getter=get_provider) -> dict | None:
+    """Credits scenes and collection, which only TMDB knows.
+
+    Movies from another provider borrow them through their TMDB id. None means
+    TMDB could not be asked, so callers keep what they already have.
+    """
+    source = detail
+    if provider != "tmdb":
+        if not detail.tmdb_id:
+            return None
+        try:
+            source = get_movie_detail(
+                detail.tmdb_id,
+                language=PROVIDER_DEFAULT_LANGUAGES["tmdb"],
+                provider="tmdb",
+                provider_getter=provider_getter,
+            )
+        except ProviderError:
+            return None
+    return {
+        "mid_credits": source.mid_credits,
+        "post_credits": source.post_credits,
+        "tmdb_collection_id": source.collection_id,
+    }
 
 
 def import_movie(
@@ -98,6 +125,8 @@ def import_movie(
             sync_status=SyncStatus.ERROR,
         )
         raise
+    # Outside the transaction: for TVDB movies this is another HTTP request.
+    extras = tmdb_movie_extras(detail, provider, provider_getter=provider_getter)
 
     with transaction.atomic():
         existing_movie = Movie.objects.filter(
@@ -133,6 +162,8 @@ def import_movie(
             "trakt_id": detail.trakt_id or (existing_movie.trakt_id if existing_movie else None),
             "director": detail.director or "",
             "trailer_url": detail.trailer_url,
+            # None when TMDB couldn't be asked: keep what is stored.
+            **(extras or {}),
             "cast": [dataclasses.asdict(member) for member in detail.cast],
             "title": base_title,
             "original_title": detail.original_title,
@@ -480,6 +511,9 @@ def _movie_switch_defaults(
         "cast": source.cast,
         "director": source.director,
         "trailer_url": source.trailer_url,
+        "mid_credits": source.mid_credits,
+        "post_credits": source.post_credits,
+        "tmdb_collection_id": source.tmdb_collection_id,
         "release_date": source.release_date,
         "runtime": source.runtime,
         "status": source.status,

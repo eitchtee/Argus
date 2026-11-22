@@ -12,6 +12,7 @@ urlpatterns = [
         name="movie-detail-content",
     ),
     path("movies/<str:external_id>/", views.movie_detail, name="movie-detail"),
+    path("movies/<str:tmdb_id>/extras/", views.movie_extras, name="movie-detail-extras"),
     path("movies/<str:external_id>/track/", views.movie_track, name="movie-detail-track"),
     path("movies/<str:external_id>/refresh/", views.movie_refresh, name="movie-detail-refresh"),
     path("movies/<str:external_id>/switch/", views.movie_switch, name="movie-detail-switch"),

@@ -35,6 +35,7 @@
     "characters": [
       {
         "personName": "Emilia Clarke",
+        "peopleId": 247897,
         "name": "Daenerys Targaryen",
         "personImgURL": "https://artworks.thetvdb.com/clarke.jpg",
         "peopleType": "Actor",

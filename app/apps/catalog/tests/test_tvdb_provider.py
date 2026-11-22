@@ -367,6 +367,7 @@ class TVDBProviderTests(SimpleTestCase):
         self.assertEqual(detail.cast[0].name, "Emilia Clarke")
         self.assertEqual(detail.cast[0].character, "Daenerys Targaryen")
         self.assertEqual(detail.cast[0].photo_url, "https://artworks.thetvdb.com/clarke.jpg")
+        self.assertEqual(detail.cast[0].tvdb_id, "247897")
         self.assertIn("/series/121361/extended", opener.requests[0][0].full_url)
         self.assertEqual(
             detail.translations["eng"],
@@ -900,3 +901,17 @@ class TVDBAirsTimeTests(SimpleTestCase):
 
         names = [member.name for member in detail.cast]
         self.assertNotIn("David Benioff", names)
+
+    def test_find_by_remote_id_picks_the_record_of_the_asked_type(self):
+        cache.clear()  # a cached token would skip the login response
+        opener = SequenceOpener(
+            [
+                load_fixture("tvdb_login.json"),
+                {"data": [{"series": {"id": 1}}, {"movie": {"id": 4711}}]},
+            ]
+        )
+
+        tvdb_id = TVDBProvider(opener=opener).find_by_remote_id("tt6263850", "movie")
+
+        self.assertEqual(tvdb_id, "4711")
+        self.assertIn("/search/remoteid/tt6263850", opener.requests[1][0].full_url)

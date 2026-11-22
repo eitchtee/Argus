@@ -4,7 +4,14 @@ from collections.abc import Callable
 from django.conf import settings
 from django.core.cache import cache
 
-from apps.catalog.providers.base import DetailDTO, EpisodeDTO, SearchResultDTO, SeasonDTO
+from apps.catalog.providers.base import (
+    CollectionDTO,
+    DetailDTO,
+    EpisodeDTO,
+    PersonDTO,
+    SearchResultDTO,
+    SeasonDTO,
+)
 from apps.catalog.providers.registry import get_provider
 
 
@@ -87,6 +94,81 @@ def get_movie_detail(
         language,
         provider_getter,
     )
+
+
+def get_movie_collection(
+    collection_id: str,
+    *,
+    language: str,
+    provider_getter: Callable[[str], object] = get_provider,
+) -> CollectionDTO:
+    cache_key = f"collection:tmdb:{language}:{collection_id}"
+    cached_collection = cache.get(cache_key)
+    if cached_collection is not None:
+        return cached_collection
+    collection = provider_getter("tmdb").fetch_collection(collection_id, language=language)
+    cache.set(cache_key, collection, settings.CATALOG_SEARCH_CACHE_TTL)
+    return collection
+
+
+def get_person(
+    person_id: str,
+    *,
+    language: str,
+    provider_getter: Callable[[str], object] = get_provider,
+) -> PersonDTO:
+    # v2: credits gained "jobs"; older pickles lack the field.
+    cache_key = f"person:v2:tmdb:{language}:{person_id}"
+    cached_person = cache.get(cache_key)
+    if cached_person is not None:
+        return cached_person
+    person = provider_getter("tmdb").fetch_person(person_id, language=language)
+    cache.set(cache_key, person, settings.CATALOG_SEARCH_CACHE_TTL)
+    return person
+
+
+def find_person_id(
+    *,
+    tvdb_id: str | None = None,
+    name: str | None = None,
+    provider_getter: Callable[[str], object] = get_provider,
+) -> str | None:
+    """TMDB id for a credit that only carries a TVDB id or a name."""
+    name_hash = hashlib.sha1((name or "").encode("utf-8")).hexdigest()
+    cache_key = f"person-lookup:tmdb:{tvdb_id or ''}:{name_hash}"
+    cached_id = cache.get(cache_key)
+    if cached_id is not None:
+        return cached_id or None
+    person_id = provider_getter("tmdb").find_person(tvdb_id=tvdb_id, name=name)
+    # "" caches a miss, since cache.get can't tell a stored None from no entry.
+    cache.set(cache_key, person_id or "", settings.CATALOG_SEARCH_CACHE_TTL)
+    return person_id
+
+
+def find_tvdb_id(
+    tmdb_id: str,
+    media_type: str,
+    *,
+    language: str,
+    provider_getter: Callable[[str], object] = get_provider,
+) -> str | None:
+    """TVDB id for a TMDB title, or None when TVDB doesn't have it."""
+    cache_key = f"tvdb-id:{media_type}:{tmdb_id}"
+    cached_id = cache.get(cache_key)
+    if cached_id is not None:
+        return cached_id or None
+    detail = _get_cached_detail("tmdb", media_type, tmdb_id, language, provider_getter)
+    if media_type == "tv":
+        tvdb_id = detail.tvdb_id
+    else:
+        # TMDB doesn't list TVDB ids for movies; TVDB can be searched by IMDb id.
+        tvdb_id = (
+            provider_getter("tvdb").find_by_remote_id(detail.imdb_id, "movie")
+            if detail.imdb_id
+            else None
+        )
+    cache.set(cache_key, tvdb_id or "", settings.CATALOG_SEARCH_CACHE_TTL)
+    return tvdb_id
 
 
 def get_show_detail(

@@ -29,6 +29,10 @@ class Movie(ProviderBackedModel):
     cast = models.JSONField(default=list, blank=True)
     director = models.CharField(max_length=255, blank=True)
     trailer_url = models.CharField(max_length=255, null=True, blank=True)
+    # From TMDB keywords, which are community-tagged: False means "not tagged".
+    mid_credits = models.BooleanField(default=False)
+    post_credits = models.BooleanField(default=False)
+    tmdb_collection_id = models.CharField(max_length=32, null=True, blank=True)
     release_date = models.DateField(null=True, blank=True)
     runtime = models.PositiveIntegerField(null=True, blank=True)
     status = models.CharField(max_length=64, blank=True)

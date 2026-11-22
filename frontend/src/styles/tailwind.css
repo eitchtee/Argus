@@ -945,6 +945,143 @@
         @apply inline-flex;
     }
 
+    /* Franchise card on movie pages: the collection as a watch-order timeline.
+       The dot on the line carries each part's state (watched, this movie,
+       unwatched, unreleased); columns have no gap so the line stays unbroken. */
+    .credits-note {
+        @apply flex items-center gap-4;
+    }
+
+    .credits-note__icon {
+        @apply flex size-10 shrink-0 items-center justify-center rounded-box bg-base-200 text-primary;
+    }
+
+    .franchise-head {
+        @apply mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2;
+    }
+
+    .franchise-progress {
+        @apply flex flex-col items-end gap-1.5 text-xs text-base-content/60;
+    }
+
+    .franchise-progress__bar {
+        @apply flex gap-1;
+    }
+
+    .franchise-progress__segment {
+        @apply h-1 w-5 rounded-full bg-base-content/20;
+    }
+
+    .franchise-progress__segment.is-seen {
+        @apply bg-success;
+    }
+
+    /* pt-1: overflow-x also clips vertically, which cut the current dot's aura. */
+    .franchise-rail {
+        @apply -mx-2 flex overflow-x-auto pt-1 pb-3;
+        scroll-snap-type: x proximity;
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in oklab, var(--color-base-content) 35%, transparent) transparent;
+    }
+
+    .franchise-part {
+        @apply flex w-32 shrink-0 flex-col items-center px-2 text-center sm:w-36;
+        scroll-snap-align: start;
+    }
+
+    /* Bleeds over the column padding so neighbouring line segments meet. */
+    .franchise-part__node {
+        @apply relative -mx-2 flex h-8 w-[calc(100%+1rem)] items-center justify-center;
+    }
+
+    .franchise-part__node::before {
+        @apply absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-base-content/20;
+        content: "";
+    }
+
+    .franchise-part:first-child .franchise-part__node::before {
+        left: 50%;
+    }
+
+    .franchise-part:last-child .franchise-part__node::before {
+        right: 50%;
+    }
+
+    /* Empty: neither watched nor in the library. Filled dots carry an icon. */
+    .franchise-part__dot {
+        @apply relative z-[1] flex size-4 items-center justify-center rounded-full border-2 border-base-content/45 bg-base-100 text-sm;
+        --lucide-scale: 1;
+    }
+
+    .franchise-part__dot svg.lucide {
+        stroke-width: 2.25;
+        vertical-align: 0;
+    }
+
+    .franchise-part.is-seen .franchise-part__dot,
+    .franchise-part.is-tracked .franchise-part__dot {
+        @apply size-6;
+    }
+
+    .franchise-part.is-seen .franchise-part__dot {
+        @apply border-success bg-success text-success-content;
+    }
+
+    .franchise-part.is-tracked .franchise-part__dot {
+        @apply border-info bg-info text-info-content;
+    }
+
+    .franchise-part.is-current .franchise-part__dot {
+        @apply ring-4 ring-primary/50;
+    }
+
+    .franchise-part.is-upcoming:not(.is-seen, .is-tracked) .franchise-part__dot {
+        @apply border-dashed;
+    }
+
+    .franchise-part__year {
+        @apply mt-1 text-xs font-medium text-base-content/55;
+    }
+
+    .franchise-part.is-current .franchise-part__year {
+        @apply text-primary;
+    }
+
+    .franchise-part__link {
+        @apply mt-2 block w-full rounded-lg;
+    }
+
+    .franchise-part__link:focus-visible {
+        @apply outline outline-2 outline-offset-2 outline-primary;
+    }
+
+    .franchise-part__poster {
+        @apply relative aspect-2/3 w-full overflow-hidden rounded-lg border border-base-300 bg-base-200;
+        transition: border-color 150ms ease-out;
+    }
+
+    .franchise-part__poster img {
+        @apply h-full w-full object-cover;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        a.franchise-part__link:hover .franchise-part__poster {
+            @apply border-primary/60;
+        }
+    }
+
+    .franchise-part.is-current .franchise-part__poster {
+        @apply outline outline-2 outline-offset-2 outline-primary;
+    }
+
+    .franchise-part.is-upcoming .franchise-part__poster img {
+        @apply opacity-50;
+    }
+
+    .franchise-part__title {
+        @apply mt-2 block w-full truncate text-xs font-semibold;
+    }
+
     .simkl-heading-link {
         @apply inline-flex items-center gap-2 text-inherit no-underline;
     }

@@ -1,0 +1,61 @@
+{% load i18n %}
+{% if credits %}
+{# Filtering and the provider switch are client-side: nothing reloads, nothing is saved. #}
+{# No hx-boost on the links: htmx reads a boosted href once, so it would miss provider changes. #}
+<section class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="person-{{ key }}-heading"
+         x-data="{ hidden: [], provider: '{{ provider }}', toggle(job) { this.hidden = this.hidden.includes(job) ? this.hidden.filter(j => j !== job) : [...this.hidden, job] }, shows(el) { return el.dataset.jobs.split('|').some(j => !this.hidden.includes(j)) } }">
+  <div class="section-heading mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h2 id="person-{{ key }}-heading" class="text-base font-semibold tracking-tight"><i data-lucide="{{ icon }}" class="me-2 text-primary" aria-hidden="true"></i>{{ label }}<span class="ms-2 rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium text-base-content/60">{{ credits|length }}</span></h2>
+    <div class="join" role="radiogroup" aria-label="{% trans 'Open titles from' %}">
+      <input type="radio" name="person-{{ key }}-provider" value="tmdb" x-model="provider" class="join-item btn btn-xs" aria-label="TMDB"{% if provider == "tmdb" %} checked{% endif %}>
+      <input type="radio" name="person-{{ key }}-provider" value="tvdb" x-model="provider" class="join-item btn btn-xs" aria-label="TVDB"{% if provider == "tvdb" %} checked{% endif %}>
+    </div>
+  </div>
+
+  {% if jobs|length > 1 %}
+  <div class="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="{% trans 'Show roles' %}">
+    {% for job, count in jobs %}
+    <button type="button" class="btn btn-xs rounded-full" aria-pressed="true"
+            :aria-pressed="(!hidden.includes('{{ job|escapejs }}')).toString()"
+            :class="hidden.includes('{{ job|escapejs }}') ? 'btn-ghost text-base-content/45 line-through' : 'btn-primary btn-soft'"
+            @click="toggle('{{ job|escapejs }}')">
+      {{ job }} <span class="tabular-nums opacity-60">{{ count }}</span>
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <ul class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+    {% for credit in credits %}
+    <li class="poster-card" data-jobs="{{ credit.jobs|join:'|' }}" x-show="shows($el)">
+      <a href="{{ credit.href }}?provider={{ provider }}" :href="'{{ credit.href }}?provider=' + provider" class="poster-card__link">
+        <figure class="poster-card__figure">
+          {% if credit.poster_url %}
+          <img src="{{ credit.poster_url }}" alt="" loading="lazy" class="poster-card__image">
+          {% else %}
+          <div class="poster-card__fallback flex h-full w-full items-center justify-center text-base-content/30" aria-hidden="true">
+            <i data-lucide="{{ icon }}" class="text-4xl"></i>
+          </div>
+          {% endif %}
+          <div class="poster-card__gradient" aria-hidden="true"></div>
+          {% if credit.state %}
+          <div class="poster-card__badges">
+            <span class="poster-card__badge {% if credit.state == 'watched' %}poster-card__badge--success{% else %}poster-card__badge--primary{% endif %}"
+                  data-tippy-content="{% if credit.state == 'watched' %}{% trans 'Watched' %}{% else %}{% trans 'In your library' %}{% endif %}">
+              <i data-lucide="{% if credit.state == 'watched' %}eye{% else %}bookmark{% endif %}" aria-hidden="true"></i>
+              <span class="sr-only">{% if credit.state == 'watched' %}{% trans 'Watched' %}{% else %}{% trans 'In your library' %}{% endif %}</span>
+            </span>
+          </div>
+          {% endif %}
+          <div class="poster-card__copy">
+            <h3 class="poster-card__title" title="{{ credit.title }}">{{ credit.title }}</h3>
+            <div class="poster-card__year tabular-nums">{{ credit.year|default:"TBA" }}</div>
+            {% if credit.roles %}<div class="poster-card__year truncate" title="{{ credit.roles }}">{{ credit.roles }}</div>{% endif %}
+          </div>
+        </figure>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

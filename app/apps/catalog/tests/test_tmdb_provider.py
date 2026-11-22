@@ -545,6 +545,56 @@ class TMDBProviderTests(SimpleTestCase):
         self.assertIsNone(detail.trailer_url)
 
 
+@override_settings(
+    TMDB_API_KEY="test-key",
+    TMDB_IMAGE_BASE_URL="https://image.tmdb.org/t/p/",
+)
+class TMDBMovieExtrasTests(SimpleTestCase):
+    def test_detail_reads_credits_keywords_and_collection_id(self):
+        payload = load_fixture("tmdb_movie_detail.json")
+        payload["keywords"] = {"keywords": [
+            {"id": 179430, "name": "aftercreditsstinger"},
+            {"id": 818, "name": "based on novel or book"},
+        ]}
+        payload["belongs_to_collection"] = {"id": 119, "name": "LOTR Collection"}
+        opener = FakeOpener(payload)
+
+        detail = TMDBProvider(opener=opener).fetch_detail("550", language="en-US")
+
+        self.assertFalse(detail.mid_credits)
+        self.assertTrue(detail.post_credits)
+        self.assertEqual(detail.collection_id, "119")
+        self.assertIn("keywords", opener.requests[0][0].full_url)
+
+    def test_detail_without_keywords_or_collection(self):
+        payload = load_fixture("tmdb_movie_detail.json")
+        payload.pop("keywords", None)
+        payload["belongs_to_collection"] = None
+
+        detail = TMDBProvider(opener=FakeOpener(payload)).fetch_detail("550", language="en-US")
+
+        self.assertFalse(detail.mid_credits or detail.post_credits)
+        self.assertIsNone(detail.collection_id)
+
+    def test_collection_orders_parts_by_release_with_unreleased_last(self):
+        opener = FakeOpener({
+            "name": "The Lord of the Rings Collection",
+            "parts": [
+                {"id": 122, "title": "The Return of the King", "release_date": "2003-12-01", "poster_path": "/c.jpg"},
+                {"id": 999, "title": "Untitled", "release_date": ""},
+                {"id": 120, "title": "The Fellowship of the Ring", "release_date": "2001-12-18", "poster_path": None},
+            ],
+        })
+
+        collection = TMDBProvider(opener=opener).fetch_collection("119", language="pt-BR")
+
+        self.assertEqual(collection.name, "The Lord of the Rings Collection")
+        self.assertEqual([p.tmdb_id for p in collection.parts], ["120", "122", "999"])
+        self.assertIsNone(collection.parts[0].poster_url)
+        self.assertEqual(collection.parts[1].poster_url, "https://image.tmdb.org/t/p/w342/c.jpg")
+        self.assertIn("/collection/119", opener.requests[0][0].full_url)
+
+
 class BuildBackdropUrlTests(SimpleTestCase):
     @override_settings(TMDB_IMAGE_BASE_URL="https://image.tmdb.org/t/p/")
     def test_builds_full_url_from_relative_path(self):

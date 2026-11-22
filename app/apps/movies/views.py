@@ -1,3 +1,5 @@
+import dataclasses
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import prefetch_related_objects
@@ -5,6 +7,7 @@ from django.contrib import messages
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
@@ -32,7 +35,7 @@ from apps.catalog.ratings import (
     format_score,
     get_user_score,
 )
-from apps.catalog.services import get_movie_detail
+from apps.catalog.services import get_movie_collection, get_movie_detail
 from apps.catalog.services import SUPPORTED_PROVIDERS
 from apps.catalog.tracking import find_tracking_match
 from apps.common.decorators.htmx import only_htmx
@@ -54,6 +57,7 @@ from apps.movies.services import (
     normalize_movie_status,
     remove_from_watchlist,
     switch_movie_provider,
+    tmdb_movie_extras,
     queue_track_movie,
     refresh_movie,
     unmark_seen,
@@ -89,6 +93,71 @@ def movie_detail_content(request, external_id):
     except ProviderError as exc:
         return render_detail_unavailable(request, provider, exc)
     return render(request, "movies/fragments/detail.html", context)
+
+
+@only_htmx
+@htmx_login_required
+@require_http_methods(["GET"])
+def movie_extras(request, tmdb_id):
+    """Credits scenes and franchise card, fetched after the page renders.
+
+    The credits flags come from the page (they are stored on the movie); only
+    the collection needs TMDB, so the card is rendered in one piece here and
+    never shows up half-empty.
+    """
+    context = {
+        "mid_credits": request.GET.get("mid") == "1",
+        "post_credits": request.GET.get("post") == "1",
+    }
+    collection_id = request.GET.get("collection")
+    if collection_id:
+        try:
+            collection = get_movie_collection(
+                collection_id,
+                language=metadata_language_for_user(request.user, "tmdb"),
+            )
+        except ProviderError:
+            collection = None
+        # A one-part "collection" is a franchise of nothing.
+        if collection is not None and len(collection.parts) >= 2:
+            context.update(_collection_context(request.user, tmdb_id, collection))
+    if not (context["mid_credits"] or context["post_credits"] or context.get("parts")):
+        # Swapping in nothing removes the placeholder: no empty card.
+        return HttpResponse("")
+    return render(request, "movies/fragments/extras.html", context)
+
+
+def _collection_context(user, tmdb_id, collection):
+    part_ids = [part.tmdb_id for part in collection.parts]
+    # A UserMovie row is what "tracked" means elsewhere (see catalog.tracking).
+    seen_by_id = dict(
+        UserMovie.objects.filter(
+            user=user,
+            movie__tmdb_id__in=part_ids,
+        ).values_list("movie__tmdb_id", "is_seen")
+    )
+    today = timezone.localdate().isoformat()
+    parts = [
+        {
+            "tmdb_id": part.tmdb_id,
+            "title": part.title,
+            "year": _year_from_iso_date(part.release_date),
+            "poster_url": part.poster_url,
+            "is_seen": seen_by_id.get(part.tmdb_id, False),
+            "is_tracked": part.tmdb_id in seen_by_id,
+            "is_current": part.tmdb_id == tmdb_id,
+            # ISO dates compare correctly as strings.
+            "is_released": bool(part.release_date) and part.release_date <= today,
+        }
+        for part in collection.parts
+    ]
+    released = [part for part in parts if part["is_released"]]
+    return {
+        "collection": collection,
+        "parts": parts,
+        "released": released,
+        "seen_count": sum(part["is_seen"] for part in released),
+    }
 
 
 @htmx_login_required
@@ -249,11 +318,18 @@ def movie_track(request, external_id):
             "rating_url": build_rating_url("movie", external_id, provider),
         }
 
-    return render(
+    return _render_detail_actions(request, movie_state)
+
+
+def _render_detail_actions(request, movie_state):
+    response = render(
         request,
         "movies/fragments/actions.html",
         {"movie": movie_state, "rating_oob": True},
     )
+    # The credits and franchise card reloads on this to update its dots.
+    response["HX-Trigger"] = "movie-state-changed"
+    return response
 
 
 @only_htmx
@@ -318,12 +394,7 @@ def movie_watched(request, external_id):
     if settings.DEMO and not request.user.is_superuser:
         return HttpResponseForbidden("Demo mode is read-only.")
 
-    movie_state = _toggle_movie_watched(request, external_id)
-    return render(
-        request,
-        "movies/fragments/actions.html",
-        {"movie": movie_state, "rating_oob": True},
-    )
+    return _render_detail_actions(request, _toggle_movie_watched(request, external_id))
 
 
 @only_htmx
@@ -410,20 +481,16 @@ def movie_delete(request, external_id):
     if movie is not None:
         delete_movie_data(request.user, movie)
 
-    return render(
+    return _render_detail_actions(
         request,
-        "movies/fragments/actions.html",
         {
-            "movie": {
-                "external_id": external_id,
-                "provider": provider,
-                "can_customize": movie is not None,
-                "on_watchlist": False,
-                "is_seen": False,
-                "user_rating": None,
-                "rating_url": build_rating_url("movie", external_id, provider),
-            },
-            "rating_oob": True,
+            "external_id": external_id,
+            "provider": provider,
+            "can_customize": movie is not None,
+            "on_watchlist": False,
+            "is_seen": False,
+            "user_rating": None,
+            "rating_url": build_rating_url("movie", external_id, provider),
         },
     )
 
@@ -472,6 +539,9 @@ def _build_movie_context(user, external_id, provider="tmdb"):
             "aggregate_score": movie.aggregate_score,
             "director": movie.director,
             "trailer_url": movie.trailer_url,
+            "mid_credits": movie.mid_credits,
+            "post_credits": movie.post_credits,
+            "tmdb_collection_id": movie.tmdb_collection_id,
             "imdb_id": movie.imdb_id,
             "cast": movie.cast,
             "genres": [resolve_field(genre, "name", language) for genre in movie.genres.all()],
@@ -542,9 +612,13 @@ def _movie_context_from_provider(user, external_id, provider, language):
         ),
         "director": detail.director,
         "trailer_url": detail.trailer_url,
+        **(
+            tmdb_movie_extras(detail, provider)
+            or {"mid_credits": False, "post_credits": False, "tmdb_collection_id": None}
+        ),
         "imdb_id": detail.imdb_id,
         "cast": [
-            {"name": member.name, "character": member.character, "photo_url": member.photo_url}
+            dataclasses.asdict(member)
             for member in detail.cast
         ],
         "genres": [

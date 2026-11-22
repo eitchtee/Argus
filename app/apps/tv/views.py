@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import replace
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -1127,7 +1128,7 @@ def _preview_show_context(user, external_id, language=None, provider="tvdb"):
         "next_air_date": next_air_date,
         "last_air_date": last_air_date,
         "cast": [
-            {"name": member.name, "character": member.character, "photo_url": member.photo_url}
+            dataclasses.asdict(member)
             for member in detail.cast
         ],
         "tracked": False,

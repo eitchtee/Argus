@@ -1,0 +1,66 @@
+{% load dates i18n title %}
+
+<title>{% filter site_title %}{{ person.name }}{% endfilter %}</title>
+
+<div class="media-detail space-y-6 sm:space-y-8">
+  <section class="media-hero" aria-labelledby="person-name">
+    <div class="media-hero__body">
+      <div class="media-poster-stack">
+        <figure class="media-poster h-fit self-start">
+          {% if person.photo_url %}
+          <img src="{{ person.photo_url }}" alt="{{ person.name }}" class="aspect-2/3 w-full object-cover" loading="eager">
+          {% else %}
+          <div class="flex aspect-2/3 items-center justify-center bg-base-200 text-base-content/30">
+            <i data-lucide="user" class="text-4xl" aria-hidden="true"></i>
+          </div>
+          {% endif %}
+        </figure>
+      </div>
+
+      <div class="min-w-0 space-y-6">
+        <div class="space-y-2.5">
+          <h1 id="person-name" class="text-balance text-3xl font-bold tracking-tight sm:text-5xl">{{ person.name }}</h1>
+          {% if person.known_for %}<p class="text-sm text-base-content/60 sm:text-base">{{ person.known_for }}</p>{% endif %}
+        </div>
+
+        <dl class="detail-meta">
+          {% if birthday %}
+          <div class="detail-meta__item" title="{% trans 'Born' %}">
+            <dt class="sr-only">{% trans "Born" %}</dt>
+            <dd><i data-lucide="cake" aria-hidden="true"></i>{% user_date birthday %}</dd>
+          </div>
+          {% endif %}
+          {% if deathday %}
+          <div class="detail-meta__item" title="{% trans 'Died' %}">
+            <dt class="sr-only">{% trans "Died" %}</dt>
+            <dd><i data-lucide="flower" aria-hidden="true"></i>{% user_date deathday %}</dd>
+          </div>
+          {% endif %}
+          {% if person.place_of_birth %}
+          <div class="detail-meta__item" title="{% trans 'Place of birth' %}">
+            <dt class="sr-only">{% trans "Place of birth" %}</dt>
+            <dd><i data-lucide="map-pin" aria-hidden="true"></i><span class="truncate">{{ person.place_of_birth }}</span></dd>
+          </div>
+          {% endif %}
+        </dl>
+
+        {% if person.biography %}<p class="max-w-3xl whitespace-pre-line text-pretty text-sm leading-6 text-base-content/85 sm:text-base sm:leading-7">{{ person.biography }}</p>{% endif %}
+
+        <div class="detail-links" aria-label="{% trans 'External links' %}">
+          <a href="https://www.themoviedb.org/person/{{ person.tmdb_id }}" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
+            <span>TMDB</span><i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
+          </a>
+          {% if person.imdb_id %}
+          <a href="https://www.imdb.com/name/{{ person.imdb_id }}/" target="_blank" rel="noopener noreferrer" class="detail-link detail-link--text">
+            <span>IMDb</span><i data-lucide="external-link" class="text-xs" aria-hidden="true"></i>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% trans "Movies" as movies_label %}{% trans "TV shows" as shows_label %}
+  {% include "catalog/fragments/person_credits.html" with credits=movies jobs=movie_jobs label=movies_label key="movies" icon="film" provider="tmdb" only %}
+  {% include "catalog/fragments/person_credits.html" with credits=shows jobs=show_jobs label=shows_label key="shows" icon="tv" provider="tvdb" only %}
+</div>

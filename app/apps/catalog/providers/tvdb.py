@@ -411,6 +411,7 @@ class TVDBProvider(BaseProvider):
                 name=character.get("personName") or "",
                 character=character.get("name") or "",
                 photo_url=character.get("personImgURL"),
+                tvdb_id=str(character["peopleId"]) if character.get("peopleId") else None,
             )
             for character in sorted_characters[:10]
         ]
@@ -597,6 +598,16 @@ class TVDBProvider(BaseProvider):
                 )
             )
         return seasons
+
+    def find_by_remote_id(self, remote_id: str, media_type: str) -> str | None:
+        """TVDB id for an IMDb id (or another provider's id TVDB tracks)."""
+        key = "movie" if media_type == "movie" else "series"
+        payload = self._get_json(f"/search/remoteid/{remote_id}")
+        for result in payload.get("data") or []:
+            record = result.get(key) or {}
+            if record.get("id"):
+                return str(record["id"])
+        return None
 
     def _fetch_series_extended(self, external_id: str) -> dict:
         if external_id not in self._series_extended_cache:

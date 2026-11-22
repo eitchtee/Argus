@@ -1,4 +1,4 @@
-{% load dates i18n title %}
+{% load people dates i18n title %}
 
 <title>{% filter site_title %}{{ movie.title }} :: {% trans "Movie" %}{% endfilter %}</title>
 
@@ -70,7 +70,7 @@
           {% if movie.director %}
           <div class="detail-meta__item" title="{% trans 'Directed by' %}">
             <dt class="sr-only">{% trans "Directed by" %}</dt>
-            <dd><i data-lucide="clapperboard" aria-hidden="true"></i><span class="truncate">{{ movie.director }}</span></dd>
+            <dd><i data-lucide="clapperboard" aria-hidden="true"></i><a href="{% person_url movie.director %}" hx-boost="true" hx-target="body" hx-swap="innerHTML" class="truncate hover:underline">{{ movie.director }}</a></dd>
           </div>
           {% endif %}
         </dl>
@@ -110,6 +110,11 @@
 
   <div id="movie-artwork-modal"></div>
 
+  {% if movie.tmdb_id %}{% if movie.mid_credits or movie.post_credits or movie.tmdb_collection_id %}
+  {# Holds the credits and franchise card; reloads when the movie's watched or tracked state changes. Empty (and hidden) when there's nothing to show. #}
+  <div id="movie-extras-slot" class="empty:hidden" hx-get="{% url 'movie-detail-extras' tmdb_id=movie.tmdb_id %}?mid={{ movie.mid_credits|yesno:'1,0' }}&amp;post={{ movie.post_credits|yesno:'1,0' }}{% if movie.tmdb_collection_id %}&amp;collection={{ movie.tmdb_collection_id }}{% endif %}" hx-trigger="load, movie-state-changed from:body" hx-target="this" hx-swap="innerHTML" hx-disinherit="hx-target hx-swap"></div>
+  {% endif %}{% endif %}
+
   {% if movie.cast %}
   <section class="surface-card rounded-box p-5 sm:p-6" aria-labelledby="movie-cast-heading">
     <div class="section-heading mb-4">
@@ -117,10 +122,11 @@
     </div>
     <div class="cast-rail">
       {% for member in movie.cast %}
-      <div class="cast-card">
+      {% person_url member.name member.tmdb_id member.tvdb_id as person_href %}
+      <a href="{{ person_href }}" hx-boost="true" hx-target="body" hx-swap="innerHTML" class="cast-card">
         <div class="cast-card__photo">
           {% if member.photo_url %}
-          <img src="{{ member.photo_url }}" alt="{{ member.name }}" loading="lazy">
+          <img src="{{ member.photo_url }}" alt="" loading="lazy">
           {% else %}
           <div class="flex items-center justify-center text-base-content/25">
             <i data-lucide="user" class="text-xl" aria-hidden="true"></i>
@@ -129,7 +135,7 @@
         </div>
         <span class="cast-card__name" title="{{ member.name }}">{{ member.name }}</span>
         <span class="cast-card__role" title="{{ member.character }}">{{ member.character }}</span>
-      </div>
+      </a>
       {% endfor %}
     </div>
   </section>

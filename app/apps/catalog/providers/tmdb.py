@@ -10,10 +10,14 @@ from apps.catalog.providers.base import (
     ArtworkDTO,
     BaseProvider,
     CastMemberDTO,
+    CollectionDTO,
+    CollectionPartDTO,
     DetailDTO,
     EpisodeDTO,
     GenreDTO,
     LanguageOptionDTO,
+    PersonCreditDTO,
+    PersonDTO,
     SearchResultDTO,
     SeasonDTO,
 )
@@ -158,9 +162,17 @@ class TMDBProvider(BaseProvider):
             f"/{media_type}/{external_id}",
             {
                 "language": language,
-                "append_to_response": "credits,external_ids,videos,translations",
+                "append_to_response": (
+                    "credits,external_ids,videos,translations"
+                    + (",keywords" if media_type == "movie" else "")
+                ),
             },
         )
+        keywords = {
+            keyword.get("name")
+            for keyword in (payload.get("keywords") or {}).get("keywords", [])
+        }
+        collection = payload.get("belongs_to_collection") or {}
         images_key = (media_type, str(external_id))
         if images_key not in self._images_cache:
             try:
@@ -253,7 +265,107 @@ class TMDBProvider(BaseProvider):
                 for genre in payload.get("genres", [])
             ],
             translations=translations,
+            mid_credits="duringcreditsstinger" in keywords,
+            post_credits="aftercreditsstinger" in keywords,
+            collection_id=str(collection["id"]) if collection.get("id") else None,
         )
+
+    def fetch_collection(self, collection_id: str, *, language: str) -> CollectionDTO:
+        payload = self._get_json(f"/collection/{collection_id}", {"language": language})
+        parts = [
+            CollectionPartDTO(
+                tmdb_id=str(part["id"]),
+                title=part.get("title") or "",
+                release_date=part.get("release_date") or None,
+                poster_url=self._poster_url(part.get("poster_path")),
+                backdrop_url=build_backdrop_url(part.get("backdrop_path")),
+            )
+            for part in payload.get("parts", [])
+            if part.get("id") is not None
+        ]
+        # Unreleased parts have no date yet; they come last.
+        parts.sort(key=lambda part: part.release_date or "9999")
+        return CollectionDTO(
+            name=payload.get("name") or "",
+            parts=parts,
+            backdrop_url=build_backdrop_url(payload.get("backdrop_path")),
+        )
+
+    def fetch_person(self, person_id: str, *, language: str) -> PersonDTO:
+        payload = self._get_json(
+            f"/person/{person_id}",
+            {
+                "language": language,
+                "append_to_response": "combined_credits,translations",
+            },
+        )
+        biography = payload.get("biography") or ""
+        if not biography:
+            # Like /search, a missing translation comes back empty, not English.
+            biography = next(
+                (
+                    (item.get("data") or {}).get("biography")
+                    for item in (payload.get("translations") or {}).get("translations", [])
+                    if item.get("iso_639_1") == "en" and (item.get("data") or {}).get("biography")
+                ),
+                "",
+            )
+        return PersonDTO(
+            tmdb_id=str(payload["id"]),
+            name=payload.get("name") or "",
+            biography=biography,
+            known_for=payload.get("known_for_department") or "",
+            birthday=payload.get("birthday") or None,
+            deathday=payload.get("deathday") or None,
+            place_of_birth=payload.get("place_of_birth") or "",
+            photo_url=build_profile_url(payload.get("profile_path")),
+            imdb_id=payload.get("imdb_id") or None,
+            credits=self._person_credits(payload.get("combined_credits") or {}),
+        )
+
+    def _person_credits(self, payload: dict) -> list[PersonCreditDTO]:
+        # One title can appear several times (acted and directed, or two jobs).
+        merged: dict[tuple[str, str], dict] = {}
+        for entry in [*payload.get("cast", []), *payload.get("crew", [])]:
+            media_type = entry.get("media_type")
+            if media_type not in {"movie", "tv"} or entry.get("id") is None:
+                continue
+            item = merged.setdefault(
+                (media_type, str(entry["id"])),
+                {
+                    "title": entry.get("title") or entry.get("name") or "",
+                    "release_date": entry.get("release_date") or entry.get("first_air_date") or None,
+                    "poster_url": self._poster_url(entry.get("poster_path")),
+                    "roles": [],
+                    "jobs": [],
+                },
+            )
+            role = entry.get("character") or entry.get("job")
+            if role and role not in item["roles"]:
+                item["roles"].append(role)
+            job = entry.get("job") or "Acting"
+            if job not in item["jobs"]:
+                item["jobs"].append(job)
+        credits = [
+            PersonCreditDTO(media_type=media_type, tmdb_id=tmdb_id, **item)
+            for (media_type, tmdb_id), item in merged.items()
+        ]
+        # Newest first; undated (announced) titles lead.
+        credits.sort(key=lambda credit: credit.release_date or "9999", reverse=True)
+        return credits
+
+    def find_person(self, *, tvdb_id: str | None = None, name: str | None = None) -> str | None:
+        if tvdb_id:
+            payload = self._get_json(f"/find/{tvdb_id}", {"external_source": "tvdb_id"})
+            results = payload.get("person_results") or []
+            if results and results[0].get("id"):
+                return str(results[0]["id"])
+        if name:
+            # Results come most popular first, which is the right guess for a credit.
+            results = self._get_json("/search/person", {"query": name}).get("results") or []
+            if results and results[0].get("id"):
+                return str(results[0]["id"])
+        return None
 
     def _artworks_from_payload(self, images_payload: dict, detail_payload: dict) -> list[ArtworkDTO]:
         artworks_by_key = {}
@@ -446,6 +558,7 @@ class TMDBProvider(BaseProvider):
                 name=member.get("name") or "",
                 character=member.get("character") or "",
                 photo_url=build_profile_url(member.get("profile_path")),
+                tmdb_id=str(member["id"]) if member.get("id") else None,
             )
             for member in sorted_cast[:10]
         ]

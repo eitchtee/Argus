@@ -1,4 +1,4 @@
-{% load dates i18n title %}
+{% load people dates i18n title %}
 {% trans "Mark show watched?" as watch_show_title %}
 {% trans "This marks all aired episodes of this show as watched. Continue?" as watch_show_message %}
 {% trans "Watch" as watch_label %}
@@ -134,10 +134,11 @@
     </div>
     <div class="cast-rail">
       {% for member in show.cast %}
-      <div class="cast-card">
+      {% person_url member.name member.tmdb_id member.tvdb_id as person_href %}
+      <a href="{{ person_href }}" hx-boost="true" hx-target="body" hx-swap="innerHTML" class="cast-card">
         <div class="cast-card__photo">
           {% if member.photo_url %}
-          <img src="{{ member.photo_url }}" alt="{{ member.name }}" loading="lazy">
+          <img src="{{ member.photo_url }}" alt="" loading="lazy">
           {% else %}
           <div class="flex items-center justify-center text-base-content/25">
             <i data-lucide="user" class="text-xl" aria-hidden="true"></i>
@@ -146,7 +147,7 @@
         </div>
         <span class="cast-card__name" title="{{ member.name }}">{{ member.name }}</span>
         <span class="cast-card__role" title="{{ member.character }}">{{ member.character }}</span>
-      </div>
+      </a>
       {% endfor %}
     </div>
   </section>

@@ -44,7 +44,7 @@ def movie_detail(**overrides):
         "director": "David Fincher",
         "trailer_url": "https://www.youtube.com/watch?v=SUXWAEX2jlg",
         "cast": [
-            CastMemberDTO(name="Edward Norton", character="The Narrator", photo_url="/norton.jpg"),
+            CastMemberDTO(name="Edward Norton", character="The Narrator", photo_url="/norton.jpg", tmdb_id="819"),
         ],
         "genres": [
             GenreDTO(provider="tmdb", external_id="18", name="Drama"),
@@ -229,13 +229,22 @@ class MovieImportTests(TestCase):
         self.assertEqual(movie.trailer_url, "https://www.youtube.com/watch?v=SUXWAEX2jlg")
         self.assertEqual(
             movie.cast,
-            [{"name": "Edward Norton", "character": "The Narrator", "photo_url": "/norton.jpg"}],
+            [{"name": "Edward Norton", "character": "The Narrator", "photo_url": "/norton.jpg", "tmdb_id": "819", "tvdb_id": None}],
         )
         self.assertEqual(
             list(movie.genres.order_by("external_id").values_list("name", flat=True)),
             ["Drama", "Thriller"],
         )
         self.assertEqual(Genre.objects.count(), 2)
+
+    def test_import_movie_stores_credits_scenes_and_collection(self):
+        provider = FakeProvider(movie_detail(post_credits=True, collection_id="10"))
+
+        movie = import_movie("tmdb", "550", provider_getter=lambda provider_name: provider)
+
+        self.assertFalse(movie.mid_credits)
+        self.assertTrue(movie.post_credits)
+        self.assertEqual(movie.tmdb_collection_id, "10")
 
     def test_import_movie_stores_normalized_status(self):
         provider = FakeProvider(movie_detail(status="In Production"))
@@ -301,6 +310,8 @@ class MovieImportTests(TestCase):
             movie_detail(
                 provider="tvdb",
                 external_id="42",
+                # Unique: the TMDB lookup is cached across tests.
+                tmdb_id="7000",
                 title="A Movie",
                 genres=[GenreDTO(provider="tvdb", external_id="1", name="Drama")],
             )
@@ -315,8 +326,30 @@ class MovieImportTests(TestCase):
 
         self.assertEqual(movie.provider, "tvdb")
         self.assertEqual(movie.external_id, "42")
-        self.assertEqual(provider.calls, [("42", "eng", "movie")])
+        # Second call: the credits/collection lookup through the TMDB id.
+        self.assertEqual(provider.calls, [("42", "eng", "movie"), ("7000", "en-US", "movie")])
         self.assertEqual(movie.genres.get().provider, "tvdb")
+
+    def test_tvdb_movie_borrows_credits_and_collection_from_tmdb(self):
+        tvdb = FakeProvider(movie_detail(provider="tvdb", external_id="42", tmdb_id="7001"))
+        tmdb = FakeProvider(movie_detail(mid_credits=True, collection_id="10"))
+        providers = {"tvdb": tvdb, "tmdb": tmdb}
+
+        movie = import_movie("tvdb", "42", language="eng", provider_getter=providers.__getitem__)
+
+        self.assertEqual(tmdb.calls, [("7001", "en-US", "movie")])
+        self.assertTrue(movie.mid_credits)
+        self.assertEqual(movie.tmdb_collection_id, "10")
+
+    def test_tvdb_movie_keeps_stored_credits_when_tmdb_fails(self):
+        Movie.objects.create(provider="tvdb", external_id="42", title="A Movie", post_credits=True)
+        tvdb = FakeProvider(movie_detail(provider="tvdb", external_id="42", tmdb_id="7002"))
+        tmdb = FakeProvider(error=ProviderError("down"))
+        providers = {"tvdb": tvdb, "tmdb": tmdb}
+
+        movie = import_movie("tvdb", "42", language="eng", provider_getter=providers.__getitem__)
+
+        self.assertTrue(movie.post_credits)
 
     def test_import_movie_refreshes_cross_provider_ids(self):
         provider = FakeProvider(movie_detail(tvdb_id="42"))

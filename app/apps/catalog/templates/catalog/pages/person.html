@@ -1,0 +1,17 @@
+{% extends "layouts/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Person" %}{% endblock %}
+
+{% block content %}
+<div id="person-content"
+     hx-get="{{ content_url }}"
+     hx-trigger="load"
+     hx-target="this"
+     hx-swap="innerHTML"
+     hx-disinherit="hx-target hx-swap">
+  <div class="flex items-center justify-center py-12" aria-live="polite">
+    <span class="loading loading-spinner loading-lg" aria-hidden="true"></span>
+  </div>
+</div>
+{% endblock %}

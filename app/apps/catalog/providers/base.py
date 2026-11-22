@@ -48,6 +48,35 @@ class CastMemberDTO:
     name: str
     character: str
     photo_url: str | None = None
+    # The person's id at whichever provider supplied the credit.
+    tmdb_id: str | None = None
+    tvdb_id: str | None = None
+
+
+@dataclass(frozen=True)
+class PersonCreditDTO:
+    media_type: str  # "movie" or "tv"
+    tmdb_id: str
+    title: str
+    roles: list[str] = field(default_factory=list)
+    # Filter keys: "Acting" for cast credits, the job (e.g. "Director") for crew.
+    jobs: list[str] = field(default_factory=list)
+    release_date: str | None = None
+    poster_url: str | None = None
+
+
+@dataclass(frozen=True)
+class PersonDTO:
+    tmdb_id: str
+    name: str
+    biography: str = ""
+    known_for: str = ""
+    birthday: str | None = None
+    deathday: str | None = None
+    place_of_birth: str = ""
+    photo_url: str | None = None
+    imdb_id: str | None = None
+    credits: list[PersonCreditDTO] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -94,6 +123,26 @@ class DetailDTO:
     airs_time: str | None = None
     airs_timezone: str | None = None
     translations: dict[str, dict[str, str]] = field(default_factory=dict)
+    # TMDB keywords are community-tagged: False means "not tagged", not "none".
+    mid_credits: bool = False
+    post_credits: bool = False
+    collection_id: str | None = None
+
+
+@dataclass(frozen=True)
+class CollectionPartDTO:
+    tmdb_id: str
+    title: str
+    release_date: str | None = None
+    poster_url: str | None = None
+    backdrop_url: str | None = None
+
+
+@dataclass(frozen=True)
+class CollectionDTO:
+    name: str
+    parts: list[CollectionPartDTO] = field(default_factory=list)
+    backdrop_url: str | None = None
 
 
 @dataclass(frozen=True)

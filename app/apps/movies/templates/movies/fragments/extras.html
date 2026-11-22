@@ -1,0 +1,61 @@
+{% load i18n %}
+<section id="movie-extras" class="surface-card rounded-box p-5 sm:p-6" aria-label="{% trans 'Credits scenes and franchise' %}">
+  {% if mid_credits or post_credits %}
+  <div class="credits-note" title="{% trans 'Tagged on TMDB' %}">
+    <span class="credits-note__icon" aria-hidden="true"><i data-lucide="scroll-text"></i></span>
+    <div>
+      <h2 class="text-base font-semibold tracking-tight">{% trans "Stay for the credits" %}</h2>
+      <p class="text-sm text-base-content/65">{% if mid_credits and post_credits %}{% trans "There's a scene during the credits and another one after them." %}{% elif mid_credits %}{% trans "There's a scene during the credits." %}{% else %}{% trans "There's a scene after the credits." %}{% endif %}</p>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if parts %}
+  <div class="franchise-head{% if mid_credits or post_credits %} mt-5 border-t border-base-300 pt-5{% endif %}">
+    <h2 class="text-base font-semibold tracking-tight">{{ collection.name|default:_("Collection") }}</h2>
+    {% if released %}
+    <div class="franchise-progress">
+      <span class="tabular-nums">{% if seen_count == released|length %}{% trans "All watched" %}{% else %}{% blocktrans with total=released|length %}{{ seen_count }} of {{ total }} watched{% endblocktrans %}{% endif %}</span>
+      <span class="franchise-progress__bar" aria-hidden="true">
+        {% for part in released %}<span class="franchise-progress__segment{% if part.is_seen %} is-seen{% endif %}"></span>{% endfor %}
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+  <ol class="franchise-rail" aria-label="{% trans 'In release order' %}">
+    {% for part in parts %}
+    <li class="franchise-part{% if part.is_seen %} is-seen{% elif part.is_tracked %} is-tracked{% endif %}{% if part.is_current %} is-current{% endif %}{% if not part.is_released %} is-upcoming{% endif %}"{% if part.is_current %} aria-current="page"{% endif %}>
+      <div class="franchise-part__node">
+        {% if part.is_seen or part.is_tracked %}
+        <span class="franchise-part__dot" data-tippy-content="{% if part.is_seen %}{% trans 'Watched' %}{% else %}{% trans 'In your library' %}{% endif %}">
+          <i data-lucide="{% if part.is_seen %}eye{% else %}bookmark{% endif %}" aria-hidden="true"></i>
+          <span class="sr-only">{% if part.is_seen %}{% trans 'Watched' %}{% else %}{% trans 'In your library' %}{% endif %}</span>
+        </span>
+        {% else %}
+        <span class="franchise-part__dot" aria-hidden="true"></span>
+        {% endif %}
+      </div>
+      <span class="franchise-part__year tabular-nums">{{ part.year|default:"TBA" }}</span>
+      {% if part.is_current %}<div class="franchise-part__link">{% else %}<a href="{% url 'movie-detail' external_id=part.tmdb_id %}" hx-boost="true" hx-target="body" hx-swap="innerHTML" class="franchise-part__link">{% endif %}
+        <figure class="franchise-part__poster">
+          {% if part.poster_url %}
+          <img src="{{ part.poster_url }}" alt="" loading="lazy">
+          {% else %}
+          <div class="flex h-full items-center justify-center text-3xl text-base-content/30"><i data-lucide="film" aria-hidden="true"></i></div>
+          {% endif %}
+          {% if part.is_released %}{% trans "Released" as status_label %}{% elif part.year %}{% blocktrans with year=part.year asvar status_label %}Coming {{ year }}{% endblocktrans %}{% else %}{% trans "Announced" as status_label %}{% endif %}
+          <div class="poster-card__badges">
+            <span class="poster-card__badge {% if part.is_released %}poster-card__badge--success{% else %}poster-card__badge--warning{% endif %}" data-tippy-content="{{ status_label }}">
+              <i data-lucide="{% if part.is_released %}circle-check{% else %}calendar-clock{% endif %}" aria-hidden="true"></i>
+              <span class="sr-only">{{ status_label }}</span>
+            </span>
+          </div>
+        </figure>
+        <span class="franchise-part__title" title="{{ part.title }}">{{ part.title }}</span>
+      {% if part.is_current %}</div>{% else %}</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+</section>
